@@ -26,7 +26,7 @@ def main():
     if mode == "start":
         if d.get("source") in ("compact", "clear"):
             sg.reset(session)
-        print("STS2 harness rule: before ANY game action, invoke the skills `sts2`, then `sts2-harness` and `sts2-strategy` (Skill tool) and read them; the hooks refuse "
+        print("STS2 harness rule: before ANY game action, invoke the skills `sts2`, then `sts2-harness` and `sts2-plan` (Skill tool) and read them; the hooks refuse "
               "harness action commands until they are loaded in this session" + (" (the record was reset: load them again)" if d.get("source") in ("compact", "clear") else "") +
               ". Screen skills (`sts2-pathing`, `sts2-deckbuilding`, the character and act skills) are demanded by the harness when a screen needs them.")
         return 0

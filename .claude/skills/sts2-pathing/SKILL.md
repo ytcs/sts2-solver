@@ -1,28 +1,23 @@
 ---
 name: sts2-pathing
-description: Use at every Neow / ancient choice and before every map click: floors as a scarce resource, route enumeration, scoring with route and eval, option-by-route table, the gate that binds, drawing the route, re-planning each node.
+description: Use on every map fork, Neow / ancient choice and rest decision: the route procedure and rules R# (elites, rests, shops, forced lanes, Neow), with the tools that price them.
 ---
 
-# Pathing and ancient / Neow (all characters and acts)
-Neow/ancient option and path are one decision. Binding limits: HP, gold, deck slots, potion slots: find the binding one, spend the others.
+# Pathing, rests, Neow / ancients (all characters and acts)
+Neow / ancient option and path are one decision. Binding limits: HP, gold, deck slots, potion slots: find the binding one, spend the others.
 
-## Procedure (every act, at the ancient)
-1. `m`; keep 3-5 paths that differ in kind (safe, elite-heavy, shop-first, rest-late).
-2. `routes` (and `routes --hp <HP>` per option's HP) prices fights + rests; `price` prices the Neow/ancient options; rewards, gold, unknowns by hand.
-3. Option-by-route table: ranking never flips -> best option then route; flips -> choose the pair. Combat options via `eval`.
-4. `draw` the route before the first click; re-plan each node (bag: `sts2-acts`).
-5. Before every click: gold vs shop, HP vs elite (`!` below 60%), next rest. `routes` at every fork.
+## Procedure
+1. `m`; keep 3-5 paths that differ in kind (elite-heavy, safe, shop-first, rest-late). Later acts' maps are unknown until shown.
+2. `routes` at every fork (guards refuse a fork without it); `restcalc` at rests; combat options of Neow via `eval`.
+3. `draw` the route; re-plan each node.
+4. `a <i> -- rules: R1,P5 ; numbers: <routes P(boss) per option> ; judgment: ...`.
 
-## The gate that binds `[sim]`
-Work back from the shown boss(es): `eval --boss --hp 34/45/60/80`. Steep = HP-gated (rests, avoid late elites); flat and low = damage-gated (elites, damage picks). A10 final act: two bosses.
-
-## Rules `[hyp]` (test: `routes` + `eval --boss --hp <arrival>`; outcome in `review`)
-- Prefer lanes that keep a fork in the next 2-3 nodes; commit late.
-- Rest before a boss or elite chain when HP binds; else smith.
-- Shop only when gold buys something priced worth it.
-- Forced lane: price its closing elite at arrival HP after the chain and HP events; < ~60% win -> other lane.
-- Neow/ancient: the option moving boss-pool win or route budget most; a curse = one slot.
-
-## Risk budget `[hyp]` (same test)
-- Elite = relic + ~3x rare odds `[code]` (`docs/research/game_code.md` C2): take extra elites while `routes` shows boss win >= ~0.9.
-- Never two elites without a rest between (second arrival < ~50% = missing rest); read q10 arrival HP.
+## Rules
+- R1 [hyp] Take an elite while `routes` keeps this act's boss win >= 0.9 after it; the elite pays through relic and rare odds (P5). Test: outcome: elites taken vs act clear, ledger.
+- R2 [sim] Avoid lanes that force an elite the deck cannot win: forced elites drove the simulator's act-2 deaths (E93, E94). Test: instrument: `routes` elite arrival HP and P(win) on the forced elite.
+- R3 [sim] Rest when HP binds the next binding fight; else smith (HP saved early is mostly refunded by later heals, E85). Test: instrument: `restcalc` boss win now vs after rest.
+- R4 [hyp] Never two elites without a rest between (the second arrival below ~50% HP means a missing rest). Test: instrument: `routes` q10 arrival HP.
+- R5 [hyp] Shop only when the gold buys something priced worth it (D5); else a fight or an event. Test: outcome: shop visits with no purchase, ledger.
+- R6 [hyp] Prefer lanes that keep a fork in the next 2-3 nodes; commit late. Test: outcome.
+- R7 [hyp] Neow / ancient: the option that moves the final pair or the route budget most; a curse costs a slot. Test: instrument: `eval` of the option's effect.
+- R8 [hyp] Steep boss curve (`eval --boss --hp 34/45/60/80`) = HP-gated: rests, avoid late elites; flat and low = damage-gated: elites and damage picks. Test: instrument: the curve itself.

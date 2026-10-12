@@ -3,7 +3,13 @@ import re
 from agent import macro
 from agent import screen as scr
 
-PICK_RECORD = {"numbers:": "<`price`: best option and its margin over skip>", "judgment:": "<plan fit, future problems, synergies: why this choice>"}
+PICK_RECORD = {"rules:": "<rule IDs (sts2 decision loop) or new: <claim>>", "numbers:": "<`price` / `eval`: best option and its margin>",
+               "judgment:": "<plan fit: what this changes in the run plan>"}
+RULE_ID = re.compile(r"rules:\s*(new:|[A-Z][A-Z0-9]*-?\d+)")
+
+
+def _cited(why):
+    return [] if "rules:" not in (why or "").lower() or RULE_ID.search(why or "") else ["a rule ID or new: after rules:"]
 
 
 def _option(step):
@@ -38,19 +44,19 @@ def decision_guard(state, step, why, priced, reward_screen):
         return pick_guard(state, step, why, reward_screen)
     if (kind == "MAP" and n_opts >= 2) or (kind == "EVENT" and here and here.endswith(" F1") and n_opts >= 2):
         if not ran("routes"):
-            return f"REFUSED: run `routes` on this floor before a {'fork' if kind == 'MAP' else 'Neow / ancient'} choice (sts2-pathing procedure, sts2-harness: routes at every fork).\n" + state
+            return f"REFUSED: run `routes` on this floor before a {'fork' if kind == 'MAP' else 'Neow / ancient'} choice (sts2-pathing procedure).\n" + state
         return None
     hp = scr.hp(state)
     near_full = bool(hp) and hp[0] >= 0.95 * hp[1]
     if kind == "RESTSITE" and not re.search(r"(?i)proceed", line) and not near_full and not ran("restcalc") and not (ran("routes") and ran("eval")):
-        return ("REFUSED: rest or smith is priced over the rest of the act (sts2-deckbuilding section 6): `restcalc` (boss win at the HP now vs after the rest), "
+        return ("REFUSED: rest or smith is priced at the next binding fight (R3, P4): `restcalc` (boss win at the HP now vs after the rest), "
                 "or `routes --hp <after>` + `routes` + `eval --smooth --boss --next` upgrade variants, on this floor.\n" + state)
     if (kind == "SHOP" and not re.search(r"(?i)leave", line)) or (kind == "RESTSITE" and not re.search(r"(?i)proceed", line)):
         if not (kind == "RESTSITE" and near_full) and not ran("eval", "routes", "price", "restcalc"):
-            return f"REFUSED: price this {kind.lower()} decision first (`price`, `eval` variants, `routes`; sts2-deckbuilding section 1 / 6), on this floor.\n" + state
-        miss = [k for k in ("numbers:", "judgment:") if k not in lw]
+            return f"REFUSED: price this {kind.lower()} decision first (`price`, `eval` variants, `routes`; sts2-deckbuilding protocol), on this floor.\n" + state
+        miss = [k for k in ("rules:", "numbers:", "judgment:") if k not in lw] + _cited(why)
         if miss:
-            return f"REFUSED: the `-- why` records the decision: numbers: <what the calculators said> ; judgment: <what decided it>. Missing: {', '.join(miss)}.\n"
+            return f"REFUSED: the `-- why` records the decision: rules: <IDs or new: claim> ; numbers: <what the calculators said> ; judgment: <what decided it>. Missing: {', '.join(miss)}.\n"
     return None
 
 
@@ -66,10 +72,10 @@ def pick_guard(state, step, why, reward_screen):
     if not key[1]:
         return None
     if reward_screen != key:
-        return "REFUSED: run `price` on this card reward first (sts2-deckbuilding section 1, step 2), then pick with `numbers:` and `judgment:` in the `-- why`.\n" + state
-    missing = [k for k in PICK_RECORD if k not in (why or "").lower()]
+        return "REFUSED: run `price` on this card reward first (sts2-deckbuilding protocol), then pick with `rules:`, `numbers:` and `judgment:` in the `-- why`.\n" + state
+    missing = [k for k in PICK_RECORD if k not in (why or "").lower()] + _cited(why)
     if missing:
-        return ("REFUSED: the `-- why` of a card pick records each input of the decision (sts2-deckbuilding section 1): "
+        return ("REFUSED: the `-- why` of a card pick records each input of the decision (sts2 decision loop): "
                 + "; ".join(f"{k} {PICK_RECORD[k]}" for k in PICK_RECORD) + f". Missing: {', '.join(missing)}.\n")
     chosen = next((o[1] for o in macro.parse_card_options(state)[0] if str(o[0]) == _option(step)), None)
     if chosen and chosen.lower().rstrip("+") not in (why or "").lower():

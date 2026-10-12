@@ -6,7 +6,7 @@ import time
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 STATE = os.path.join(ROOT, "target", "skill_state")
 SKILLS = os.path.join(ROOT, ".claude", "skills")
-CORE = ("sts2", "sts2-harness", "sts2-strategy")
+CORE = ("sts2", "sts2-harness", "sts2-plan")
 READ_ONLY = {"price", "s", "peek", "status", "brief", "m", "d", "p", "eval", "routes", "restcalc", "potions", "adv", "relics", "note", "budget", "quit", "mods", "snap", "fight", "deck.json", "newrun", "f", "t", ""}
 BRIDGE_READ_ONLY = {"s", "peek", "d", "p", "m", "fight", "snap", "deck.json", "mods", "f", "t"}
 DECK_SCREENS = {"CARD_REWARD", "REWARDS", "CHOOSE_CARD", "CHOOSE_RELIC", "CHOOSE_BUNDLE", "SHOP", "RESTSITE", "TREASURE"}
@@ -113,6 +113,8 @@ def screen_skills(state_text):
         char = m.group(3).lower()
         need += [f"sts2-{char}", f"sts2-{char}-act{m.group(1)}"]
     in_combat = bool(COMBAT_LINE.search(state_text or ""))
+    if in_combat:
+        need.append("sts2-acts")
     if first == "MAP":
         need.append("sts2-pathing")
     elif first == "EVENT":
@@ -134,6 +136,6 @@ def gate_message(session, state_text=None):
     if miss:
         core = [s for s in miss if s in CORE]
         return ("skills not loaded in this session: " + ", ".join(miss) + ". Invoke "
-                + ("the governing skills first (`sts2`, then `sts2-harness`, `sts2-strategy`)" if core else "them with the Skill tool")
+                + ("the governing skills first (`sts2`, then `sts2-harness`, `sts2-plan`)" if core else "them with the Skill tool")
                 + " and read them, then repeat the command. No game action happens before that.")
     return None

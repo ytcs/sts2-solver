@@ -46,4 +46,4 @@ Dashboard: `python tools/dashboard/extract_assets.py` (once per game update), th
 | `tests/` | harness and dashboard tests (`python tests/agent/run.py`) |
 | `docs/` | `plan.md`, `simulator.md`, `solver.md`, `game-bugs.md`, `research/` (`evidence.md`, `game_code.md`) |
 | `data/`, `models/` | catalogs, pools, bench/train sets, expert records; networks |
-| `runs/`, `evals/` | run records; gaps, judgments |
+| `runs/`, `evals/` | run records; gaps, rule ledger (`evals/rules/`) |

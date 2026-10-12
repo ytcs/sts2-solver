@@ -17,11 +17,10 @@ description: Use before the first action of a run and whenever unsure how to dri
 8. Solver: `adv [secs]`; `turn`/`combat [secs]` in AUTO fights (`!` overrides MANUAL); `budget <s>|auto`. Search = 2 player turns then value net; exact turn search when values are blind. `SIMULATOR DESYNC`/`DIFFERS`: play by hand, `status`.
 9. `note <text>`, `newrun` (force new-run detection). A changed relic bar is logged (`relics` event).
 
-## Potions (`agent/proposal.py`)
-1. Search throws potions at a reserve cost (`agent/engine.py` POT_COST 0.06 ~ 10 HP; half under win-only worth; 0 at the final boss) behind a 2-se margin gate; set-aside potions are withheld until a boss. `[sim]` E61, E69.
-2. Before the final pair: `potion aside` them before boss 1 unless boss 1 is in doubt. `[sim]` E67 (Test Subject at 25 HP 0.24 -> 0.45 with two kept).
-3. `potion use <name>` or `a <i>` commits one; `turn`/`combat` decline; next turn re-prices. `potion aside <name>[, name]|none` (survives restart); bare `potion` lists them; `potions` prints now / keep / save.
-4. keep/save is priced within this fight: weigh the boss yourself. `[hyp]` test: potion regression states (`docs/plan.md`).
+## Potions (`agent/proposal.py`, `agent/engine.py`)
+- The search throws potions at a reserve cost (POT_COST 0.06 ~ 10 HP each, half under win-only worth, E61) behind a 2-se margin gate; set-aside potions are withheld until a boss.
+- Final pair: boss 1 is valued by P(win boss 2 | HP, potions left), so each kept potion is priced by its boss-2 gain; no reserve cost at boss 2 (E89, E90).
+- `potion aside <name>[, name]|none` keeps for a boss (survives restart); bare `potion` lists them; `potions` prints the now / keep / save table. Commit one at a time: `potion use <name>` or `a <i>`; the next turn re-prices.
 
 ## Fight objective (`SEARCH OBJECTIVE`)
 Act boss before an ancient heal and the final boss: P(win) only, 1% end-HP tiebreak. Others: win +1 + 0.5 x HP fraction, loss -1.
@@ -30,10 +29,7 @@ Act boss before an ancient heal and the final boss: P(win) only, 1% end-HP tiebr
 `eN now:` = shown intent's move with exact effects (`[me: ...]`, `[self: ...]`); `eN plan: +1 .. +3` = next 3 turns, odds marginal per turn, damage at today's modifiers.
 
 ## Decision guards (`agent/guards.py`)
-1. Card reward: `price` on this screen; why holds `numbers:` and `judgment:` and names the chosen card (`a ~Card`).
-2. Map fork / Neow: `routes` this floor.
-3. Shop / rest: `price`, `eval`, `routes` or `restcalc` this floor, why with `numbers:` and `judgment:`. Rest below 95% HP: `restcalc`, or `routes` + `eval`; at >= 95% no pricing call, the why fields still.
-4. Elite/boss below 60% HP: `a <i> !`.
+Macro `-- why` = `rules: <IDs or new: claim> ; numbers: <tool and margin> ; judgment: <what decided it>` (`sts2` decision loop). Card reward: `price` this screen first; the why names the chosen card (`a ~Card`). Map fork / Neow: `routes` this floor. Shop: a pricing call this floor. Rest: `restcalc`, or `routes --hp <after>` + `routes` + upgrade `eval`; at >= 95% HP no pricing call (smith). Elite/boss below 60% HP: `a <i> !`. New run: refused until the previous run is reviewed (`sts2-improve`).
 
 ## Batch, quirks
 1. `python -m agent - <<'EOF'` one command per line; stops at `ERR`/`REFUSED` unless `- --keep-going`. A stopped reply repeats the reason last (`^ stopped: ...`).
@@ -45,9 +41,5 @@ Act boss before an ancient heal and the final boss: P(win) only, 1% end-HP tiebr
 ## Speed `[hyp]` (test: durations in `review`)
 Run ~30 min, fight 1-2 min; `combat` for easy fights; short whys.
 
-## Review loop (after each run)
-1. `python -m agent.improve review` -> `runs/<run>/review.md`.
-2. Fidelity first: `python -m agent.fidelity_sweep --mode recorded`; sim fixes pass `bash tools/gate.sh`.
-3. Costly fights (lost, or >= 30% max HP): `python -m agent.hindsight <file> --log`; patterns -> `sts2-acts/encounters.md`.
-4. Each `judgment:` -> edit the `sts2-deckbuilding` rule it used; `evals/judgments.jsonl`; `improve lessons` = backlog.
-5. Model change only on a 2-3 run pattern: `improve corpus`, then a combat-loop round through the promotion gate (`docs/plan.md`).
+## Review loop
+After each run: `sts2-improve`. Fidelity first (`python -m agent.fidelity_sweep --mode recorded`; sim fixes pass `bash tools/gate.sh`); costly fights `python -m agent.hindsight <file> --log`; model change only on a 2-3 run pattern (`improve corpus`, promotion gate in `docs/plan.md`).

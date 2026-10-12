@@ -1,44 +1,30 @@
 ---
 name: sts2-deckbuilding
-description: Use at every card reward, shop, rest site, relic, upgrade, removal or transform: the pick protocol (smooth greedy numbers first, then the judgment pass for what the numbers cannot see), the five-bucket audit, what each fight asks, plan and switch, macro choices, the decision record.
+description: Use on every card reward, rewards, shop, rest / smith, upgrade, removal, transform or relic choice: the protocol, the draft rules D#, the five buckets and what the numbers cannot see. Plan first (sts2-plan); evidence.md only to question a rule.
 ---
 
-# Deck building: numbers are one input; judgment weighs what they cannot see
-Smooth greedy (best smooth score; skip only if every option is worse) beat "best win now, skip on no gain" 0.70 vs 0.31, 0.18 vs 0.00 `[sim]` (`evidence.md`). Numbers are greedy, additive, combat-only: weigh sections 2-6.
+# Deck building (draft, removal, upgrades, shops)
+Numbers are one input; the plan (`sts2-plan`) and these rules weigh what they cannot see.
 
-## 1. Protocol (reward, shop, relic, upgrade, removal, transform)
-1. `brief`: buckets, gaps, bottleneck (cards left at end of turn: no energy -> energy/cost cuts; with energy -> removal or a draw/retain piece; `[hyp]` test: flagged bottleneck vs later deaths). Name the weakest upcoming fight (won >= 0.95 does not decide), what it asks (`sts2-acts/encounters.md`), the plan cards.
-2. Numbers: `price` (card rewards, shops incl. removal, events); `eval --smooth --boss|--elites|--next --v ...` for the rest. Read per-factor P(win), the weakest factor, margin over skip.
-3. Judgment: section-3 bar, section 2.
-4. `a ~Card -- numbers: <price best, its margin over skip>; judgment: <plan fit, future problems, synergies>` (harness refuses without `price` on this screen, a field, or the card's name).
-- < 2 se = tie: break by bucket gap + plan; re-price after every pick. Smooth saturated (x1.5 >= 0.9): `eval --boss --hp <arrival> --attempts 192+` `[sim]`.
-- Multi-pick screens: price bundles + leave-one-out at real HP. `[hyp]` test: bundle vs skip-all.
+## Protocol (every deck screen)
+1. `brief`: buckets, gaps, bottleneck line (cards left at end of turn: no energy -> energy / cost cuts; with energy -> removal or a combo piece). Name the weakest upcoming binding fight and the final pair's ask.
+2. Numbers: `price` on card rewards / shops / events; `eval --boss --v ...` for the act boss; the final pair (or the act-3 boss pool) for act-2/3 picks (P2).
+3. `a ~Card -- rules: D1,P2 ; numbers: <best, chosen margin> ; judgment: <plan fit>` (guards refuse a pick without these fields).
 
-## 2. Blind spots of the numbers
-1. Enablers (Barricade, Demon Form, Feel No Pain, Dark Embrace, Corruption): only with large bundle gain, >= 2 payoffs likely, survivable interim. `[hyp]` test: enabler/bundle/payoff variants.
-2. Offers are the bottleneck (best 20-card deck 0.62 vs online 0.25): buy access (elites, shop gold, ancients, card events, boss potions) over a +4 pick. `[sim]`
-3. Rares/relics: find the 2-3 target-deck cards. `[hyp]` test: boss-alone `eval`.
-4. "Worse now" only if the boss-gate HP is still reached. `[hyp]` test: `routes`, `eval --boss --hp <arrival>`.
-5. Prefer picks surviving a bad draw. `[hyp]` test: `eval --seed N` spread.
-6. Engines the network may undervalue (exhaust, Strength stacking): more attempts, `adv 20`. Energy itself is no gap `[sim]`.
-7. Density `[sim]` (28-card act-2 deck vs Kaiser Crab): remove 8 starters +0.20, 5 fillers +0.05; the weakest specific cards matter more than size (`evidence.md`). (a) past ~20 cards skip ties; (b) price removals at every shop/event; (c) removals before marginal cards. `[hyp]` test: 22- vs 28-card runs.
-8. Economy (gold, max HP, slots, curses) is not in `eval`: price in HP/gold. `[code]`
-9. Enchants: `--v "x|enchant=ID:ENCH"`. Elites at arrival HP (`eval --elites --hp <q50>`; full HP saturates ~0.97). HP-cliff bosses: re-price with `--seed 1`. `[sim]` Rules buckets hide (Slippery, Artifact, Thorns, Hard to Kill): boss-alone `eval`. `[code]`
-10. Boss > ~85% or after act 1: later horizons decide (`price` future boss rungs, `eval --future`). `[hyp]` test: next-act boss `eval` after the pick.
+## Rules
+- D1 [sim] From act 2, skip by default; take a card only when it is on-plan (engine / payoff) or a binding fight within reach needs it (arm C: act-2 boss deck +0.19, act-2 reach +0.20; E84). Test: instrument: the pick's `eval` gain vs the final pair > 2 se.
+- D2 [sim] In act 1 take what the act-1 elites and boss need (front damage pays there, E85); prefer cards that still scale. Test: instrument: `eval --boss` gain at the act-1 boss.
+- D3 [sim] Before an act-3 pick, price it against the known pair with and without (`eval --boss --v`); the card must raise pair strength (E86: act-1-deck proxies get the sign wrong). Test: instrument.
+- D4 [sim][expert] Removal order: Strikes and Defends first, then act-1 damage picks (remove-down to 15 cards +0.14 to +0.76 at the pair, review section 4; Baalorlord removes Strikes before bad drafted cards). Test: instrument: `eval --boss --v "r|remove=ID"` vs the pair.
+- D5 [sim][expert] Shop: the relic that scores best vs the final pair before a card; removals once few off-plan cards remain (review section 4, Xu relics over cards 42 -> 47%). Test: instrument: `eval` with `relics_add` / `remove`.
+- D6 [sim] Upgrade the engine piece or what the next binding fight asks; never a basic (25% of past smiths went to basics, review section 8). Test: instrument: `eval --v "u|upgrade=ID"` at the next binding fight.
+- D7 [hyp] Enablers (Barricade, Demon Form, Feel No Pain, Dark Embrace, Corruption) only with >= 2 payoffs likely and a survivable interim. Test: instrument: bundle `eval` (enabler + payoff vs neither).
+- D8 [hyp] Potions beat a marginal card in the same shop when a hard boss is next. Test: instrument: potion as an `eval` variant.
+- D9 [hyp] Past ~20 cards, skip ties and prefer removal (28-card act-2 deck: removing 8 starters +0.20; E74-era). Test: instrument: `eval` of the removal vs the pick.
+- D10 [code] Multi-pick screens (Orrery, bundles): opening and skipping loses nothing until Proceed; price bundles and leave-one-out at real HP.
 
-## 3. The five buckets
-- FD front damage, SD scaling damage, FB front block, SB scaling block, ACC acceleration.
-- Section-3 bar: a bucket is solved when fights ahead ask no more of it. A card only into solved buckets needs boss smooth > max(3 se, 0.05) or +0.10 on the weakest fight; tie -> skip. `[hyp]` test: solved-bucket picks vs later density + next-act boss `eval`.
+## The five buckets
+FD front damage, SD scaling damage, FB front block, SB scaling block, ACC acceleration. A bucket is solved when no fight ahead asks more of it; a card only into solved buckets needs a clear gain on the pair or the weakest fight (D1). Buckets per card: `data/card_buckets_ironclad.json`.
 
-## 4. What each fight asks; target deck
-Order: act boss, elites in the bag, hallways (`encounters.md`). Horizons: current boss + elites, next act, final act (two bosses).
-
-## 5. Plan and switch `[hyp]`
-State the plan before each boss/elite; switch after T1-2 if the draw killed it. Test: `review`.
-
-## 6. Macro choices
-- Smith by default. Rest only if the heal changes the act more than the upgrade changes the run: `restcalc`, or `routes --hp <after rest>` vs `routes` plus `eval --smooth --boss --next --v "up|upgrade=ID"`. Later rest before the boss: smith now. `[hyp]` test: `restcalc` vs boss arrival HP.
-- Potions beat cards in the same shop vs hard bosses `[sim]`. Act solved: keep gold and slots for later acts.
-
-## 7. Decision record
-`judgment:` names the deciding rules. After a run: held -> tighten test; failed -> narrow/delete; measured -> `[sim]`. One change per run.
+## What the numbers cannot see
+Economy (gold, max HP, slots, curses) is not in `eval`: price in HP / gold. Rules that buckets hide (Slippery, Artifact, Thorns, Hard to Kill): boss-alone `eval`. HP-cliff bosses: re-price with `--seed 1`. Enchants: `--v "x|enchant=ID:ENCH"`.

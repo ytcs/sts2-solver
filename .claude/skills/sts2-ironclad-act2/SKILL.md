@@ -1,11 +1,10 @@
 ---
 name: sts2-ironclad-act2
-description: Use when entering or planning Act 2 (Hive) as the Ironclad: hallway and elite HP cost, rest rule, The Insatiable deck, ancient and relic values. Deviations from the general strategy only.
+description: Use when entering or planning Act 2 (Hive) as the Ironclad: the skip default, hallway and elite HP cost, rest rule, The Insatiable and Kaiser Crab, ancient and relic values. Deviations only.
 ---
 
-# Ironclad Act 2 (deviations from `sts2-strategy`, `sts2-ironclad`)
-- Hive elites `[sim]`: 42-67% at 66 HP (mid deck), 99% at full HP. Rest before every elite: 84% at 43 HP vs 99% at 67.
-- The Insatiable ~30-50% for an act-1-end deck; potions decide it: `potion aside` them `[sim]`.
-- Tezcatara: Yummy Cookie +14 on elites; Biiig Hug loses to its Soot cards `[sim]`. Darv's Ectoplasm stops gold gain: spend first.
-- `[hyp]` hallways cost 20-40 HP, above prediction; test: `review` loss pct.
-- `[hyp]` Insatiable target deck 97% at 80 HP (Primal Force x2 + Demon Form, Bronze Scales, Kusarigama); test: `eval --boss --hp 80`.
+# Ironclad Act 2 (deviations from `sts2-plan`, `sts2-ironclad`)
+- A2-1 [sim] Front-damage commons are worth ~0 at act-2 binding fights and negative later (E85; upgraded offers -0.1 to +1.1): skip them (D1). Test: instrument: `eval --boss --v` vs the act-2 boss and the pair.
+- A2-2 [sim] Act-2 hallways cost ~8.6 HP on a win, more when started below half HP (E87 amendment, E94): rest before an elite when HP binds (R3). Test: instrument: `restcalc`.
+- A2-3 [hyp] The Insatiable: ~65 damage / turn for 5 turns; potions decide it (P6). Test: instrument: `eval --enc THE_INSATIABLE_BOSS`.
+- A2-4 [hyp] Tezcatara: Yummy Cookie helps elites; Biiig Hug loses to its Soot cards. Darv's Ectoplasm stops gold gain: spend first. Test: instrument: `eval --elites --v`.

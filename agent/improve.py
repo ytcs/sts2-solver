@@ -5,6 +5,7 @@ import glob
 import hashlib
 import json
 import os
+import re
 
 from agent import runlog
 from agent import screen as scr
@@ -106,9 +107,9 @@ def review(run_id=None):
     if costly:
         follow.append("hindsight review of each costly fight: `python -m agent.hindsight <file> --log` (luck or a solver gap?); a gap pattern goes to the corpus / fine-tune, an encounter pattern to `sts2-acts/encounters.md`")
     if overrides:
-        follow.append(f"{len(overrides)} recorded judgment(s): judge each against what happened (held / failed) and edit the rules in `sts2-deckbuilding` they relied on (tallied in evals/judgments.jsonl)")
+        follow.append(f"{len(overrides)} decision(s) off the instrument or citing new: apply the `sts2-improve` meta-rules (ledger: `python -m agent.improve rules`)")
     if unpriced:
-        follow.append(f"{unpriced} card pick(s) were not priced by `price` / `eval` first: the rule is numbers first, then judgment")
+        follow.append(f"{unpriced} card pick(s) without a logged instrument")
     if fid or div:
         follow.append("simulator fidelity first: reproduce the divergence (agent.fidelity_sweep) and fix the simulator before trusting any model comparison")
     if surprises:
@@ -135,45 +136,111 @@ def _run_outcome(ev):
     return [f"outcome: {e.get('screen')} | {e.get('header')} | last encounter {e.get('last_encounter')}"]
 
 
+RULE_ID = re.compile(r"\b(?:A[1-3]-\d+|IC\d+|[PDRFMI]\d+)\b")
+LEDGER = os.path.join(EVALS, "rules", "ledger.jsonl")
+LEDGER_KEY = ("run", "i")
+
+
+def _field(why, name):
+    m = re.search(rf"(?i){name}:\s*(.*?)(?:;\s*(?:rules|numbers|judgment):|$)", why or "")
+    return m.group(1).strip() if m else ""
+
+
+def _label(state, choice):
+    num = (choice or "").split()[0] if choice else ""
+    if num.startswith("~"):
+        return num[1:]
+    line = scr.option_line(state or "", num).partition(" ")[2] if num.isdigit() else ""
+    return line.split("(")[0].strip()
+
+
+def _score(inst, e):
+    """the instrument's best option vs the operator's choice: (instrument, best, chosen, agree, margin in the instrument's units)"""
+    kind, x = inst
+    state, choice = e.get("state", ""), e.get("choice")
+    if kind == "price" and x.get("result"):
+        res, by = x["result"], x.get("ranked_by")
+        chosen = _label(state, choice).lower()
+        hit = next((k for k in res if chosen and (k.lower().startswith(chosen) or chosen.startswith(k.lower()))), None)
+        if chosen.startswith("skip"):
+            hit = next((k for k in res if k.lower().startswith("skip")), hit)
+        best = x.get("best")
+        margin = res[best][by] - res[hit][by] if hit and best in res and by in res[best] else None
+        return "price", best, hit or chosen, hit is not None and hit.lower() == str(best).lower(), margin
+    if kind == "routes":
+        rows = {}
+        for l in x.get("text", "").split(NL):
+            m = re.match(r"^[A-Za-z?$]+(\d+)c(\d+)\s+([\d.]+)", l)
+            if m and (m.group(1), m.group(2)) not in rows:
+                rows[(m.group(1), m.group(2))] = float(m.group(3))
+        m = re.search(r"r(\d+)c(\d+)", scr.option_line(state, (choice or " ").split()[0]))
+        if not rows or not m or m.groups() not in rows:
+            return None
+        best = max(rows, key=rows.get)
+        return "routes", f"r{best[0]}c{best[1]}", f"r{m.group(1)}c{m.group(2)}", rows[best] - rows[m.groups()] < 1e-9, rows[best] - rows[m.groups()]
+    if kind == "rest":
+        r0, r1 = x["result"].get("0") or x["result"].get(0), x["result"].get("1") or x["result"].get(1)
+        gain, dse = r1["win"] - r0["win"], r1.get("dse") or r1.get("se") or 0
+        rest = gain > 2 * dse
+        chose_rest = "rest" in _label(state, choice).lower()
+        return "restcalc", "rest" if rest else "smith", "rest" if chose_rest else _label(state, choice), rest == chose_rest, 0.0 if rest == chose_rest else (gain if rest else -gain)
+    return None
+
+
 def _macro_decisions(ev, run):
-    lines, overrides = [], []
-    pending, priced, followed, unpriced, off = None, 0, 0, 0, []
+    """every macro decision with its cited rules, scored against the instrument logged on that screen; rows go to the rule ledger"""
+    outcome = next((f"{e.get('screen')} {e.get('header')}" for e in reversed(ev) if e["kind"] == "run_end"), "unfinished")
+    inst, rows = None, []
     for e in ev:
-        if e["kind"] == "price" and e.get("screen") == "CARD_REWARD":
-            pending = e
-        elif e["kind"] == "eval":
-            pending = pending or e
-        elif e["kind"] == "macro":
-            screen = (e.get("screen") or "").split(" ")[0]
+        k = e["kind"]
+        if k == "fight_start":
+            inst = None
+        elif k == "price":
+            inst = ("price", e)
+        elif k == "routes":
+            inst = ("routes", e)
+        elif k == "eval" and any(v.get("name") == "rest" for v in (e.get("spec") or {}).get("variants", [])):
+            inst = ("rest", e)
+        elif k == "macro":
             why = e.get("why") or ""
-            lw = why.lower()
-            if "judgment:" in lw or "override" in lw:
-                j = why[lw.index("judgment:"):] if "judgment:" in lw else why
-                overrides.append(dict(run=run, screen=screen, choice=e.get("choice"), judgment=j[:300], why=why[:300]))
-            if screen == "CARD_REWARD":
-                pick = (e.get("choice") or "").split()[0] if e.get("choice") else ""
-                if pending is None:
-                    unpriced += 1
-                elif pending["kind"] == "price" and pick.isdigit():
-                    line = scr.option_line(e.get("state", ""), pick).partition(" ")[2]
-                    name = "skip" if line.lower().startswith("skip") else line.split("(")[0].strip()
-                    priced += 1
-                    if name.lower() == str(pending.get("best")).lower():
-                        followed += 1
-                    else:
-                        off.append(f"  picked {name} over {pending.get('best')}, why: {why[:160]}")
-                pending = None
-    if priced or unpriced:
-        lines.append(f"card picks: {priced} priced by `price`, followed its decision in {followed}; {unpriced} not priced")
-    lines += off
-    for o in overrides:
-        lines.append(f"  judgment [{o['screen']}] choice {o['choice']}: {o['judgment'][:200]}")
-    _append_new(os.path.join(EVALS, "judgments.jsonl"), overrides, JUDGMENT_KEY)
-    return lines, overrides, unpriced
+            cited = _field(why, "rules")
+            sc = _score(inst, e) if inst else None
+            rows.append(dict(run=run, i=len(rows), screen=(e.get("screen") or "").split(" ")[0], header=e.get("screen"), choice=e.get("choice"),
+                             rules=RULE_ID.findall(cited), new=cited.partition("new:")[2].strip() or None, judgment=_field(why, "judgment")[:300],
+                             instrument=sc[0] if sc else None, best=sc[1] if sc else None, chosen=sc[2] if sc else None,
+                             agree=sc[3] if sc else None, margin=round(sc[4], 4) if sc and sc[4] is not None else None, outcome=outcome))
+            if (e.get("screen") or "").startswith("MAP"):
+                inst = None
+    scored = [r for r in rows if r["agree"] is not None]
+    lines = [f"macro decisions: {len(rows)}, citing a rule {sum(1 for r in rows if r['rules'])}, new: {sum(1 for r in rows if r['new'])}, "
+             f"scored {len(scored)}, agreeing with the instrument {sum(1 for r in scored if r['agree'])}"]
+    for r in scored:
+        if not r["agree"]:
+            lines.append(f"  [{r['screen']}] chose {r['chosen']} over {r['instrument']} best {r['best']} (margin {r['margin']}); rules {','.join(r['rules']) or '-'}; judgment: {r['judgment'][:160]}")
+    for r in rows:
+        if r["new"]:
+            lines.append(f"  new: [{r['screen']}] {r['new'][:200]}")
+    _append_new(LEDGER, [dict(run=run, i=-1, outcome=outcome, decisions=len(rows))] + rows, LEDGER_KEY)
+    return lines, [r for r in rows if r["new"] or r["agree"] is False], sum(1 for r in rows if r["screen"] == "CARD_REWARD" and r["instrument"] is None)
+
+
+def rules_table():
+    if not os.path.exists(LEDGER):
+        return "no ledger yet"
+    rows = [r for r in map(json.loads, filter(str.strip, open(LEDGER, encoding="utf-8"))) if r["i"] >= 0]
+    by = collections.defaultdict(list)
+    for r in rows:
+        for rid in r["rules"] or ["(none)"]:
+            by[rid].append(r)
+    out = [f"{len(rows)} decisions in {len({r['run'] for r in rows})} runs", f"{'rule':8s} {'cited':>5s} {'runs':>4s} {'scored':>6s} {'agree':>5s} {'mean margin off':>15s}"]
+    for rid, rs in sorted(by.items(), key=lambda x: -len(x[1])):
+        sc = [r for r in rs if r["agree"] is not None]
+        off = [r["margin"] for r in sc if not r["agree"] and r["margin"] is not None]
+        out.append(f"{rid:8s} {len(rs):5d} {len({r['run'] for r in rs}):4d} {len(sc):6d} {sum(1 for r in sc if r['agree']):5d} {(sum(off) / len(off)) if off else 0:15.3f}")
+    return NL.join(out)
 
 
 GAP_KEY = ("kind", "run", "fight", "what")
-JUDGMENT_KEY = ("run", "screen", "choice", "why")
 
 
 def _append_new(path, objs, key):
@@ -244,10 +311,10 @@ def corpus():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["review", "lessons", "gaps", "corpus"])
+    ap.add_argument("cmd", choices=["review", "rules", "lessons", "gaps", "corpus"])
     ap.add_argument("arg", nargs="?")
     a = ap.parse_args()
-    out = dict(review=lambda: review(a.arg), lessons=lessons, gaps=gaps, corpus=corpus)[a.cmd]()
+    out = dict(review=lambda: review(a.arg), rules=rules_table, lessons=lessons, gaps=gaps, corpus=corpus)[a.cmd]()
     print(out)
 
 

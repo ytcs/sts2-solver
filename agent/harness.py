@@ -90,9 +90,28 @@ class Harness(Live):
         self._rc = None
         return call(line)
 
+    def _starts_new_run(self, state):
+        return scr.kind(state) == "EVENT" and " A1 F1 " in f" {scr.header_line(state, '')} " and "\nNeow:" in state and self._log_has_fights()
+
     def _detect_new_run(self, state):
-        if scr.kind(state) == "EVENT" and " A1 F1 " in f" {scr.header_line(state, '')} " and "\nNeow:" in state and self._log_has_fights():
+        if self._starts_new_run(state):
             self._new_run()
+
+    def _unreviewed(self):
+        """the self-improvement loop: a new run starts only after the previous one is reviewed (sts2-improve)"""
+        if not self.gate or not self._log_has_fights():
+            return None
+        from agent import improve
+        rid = self.log.run_id
+        try:
+            with open(improve.LEDGER, encoding="utf-8") as f:
+                in_ledger = any(f'"run": "{rid}"' in l for l in f)
+        except OSError:
+            in_ledger = False
+        if os.path.exists(os.path.join(self.log.dir, "review.md")) and in_ledger:
+            return None
+        return (f"REFUSED: run {rid} is not reviewed. Load `sts2-improve` and follow it: `python -m agent.improve review {rid}` "
+                f"(writes runs/{rid}/review.md and its ledger rows), then the rule changes.\n")
 
     def _log_has_fights(self):
         """a headless game starts at Neow without the main menu: a Neow screen after logged fights is a new run"""
@@ -183,6 +202,10 @@ class Harness(Live):
             if not i and (before.startswith("ERR") or scr.busy(before)):
                 before = self.state()
             kind = scr.kind(before)
+            if not i and ((kind == "MENU" and step.split()[0] == "0" and scr.option_line(before, "0").startswith("0 new run")) or self._starts_new_run(before)):
+                refusal = self._unreviewed()
+                if refusal:
+                    return refusal
             if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2 and scr.option_line(before, "0").startswith("0 new run"):
                 self._new_run()
             elif not i:
@@ -519,6 +542,9 @@ class Harness(Live):
             if cmd == "status":
                 return self.status() + "\n"
             if cmd == "newrun":
+                refusal = self._unreviewed()
+                if refusal:
+                    return refusal
                 self._new_run()
                 return f"run {self.log.run_id}\n"
             if cmd == "do" and self.gate:
