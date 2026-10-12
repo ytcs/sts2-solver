@@ -147,11 +147,23 @@ public static class Snap
             try { if (c.HasStarCostX) o["star_cost"] = -1; else { var sc = c.GetStarCostWithModifiers(); if (sc >= 0) o["star_cost"] = sc; } } catch { }
             try { if (c.Id.Entry == "SOVEREIGN_BLADE" || c.Id.Entry == "KINGLY_PUNCH") o["base_damage"] = (int)c.DynamicVars.Damage.BaseValue; } catch { }
         }
+        try { var cm = CostMods(c); if (cm != null) o["cost_mods"] = cm; } catch { }
         try { o["keywords"] = new JsonArray(c.Keywords.Select(k => (JsonNode)k.ToString()).OrderBy(x => x.ToString(), StringComparer.Ordinal).ToArray()); } catch { }
         if (c.Enchantment != null) o["enchantment"] = new JsonObject { ["id"] = c.Enchantment.Id.Entry, ["amount"] = c.Enchantment.Amount };
         if (c.Affliction != null) o["affliction"] = new JsonObject { ["id"] = c.Affliction.Id.Entry, ["amount"] = c.Affliction.Amount };
         if (!brief) { try { var pj = Props(SavedProperties.From(c)); if (pj != null) o["props"] = pj; } catch { } }
         return o;
+    }
+
+    private static readonly System.Reflection.FieldInfo? LocalCostMods = typeof(CardEnergyCost).GetField("_localModifiers", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+    // [amount, relative, reduce_only, expiration flags] per local modifier, in order (the simulator's CostMod); the state's "cost_mods" marker says a card without the key has none
+    private static JsonArray? CostMods(CardModel c)
+    {
+        if (LocalCostMods?.GetValue(c.EnergyCost) is not List<LocalCostModifier> l || l.Count == 0) return null;
+        var a = new JsonArray();
+        foreach (var m in l) a.Add(new JsonArray(m.Amount, m.Type == LocalCostType.Relative ? 1 : 0, m.IsReduceOnly ? 1 : 0, (int)m.Expiration));
+        return a;
     }
 
     private static JsonArray Pile(IEnumerable<CardModel> cards, bool sorted)
@@ -251,6 +263,7 @@ public static class Snap
         var hand = new JsonArray();
         foreach (var c in pcs.Hand.Cards) hand.Add(Card(c, brief: false));
         o["hand"] = hand;
+        if (LocalCostMods?.FieldType == typeof(List<LocalCostModifier>)) o["cost_mods"] = 1;
         o["draw"] = Pile(pcs.DrawPile.Cards, sorted: true);
         o["discard"] = Pile(pcs.DiscardPile.Cards, sorted: false);
         o["exhaust"] = Pile(pcs.ExhaustPile.Cards, sorted: false);
