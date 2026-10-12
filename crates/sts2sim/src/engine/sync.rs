@@ -52,6 +52,13 @@ pub struct HandSync {
 
 impl Combat {
     pub fn sync_hand(&mut self, obs: &[ObsCard]) -> HandSync {
+        let mut rep = self.sync_hand_cards(obs);
+        rep.cost_fixes += self.sync_hand_costs(obs);
+        rep
+    }
+
+    /// The hand's cards, afflictions and the game's local cost modifiers; the resolved-cost fix is `sync_hand_costs`.
+    pub fn sync_hand_cards(&mut self, obs: &[ObsCard]) -> HandSync {
         let mut rep = HandSync::default();
         let old: Vec<CardIdx> = self.player.hand.iter().copied().collect();
         let mut used = vec![false; old.len()];
@@ -122,12 +129,22 @@ impl Combat {
         let hand: Vec<CardIdx> = self.player.hand.iter().copied().collect();
         for (c, o) in hand.iter().zip(obs.iter()) {
             self.sync_affliction(*c, o.affliction, o.affliction_amount);
-            // the game's modifiers first (they carry the expiry); a resolved cost that still differs (a global modifier the simulator lacks) is fixed for the combat as before
+            // the game's modifiers first (they carry the expiry)
             if let Some(m) = o.cost_mods {
                 if self.set_cost_mods(*c, &m) {
                     rep.cost_fixes += 1;
                 }
             }
+        }
+        rep
+    }
+
+    /// A resolved cost that still differs (a global modifier the simulator lacks) is fixed for the combat.
+    /// Silent-correctness: call after powers and relics are synced; a simulator-only cost power (Free Attack) still present would be baked in and doubled once removed.
+    pub fn sync_hand_costs(&mut self, obs: &[ObsCard]) -> u16 {
+        let mut fixes = 0;
+        let hand: Vec<CardIdx> = self.player.hand.iter().copied().collect();
+        for (c, o) in hand.iter().zip(obs.iter()) {
             if let Some(want) = o.cost {
                 if want < 0 || self.card_def(*c).x_cost {
                     continue;
@@ -137,11 +154,11 @@ impl Combat {
                     let local = self.card_cost(*c, false);
                     let target = (local + want - have).max(0);
                     self.set_cost_this_combat(*c, target, false);
-                    rep.cost_fixes += 1;
+                    fixes += 1;
                 }
             }
         }
-        rep
+        fixes
     }
 
     pub fn sync_pile(&mut self, pile: PileType, obs: &[ObsCard]) -> HandSync {
@@ -333,6 +350,19 @@ impl Combat {
             }
         }
         changed
+    }
+
+    /// The game's shown amount where it is `amount - this turn's use` (Hardened Shell damage taken, Feral free attacks): the use is otherwise hidden.
+    pub fn sync_power_display(&mut self, cid: Cid, obs: &[(u16, i32)]) {
+        use crate::ids::power as pw;
+        for &(id, display) in obs {
+            if id != pw::HARDENED_SHELL_POWER && id != pw::FERAL_POWER {
+                continue;
+            }
+            if let Some(p) = self.cr_mut(cid).powers.as_mut_slice().iter_mut().find(|p| p.id == id) {
+                p.aux = (p.amount - display).max(0);
+            }
+        }
     }
 
     pub fn sync_turn_start(&mut self, cid: Cid, obs: &[(u16, i32)]) {
