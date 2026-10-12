@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Collection roots from community replays (tools/codex_replay.py): fight scenarios + `--starts` recipes for `rl/exit.py collect`.
 A root is the human decision state before action k, admitted when the replay matches the log through step k + 2 (two further human actions;
-a fight without a matched logged end counts as diverged at its last action). Every admitted root is rebuilt and labelled: phase (Test
+a fight without a matched logged end counts as diverged at its last action; a fight with a pick the sim resolved by fallback, which the log
+does not place, gives none; runs listed by --exclude-runs give none). Every admitted root is rebuilt and labelled: phase (Test
 Subject 1 / 2 / 3, "d" while a revive is pending; Waterfall Giant pre / killed / explode), player HP band, fight outcome (a fight with no
 logged end is lost when it ended the run at that encounter), deck strength tertile per encounter (predictor, full HP, no potions), strong
 cohort. Draw: weight 1 / sqrt(stratum size) x --strong-w (strong cohort) x --lost-w (lost fights of death-effect encounters), up to --cap
 copies of a root (a copy is a new job seed: hidden piles and RNG resampled). Each recipe is self-contained (scenario, ops up to the root,
 stop); `rl/exit.py root` rebuilds it.
-usage: tools/round_roots.py --n 40000 --out-fights target/r11/roots_fights.json --out-starts target/r11/roots_starts.json"""
+usage: tools/round_roots.py --n 40000 --exclude-runs data/bench/contrast_holdout.json --out-fights target/r11/roots_fights.json --out-starts target/r11/roots_starts.json"""
 import argparse, collections, json, math, multiprocessing, os, random, sys
 
 import numpy as np
@@ -25,6 +26,8 @@ HP_BANDS = (0.25, 0.5, 0.75)
 
 def admitted(row):
     """stops k whose state the replay matches through step k + 2"""
+    if any(f in row["fields"] for f in ("choice.unlogged", "choice.option_missing")):
+        return 0
     d = [row["divs"][0]["step"]] if row["divs"] else []
     if row["failed"]:
         d.append(row["failed"]["step"])
@@ -94,6 +97,7 @@ def main():
     ap.add_argument("--fidelity", default=os.path.join(tgt, "review", "replay_fidelity.jsonl"))
     ap.add_argument("--replays", default=os.path.join(tgt, "codex", "replays"))
     ap.add_argument("--encounters", nargs="*", default=list(ENCOUNTERS))
+    ap.add_argument("--exclude-runs", nargs="*", default=[], help="files listing held-out runs (`runs`, e.g. data/bench/contrast_holdout.json)")
     ap.add_argument("--n", type=int, default=40000)
     ap.add_argument("--strong-w", type=float, default=2.0)
     ap.add_argument("--lost-w", type=float, default=3.0)
@@ -110,9 +114,10 @@ def main():
     last = collections.defaultdict(int)
     for r in rows:
         last[r["run"]] = max(last[r["run"]], r["k"])
+    drop = {r for fn in a.exclude_runs for r in json.load(open(fn))["runs"]}
     fights = []
     for r in rows:
-        if r["enc"] not in a.encounters or "error" in r:
+        if r["enc"] not in a.encounters or "error" in r or r["run"] in drop:
             continue
         assert not idx[r["run"]].get("base_seed"), r["run"]
         if admitted(r) > 0:
