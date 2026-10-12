@@ -653,7 +653,9 @@ def human_actions(evs):
 
 
 def replay_fight(sc, start, evs, end, keep_ops=False):
-    """one combat in Sim.exact with the human's actions; before each play / potion the sim is diffed against the log and synced on a difference
+    """one combat in Sim.exact with the human's actions; before each play / potion the sim is diffed against the log and synced on a difference;
+    a fight that ends in the post-play phase of an end turn the log never closes (Howl from Beyond, Stone Calendar, end-of-turn orbs: an auto
+    play, flush or new player turn after the last action) gets that end turn
     -> (result row, (scenario, ops) for a repro when keep_ops)"""
     row = dict(enc=start["encounter"], floor=start["floor"], act=start["act"], char=sc["character"], cuts=0, divs=[], fields=collections.Counter(),
                actions=0, failed=None, end=None, deck=sorted({c["id"] for c in sc["deck"]}), relics=[r["id"] for r in sc["relics"]])
@@ -771,6 +773,12 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
             last, moves = _label(ae), []
             resolve(picks.get(starts[i], []), hold=evs[then.get(starts[i], 0)]["t"] == "end_turn")
         b.apply(e)
+    tail = evs[human[-1] + 1:] if human else []
+    if not row["failed"] and end and sim.stage() == "play" and any(v["t"] == "play" and v.get("auto") or v["t"] == "flush"
+                                                                   or v["t"] == "turn" and v.get("side") == "player" for v in tail):
+        sim.end_turn()
+        if keep_ops:
+            ops.append(("apply", {"end_turn": True}))
     row["end"] = dict(log=(end or {}).get("result"), sim={1: "victory", -1: "loss"}.get(sim.outcome(), "ongoing"))
     if not row["failed"]:
         row["rng_end"] = dict(sim.rng_counters())
