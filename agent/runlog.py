@@ -16,6 +16,7 @@ def _set_current(run_id):
 class RunLog:
     def __init__(self, run_id=None):
         cur = os.path.join(ROOT, "CURRENT")
+        explicit = run_id is not None
         if run_id is None and os.path.exists(cur):
             with open(cur) as f:
                 run_id = f.read().strip() or None
@@ -23,7 +24,8 @@ class RunLog:
         self.dir = os.path.join(ROOT, self.run_id)
         self._f = None
         self._live = {}
-        _set_current(self.run_id)
+        if not explicit:
+            _set_current(self.run_id)
 
     def _open(self):
         if self._f is None:
@@ -38,13 +40,14 @@ class RunLog:
 
     def live(self, screen=None, reply=None, fight=..., **kw):
         try:
-            if reply is not None and SCREEN_LINE.match(reply.split("\n", 1)[0]):
-                screen = reply
+            body = reply.split("\n", 1)[-1] if reply and reply.startswith("WARNING: ") else reply
+            if body is not None and SCREEN_LINE.match(body.split("\n", 1)[0]):
+                screen = body
             live = self._live
             if live.get("run") != self.run_id:
                 live.clear()
             live.update(kw, run=self.run_id, t=round(time.time(), 2))
-            if screen is not None:
+            if screen and not live.get("screen", "").startswith(screen.rstrip("\n") + "\n"):  # the same screen with combat info stays
                 live.update(screen=screen[:20000], t_screen=live["t"])
             if reply is not None:
                 live["reply"] = reply[:20000]
@@ -60,10 +63,16 @@ class RunLog:
                     break
                 except PermissionError:
                     time.sleep(0.01 * (i + 1))
+            else:
+                with open(p, "w", encoding="utf-8") as f:
+                    json.dump(live, f, default=str)
+                os.remove(p + ".tmp")
         except Exception:  # noqa: BLE001
             pass
 
     def new_run(self):
+        if self._live.get("running"):
+            self.live(running=None)
         if self._f:
             self._f.close()
         self._f = None

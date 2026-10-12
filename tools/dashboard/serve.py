@@ -12,7 +12,31 @@ grew or changed, a read of the new bytes; the page polls about once a second.
   GET /api/fights?run=ID         the saved fight exports (runs/<ID>/fights/*.json): names only
   GET /api/fight?run=ID&name=F   one export, without its per-action `states` list unless `&states=1`
   GET /api/cards                 data/dashboard_cards.json: card costs (upgraded, stars) and full text (tools/dashboard/card_data.py)
-  GET /assets/<path>             the art cache
+  GET /model.js                  the page's read of the record (model.js, no DOM; tests run it under node)
+  GET /assets/<path>             the art cache (a missing file is a 404: the page draws text instead)
+
+Read contract (writers: agent/runlog.py RunLog.live / event, called from agent/harness.py and agent/live.py; runs/CURRENT = the current run id):
+  live.json   run, t; running + t_running (the command in progress, null when none); cmd, reply (the last finished command and its
+              reply; reply may start with `WARNING: harness code changed`, may hold a `POTION: ...` or `POTION PROPOSAL (turn N)` line);
+              screen + t_screen (the latest game screen; in combat with draw / `eN now:` / `eN plan:` lines); fight (bridge fight export
+              without `states`: id, scenario, log, state) or null; potion (the search's throw awaiting `potion yes|no`, else null).
+              Written at the start and end of every command, after every `a` step and every combat action.
+  events.jsonl, one JSON object per line, `t` and `kind`, plus:
+    macro            screen (first line), state (screen text), choice, why (`rules: IDs ; numbers: ... ; judgment: ...`, older: free text), result
+    price            screen, options, ranked_by (`check` | win | act | ready | floors), best, result ({label: {check}} | {label: {act, ready?,
+                     floors, win?}} | null for one option), search {label: [score, se, {factor: scored}, {factor: win}, {factor: HP multiple}]}
+    map              text (rows bottom->top, `boss: R ID [+ ID]`)      route_plan  nodes        routes  text
+    eval             spec {variants, encounters, hp?}, result {variant index: {win, hp_lost, per}}
+    fight_start      id, encounter, hp, max_hp, scenario, predicted {win, hp_lost, lost_q}, drive [mode, why], budget
+    fight_end        id, hp [hp, max], hp_start, pit, pred_lost_q, errors
+    action           fight, text, options [{text, q, p}], searched, foes; `kind_: choose` for a selection
+    advice           fight, text, options, foes
+    potion_proposal  fight, turn, rows [{id, verdict, arms {now, keep, save: {win, hp}}}], proposed
+    potion_commit    fight, id, text, verdict (`search` = the search's throw confirmed with `potion yes`)
+    potion_declined  fight, turn, text          potion_aside  aside
+    note             text (the plan note)       target  variant {add, remove, upgrade, relics_add} | null
+    relics           header, gained, lost, relics
+    run_end          screen, text               divergence / harness_error  what / where, error
 """
 import argparse
 import json
@@ -166,6 +190,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path in ("/", "/index.html"):
                 return self._file(self.page)
+            if path == "/model.js":
+                return self._file(os.path.join(HERE, "model.js"))
             if path.startswith("/assets/"):
                 rel = os.path.normpath(path[len("/assets/"):]).replace("\\", "/")
                 if rel.startswith("..") or os.path.isabs(rel) or ":" in rel:

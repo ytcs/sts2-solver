@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>STS2 Live</title>
+<link rel="icon" href="data:,">
+<script src="/model.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Kreon:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -228,6 +230,13 @@ table.pt td.best { color: var(--good); font-weight: 600; }
 .quant i.dead.hit { background: var(--bad); }
 .quant .gap { width: 4px; }
 .small { font-size: 11px; }
+.banner { padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; font-size: 12.5px; }
+.banner.potion { background: #2a1f3a; border: 1px solid var(--accent); color: #e6dcff; }
+.banner.warn { background: #3a1c1c; border: 1px solid var(--bad); }
+.banner.run { background: var(--panel2); color: var(--dim); }
+.oprow { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 4px 10px; font-size: 12.5px; margin-top: 6px; }
+.oprow > .lb { font: 600 10px/1.8 "Segoe UI", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .09em; color: var(--faint); }
+.rule { display: inline-block; padding: 0 6px; margin: 0 3px 2px 0; border-radius: 8px; background: #3a3020; color: var(--gold); font: 600 11px var(--mono); }
 .hidden { display: none !important; }
 .empty { color: var(--faint); text-align: center; padding: 30px 0; font-family: Kreon, serif; font-size: 15px; }
 </style>
@@ -248,6 +257,7 @@ table.pt td.best { color: var(--good); font-weight: 600; }
 </div>
 <main>
   <div>
+    <section class="panel" id="oppanel"><div id="banners"></div><div id="operator"></div></section>
     <section class="panel" id="screenpanel">
       <h2><span id="screenkind">Screen</span><span class="dim small" id="screensub"></span></h2>
       <div id="screen"><div class="empty">waiting for the harness (runs/CURRENT)</div></div>
@@ -258,7 +268,7 @@ table.pt td.best { color: var(--good); font-weight: 600; }
         <button type="button" id="deckorder" title="deck order: click to switch between alphabetical and the order the cards were added"></button></div>
         <div class="cardrow" id="deck"></div></div>
       <div class="sub" id="replybox"><div class="shd"><span class="title">Last harness output</span> <span class="dim small" id="lastcmd"></span></div><pre id="reply"></pre></div>
-      <div class="sub" id="screenbox"><div class="shd"><span class="title">Screen text</span></div><pre id="screentext"></pre></div>
+      <div class="sub" id="screenbox"><details data-k="screentext"><summary class="shd"><span class="title">Screen text</span></summary><pre id="screentext"></pre></details></div>
     </section>
   </div>
   <div id="side"><div id="feedgrip" title="drag to resize the decision feed; double-click to reset"></div>
@@ -272,11 +282,14 @@ table.pt td.best { color: var(--good); font-weight: 600; }
 <div id="mappop" class="hidden" title="click or Esc to close"><div class="inner"><h2 class="title"><span>Map</span> <span class="dim small" id="mappopsub"></span></h2><div id="bigmap" class="mapview"></div></div></div>
 <script>
 "use strict";
-const S = { run: "", follow: true, offset: 0, events: [], live: null, liveTag: null, man: null, lastRuns: 0, open: {}, creatures: {}, spine: null, dirty: true, err: null };
+const S = { run: "", follow: true, offset: 0, events: [], live: null, liveTag: null, lastRuns: 0, open: {}, creatures: {}, spine: null, dirty: true, err: null };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const pct = (x, d = 0) => (x == null || isNaN(x) ? "?" : (100 * x).toFixed(d) + "%");
+const pct = (x) => (x == null || isNaN(x) ? "?" : (100 * x).toFixed(1) + "%");  // every probability
 const num = (x, d = 1) => (x == null || isNaN(x) ? "?" : (+x).toFixed(d));
+const sgn = (x, se) => (x == null || isNaN(x) ? "?" : (x >= 0 ? "+" : "") + (+x).toFixed(3) + (se != null ? ` &plusmn;${(+se).toFixed(3)}` : ""));  // search-check scores, as the harness prints them
+const { header, kindOf, options, chosenLabel, HDR } = DM;
+let MODEL = DM.model(null, []);
 const A = (p) => (p ? "/assets/" + p : "");
 const ago = (t) => { if (!t) return ""; const s = Math.max(0, Date.now() / 1000 - t); return s < 90 ? `${s.toFixed(0)}s ago` : s < 5400 ? `${(s / 60).toFixed(0)} min ago` : `${(s / 3600).toFixed(1)} h ago`; };
 const clock = (t) => (t ? new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "");
@@ -311,6 +324,7 @@ const relicTitle = (id) => (M.relics[id] ? M.relics[id].title : titleCase(id));
 const powerTitle = (id) => (M.powers[id] ? M.powers[id].title : titleCase(String(id).replace(/_POWER$/, "")));
 const creatureTitle = (id) => (M.creatures[id] ? M.creatures[id].title : titleCase(id));
 const encTitle = (id) => (M.encounters[id] ? M.encounters[id].title : titleCase(id));
+const idTitle = (id) => { for (const k of ["cards", "potions", "relics", "encounters", "powers"]) if (M[k][id]) return M[k][id].title; return null; };  // one display name per game id
 
 // costs: live values win (o.cost from the hand or the screen line; o.star: undefined = not known live, "" or null = none, -1 or "X" = X),
 // else the card table (data/dashboard_cards.json: canonical cost + upgrade delta), else the art manifest's base cost
@@ -464,17 +478,6 @@ function hydrateCreatures(root) {
 }
 
 // ------------------------------------------------------------------ screen text parsing
-const HDR = /\bA(\d+) F(\d+)\s+([A-Z]+)(?:\s+A(\d+))?\s+HP (-?\d+)\/(\d+)\s+G(\d+)(?:\s+pots\[([^\]]*)\])?/;
-function header(text) {
-  const m = HDR.exec(text || "");
-  return m ? { act: +m[1], floor: +m[2], char: m[3], asc: m[4] ? +m[4] : null, hp: +m[5], max: +m[6], gold: +m[7], pots: m[8] != null ? m[8].split(",").map((s) => s.trim()) : [] } : null;
-}
-const kindOf = (text) => (text || "").split("\n", 1)[0].split(" ")[0] || "";
-function options(text) {
-  const out = [];
-  for (const l of (text || "").split("\n")) { const m = /^(\d+) (.*)$/.exec(l); if (m) out.push({ n: +m[1], label: m[2] }); }
-  return out;
-}
 function parseCardLabel(label) {  // "Beam Cell(0) Deal 3 damage." / "(x) Defend(1) Gain 5 Block." / "51g card Beam Cell(0) ..." / Regent: "Resonance(1/2*) ...", "Stardust(0/X*) ..."
   const m = /^(?:(\d+)g (?:card )?)?(\(x\) )?([^()]+?)(\+\d*)?\((X|-?\d+)(?:\/(X|\d+)\*)?\)\s*(.*)$/.exec(label);
   if (!m) return null;
@@ -484,68 +487,74 @@ function parseCardLabel(label) {  // "Beam Cell(0) Deal 3 damage." / "(x) Defend
     cost: m[5] === "X" ? "X" : +m[5], star: m[6] == null ? "" : m[6] === "X" ? "X" : +m[6], desc: m[7] };
 }
 function mapOptionCoord(label) { const m = /\br(\d+)c(\d+)\b/.exec(label || ""); return m ? `r${m[1]}c${m[2]}` : null; }
-function chosenLabel(state, choice) {
-  const opts = options(state), c = String(choice || "").trim();
-  if (/^\d+/.test(c)) { const o = opts.find((x) => x.n === +c.split(/\s+/)[0]); return o ? o.label : c; }
-  if (c.startsWith("~")) { const t = c.slice(1).split(/\s+/)[0].toLowerCase(); const o = opts.find((x) => x.label.toLowerCase().includes(t)); return o ? o.label : c; }
-  return c;
-}
-
-// ------------------------------------------------------------------ derived run state from the record
-function lastOf(kind, pred) { for (let i = S.events.length - 1; i >= 0; i--) { const e = S.events[i]; if (e.kind === kind && (!pred || pred(e))) return e; } return null; }
-function currentScreen() {
-  if (S.live && S.live.screen) return { text: S.live.screen, t: S.live.t_screen || S.live.t, live: true };
-  const m = lastOf("macro");
-  return m ? { text: m.state, t: m.t, live: false } : { text: "", t: null, live: false };
-}
-function knownRun() {  // relics / deck / potions: the live fight, else the latest fight start
-  const f = S.live && S.live.fight, fs = lastOf("fight_start");
-  const sc = (f && f.scenario) || (fs && fs.scenario) || null;
-  const relicState = (f && f.state && f.state.relics) || (sc && sc.relics) || [];  // [{id, counter?, props?}]
-  return { scenario: sc, relics: relicState.map((r) => r.id), relicState, deck: sc ? sc.deck : [] };
-}
+const lastOf = (kind, pred) => DM.lastOf(S.events, kind, pred);
 function mapText() {
   let best = null, bt = 0;
   const me = lastOf("map"); if (me) { best = me.text; bt = me.t; }
-  if (S.live && /^\s*m\s*$/.test(S.live.cmd || "") && (S.live.reply || "").startsWith("rows") && S.live.t > bt) best = S.live.reply;
+  if (/^\s*m\s*$/.test(MODEL.cmd || "") && MODEL.reply.startsWith("rows") && MODEL.t > bt) best = MODEL.reply;
   return best;
 }
 
 // ------------------------------------------------------------------ header bar
 function renderTop() {
-  const scr = currentScreen(), h = header(scr.text) || header((lastOf("macro", (e) => header(e.state)) || {}).state || "");
-  const run = knownRun();
-  if (h) CHAR = h.char;
-  else if (run.scenario) CHAR = run.scenario.character || CHAR;
-  $("who").innerHTML = CHAR ? `<span class="title" style="font-size:18px">${esc(titleCase(CHAR))}</span>${h && h.asc != null ? `<span class="chip">${M.ui.top_bar_ascension ? `<img class="icon sm" src="${A(M.ui.top_bar_ascension)}">` : "A"}${h.asc}</span>` : ""}` : `<span class="dim">no run</span>`;
-  $("floor").innerHTML = h ? `${M.ui.top_bar_floor ? `<img src="${A(M.ui.top_bar_floor)}">` : ""}Act ${h.act} &middot; Floor ${h.floor}` : "";
+  const h = MODEL.screen.header;
+  CHAR = MODEL.character || CHAR;
+  $("who").innerHTML = CHAR ? `<span class="title" style="font-size:18px">${esc(titleCase(CHAR))}</span>${h && h.asc != null ? `<span class="chip">${M.ui.top_bar_ascension ? `<img class="icon sm" src="${A(M.ui.top_bar_ascension)}" alt="A">` : "A"}${h.asc}</span>` : ""}` : `<span class="dim">no run</span>`;
+  $("floor").innerHTML = h ? `${M.ui.top_bar_floor ? `<img src="${A(M.ui.top_bar_floor)}" alt="">` : ""}Act ${h.act} &middot; Floor ${h.floor}` : "";
   const hp = h ? [h.hp, h.max] : null;
-  $("hpicon").innerHTML = M.ui.top_bar_heart ? `<img src="${A(M.ui.top_bar_heart)}">` : "HP";
+  $("hpicon").innerHTML = M.ui.top_bar_heart ? `<img src="${A(M.ui.top_bar_heart)}" alt="HP">` : "HP";
   $("hpbar").querySelector("i").style.width = hp ? Math.max(0, Math.min(100, (100 * hp[0]) / hp[1])) + "%" : "0";
   $("hpbar").querySelector("span").textContent = hp ? `${hp[0]} / ${hp[1]}` : "";
-  $("gold").innerHTML = h ? `${M.ui.top_bar_gold ? `<img src="${A(M.ui.top_bar_gold)}">` : ""}<span class="gold">${h.gold}</span>` : "";
+  $("gold").innerHTML = h ? `${M.ui.top_bar_gold ? `<img src="${A(M.ui.top_bar_gold)}" alt="G">` : ""}<span class="gold">${h.gold}</span>` : "";
   $("pots").innerHTML = h ? h.pots.map((p) => p === "-" ? `<span class="slot" title="empty slot"></span>` : iconHTML("potions", M.potionByTitle[p.toLowerCase()] || p)).join("") : "";
-  $("relics").innerHTML = run.relicState.map(relicBadgeHTML).join("");
-  const odds = ((S.live && S.live.reply) || "").split("\n").find((l) => l.startsWith("public odds:"));
+  $("relics").innerHTML = MODEL.relics.map(relicBadgeHTML).join("");
+  const odds = MODEL.reply.split("\n").find((l) => l.startsWith("public odds:"));
   $("odds").textContent = odds || "";
   $("odds").classList.toggle("hidden", !odds);
 }
 
+// ------------------------------------------------------------------ operator panel: pending potion, running command, harness warning, plan, target deck, last pick
+function targetHTML(v) {  // `target` variant: add / remove / upgrade / relics_add ids
+  if (!v) return `<span class="dim small">none</span>`;
+  const names = (ids) => Object.entries((ids || []).reduce((c, id) => ((c[id] = (c[id] || 0) + 1), c), {})).map(([id, n]) => esc(idTitle(id) || titleCase(id)) + (n > 1 ? ` &times;${n}` : "")).join(", ");
+  return ["add", "remove", "upgrade", "relics_add"].filter((f) => (v[f] || []).length).map((f) => `<div><span class="faint small">${f.replace("_add", "")}</span> ${names(v[f])}</div>`).join("") || `<span class="dim small">no change</span>`;
+}
+function renderOperator() {
+  const m = MODEL, b = [];
+  if (m.fight) {  // potion slots and targets of the fight on view
+    ACT_CTX.pots = {};
+    ((m.fight.state && m.fight.state.potions) || (m.fight.scenario && m.fight.scenario.potions) || []).forEach((x, i) => { if (x && x.id) ACT_CTX.pots[x.slot ?? i] = x.id; });
+    ACT_CTX.foes = foeNames((m.fight.state.enemies || []).filter((x) => x.alive !== false).sort((x, y) => (x.index ?? 0) - (y.index ?? 0)).map((x) => x.id));
+  }
+  if (m.potion) b.push(`<div class="banner potion"><b>${m.potion.kind === "confirm" ? "POTION: awaiting `potion yes` / `potion no`" : "POTION PROPOSAL"}</b> ${prettyAction((m.potion.line || m.potion.text).replace(/^POTION:\s*/, ""))}</div>`);
+  if (m.running) b.push(`<div class="banner run">running <b>${esc(m.running.cmd)}</b> for ${ago(m.running.since).replace(" ago", "")}; the reply below is from <b>${esc(m.cmd || "")}</b></div>`);
+  if (m.warning) b.push(`<div class="banner warn">${esc(m.warning)}</div>`);
+  $("banners").innerHTML = b.join("");
+  const rows = [], d = m.decision;
+  if (m.plan) rows.push(["plan", `${esc(m.plan.text)} <span class="faint small">${ago(m.plan.t)}</span>`]);
+  if (m.target) rows.push(["target", targetHTML(m.target.variant)]);
+  if (d) {
+    const card = parseCardLabel(d.label);
+    rows.push(["last pick", `<span class="choice">${esc(card ? cardTitle(card.id) + (card.upgrade ? "+" : "") : d.label)}</span> <span class="faint small">${esc(DM.kindOf(d.screen))}${d.header ? ` A${d.header.act} F${d.header.floor}` : ""} · ${ago(d.t)}${d.result ? ` &rarr; ${esc(d.result)}` : ""}</span>${whyHTML(d.why && d.why.text)}`]);
+  }
+  $("operator").innerHTML = rows.map(([k, v]) => `<div class="oprow"><span class="lb">${k}</span><div>${v}</div></div>`).join("");
+  $("oppanel").classList.toggle("hidden", !b.length && !rows.length);
+}
+
 // ------------------------------------------------------------------ main screen
 function renderScreen() {
-  const scr = currentScreen(), text = scr.text || "", kind = kindOf(text);
+  const scr = MODEL.screen, text = scr.text, kind = scr.kind;
   $("mappanel").classList.toggle("hidden", kind === "MAP");  // the MAP screen draws the full map itself
   $("screenkind").textContent = kind ? titleCase(kind) : "Screen";
-  $("screensub").textContent = scr.t && !scr.live ? "from the record" : "";
+  $("screensub").textContent = scr.t && !scr.live ? "from the record" : scr.t ? `seen ${ago(scr.t)}` : "";
   $("screensub").title = scr.t && !scr.live ? "no live.json yet: restart the daemon" : "";
   $("screentext").textContent = text;
-  $("reply").textContent = (S.live && S.live.reply) || "";
-  $("replybox").classList.toggle("hidden", !$("reply").textContent);
-  $("lastcmd").textContent = S.live && S.live.cmd ? S.live.cmd : "";
-  $("screenbox").classList.toggle("hidden", !text || text === $("reply").textContent);  // the same text twice when the last command was `s`
+  $("reply").textContent = MODEL.reply;
+  $("replybox").classList.toggle("hidden", !MODEL.reply);
+  $("lastcmd").textContent = MODEL.cmd ? `\`${MODEL.cmd}\`${MODEL.running ? " (a newer command is running)" : ""}` : "";
+  $("screenbox").classList.toggle("hidden", !text || text === MODEL.reply);  // the same text twice when the last command was `s`
   const el = $("screen");
-  const f = S.live && S.live.fight;
-  if ((kind === "COMBAT" || kind === "SELECT") && f && f.state && f.state.combat_in_progress !== false && S.live.fight && kindOf(S.live.screen) === kind) el.innerHTML = combatHTML(f, text, kind);
+  if (MODEL.fight) el.innerHTML = combatHTML(MODEL.fight, text, kind);
   else if (kind === "COMBAT") el.innerHTML = combatFromText(text);
   else if (kind === "MAP") el.innerHTML = mapHTML(text);
   else if (!text) el.innerHTML = `<div class="empty">waiting for the harness (runs/CURRENT)</div>`;
@@ -558,11 +567,10 @@ const DECK_ORDER_KEY = "sts2dash.deckOrder";
 S.deckOrder = "alpha";
 try { if (localStorage.getItem(DECK_ORDER_KEY) === "acq") S.deckOrder = "acq"; } catch (e) { /* no storage: default */ }
 function renderDeck() {
-  const run = knownRun(), acq = S.deckOrder === "acq";
-  $("decksub").textContent = run.deck.length ? String(run.deck.length) : "";
-  $("decksub").title = "as of the last fight";
+  const deck = MODEL.deck, acq = S.deckOrder === "acq";
+  $("decksub").textContent = deck.length ? `${deck.length} (as of the last fight)` : "";
   $("deckorder").textContent = acq ? "order: as acquired" : "order: A–Z";
-  const list = acq ? run.deck : [...run.deck].sort((a, b) => cardTitle(a.id).localeCompare(cardTitle(b.id)));
+  const list = acq ? deck : [...deck].sort((a, b) => cardTitle(a.id).localeCompare(cardTitle(b.id)));
   $("deck").innerHTML = list.map((c) => cardHTML(c.id, { upgrade: c.upgrade, mini: true })).join("") || `<span class="faint small">no deck yet (known from the first fight)</span>`;
 }
 function intentHTML(it, tip) {
@@ -632,8 +640,8 @@ function combatHTML(f, text, kind) {
   }).join("");
   const pl = st.player || {};
   const me = CHAR || (f.scenario && f.scenario.character) || "";
-  const orbs = (st.orbs || []).map((o) => `<div class="orb" title="${esc(titleCase(o.id))}: passive ${o.passive}, evoke ${o.evoke}">${M.orbs[o.id] && M.orbs[o.id].img ? `<img src="${A(M.orbs[o.id].img)}">` : `<span class="chip">${esc(titleCase(o.id))}</span>`}<span>${o.passive}/${o.evoke}</span></div>`);
-  for (let i = orbs.length; i < (st.orb_capacity || 0); i++) orbs.push(`<div class="orb">${M.ui.orb_empty ? `<img src="${A(M.ui.orb_empty)}" style="opacity:.5">` : "( )"}<span>&nbsp;</span></div>`);
+  const orbs = (st.orbs || []).map((o) => `<div class="orb" title="${esc(titleCase(o.id))}: passive ${o.passive}, evoke ${o.evoke}">${M.orbs[o.id] && M.orbs[o.id].img ? `<img src="${A(M.orbs[o.id].img)}" alt="${esc(titleCase(o.id))}">` : `<span class="chip">${esc(titleCase(o.id))}</span>`}<span>${o.passive}/${o.evoke}</span></div>`);
+  for (let i = orbs.length; i < (st.orb_capacity || 0); i++) orbs.push(`<div class="orb">${M.ui.orb_empty ? `<img src="${A(M.ui.orb_empty)}" alt="( )" style="opacity:.5">` : "( )"}<span>&nbsp;</span></div>`);
   const pets = (st.pets || []).map((p) => `<div class="creature" style="width:120px"><div class="art" style="height:90px" data-creature="${esc(p.id || "OSTY")}"><div class="ph" style="width:70px;height:70px">${esc(creatureTitle(p.id || "OSTY"))}</div></div>${p.hp != null ? hpLine(p.hp, p.max_hp, p.block) : ""}${powersHTML(p.powers)}</div>`).join("");
   const descs = {};
   for (const o of options(text)) { const c = parseCardLabel(o.label); const k = c && c.id + "+" + c.upgrade; if (c && !(k in descs)) descs[k] = c.desc; }
@@ -644,7 +652,9 @@ function combatHTML(f, text, kind) {
     return `<details class="pile" data-k="${k}" ${S.open[k] ? "open" : ""}><summary>${esc(name)} <b>${(list || []).length}</b></summary><div class="list">${sorted.map((c) => cardHTML(c.id, { upgrade: c.upgrade, mini: true, keywords: c.keywords })).join("") || `<span class="faint">empty</span>`}</div></details>`;
   };
   const turn = st.turn != null ? `turn ${st.turn}` : "";
-  $("screensub").textContent += `  ${turn}  ${f.scenario ? encTitle(f.scenario.encounter) : ""}`;
+  const drive = f.start && f.start.drive;
+  $("screensub").textContent = [turn, f.scenario ? encTitle(f.scenario.encounter) : "", drive ? `${drive[0].toUpperCase()} drive` : "", $("screensub").textContent].filter(Boolean).join(" · ");
+  $("screensub").title = drive ? drive[1] : "";
   return `<div id="enemies">${enemies}</div>
     <div id="player"><div class="me"><div class="art" data-creature="${esc(me)}"><div class="ph" style="width:90px;height:90px">${esc(titleCase(me))}</div></div>${hpLine(pl.hp, pl.max_hp, pl.block)}${powersHTML(pl.powers)}</div>
       <div><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div class="energy" title="energy">${st.energy}/${st.max_energy}</div>
@@ -657,14 +667,6 @@ function combatFromText(text) {  // no fight export (no live.json yet): the scre
   const rows = text.split("\n").filter((l) => /^e\d+ /.test(l) && !/ (plan|now): /.test(l));
   return `<div class="opts">${rows.map((r) => `<div class="opt">${esc(r)}</div>`).join("")}</div>` + optionsHTML(text, "COMBAT");
 }
-function latestPrice(kind, floorKey) {
-  for (let i = S.events.length - 1; i >= 0; i--) {
-    const e = S.events[i];
-    if (e.kind === "macro") return null;  // a decision was made since: the table belongs to that one
-    if (e.kind === "price" && e.screen === kind) return e;
-  }
-  return null;
-}
 function priceMatches(key, label) {  // a `price` option ("M r1c6", "Beam Cell (51g)", "skip", "nothing", "smith X") vs a screen option label
   const k = String(key).toLowerCase().replace(/^\S (?=r\d+c\d+$)/, "").replace(/\s*\(\d+g\)$/, "").trim(), l = String(label || "").toLowerCase();
   if (!k) return false;
@@ -675,33 +677,34 @@ function priceMatches(key, label) {  // a `price` option ("M r1c6", "Beam Cell (
   if (c) return cardTitle(c.id).toLowerCase() === k.replace(/\+\d*$/, "");
   return new RegExp(`(^|[^a-z0-9])${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`).test(l);
 }
-function priceFor(price, label) {
-  if (!price) return null;
-  const key = price.options.find((o) => priceMatches(o, label));
-  return key ? price.result[key] : null;
+const RANKED = { check: "search check", win: "P(win run)", act: "P(clear act)", ready: "next act ready", floors: "floors" };
+function priceFor(price, label) {  // the screen option's row of a `price` event (model.js priceRows), or null
+  return price ? DM.priceRows(price).find((r) => priceMatches(r.option, label)) || null : null;
 }
-const priceTxt = (r) => (r ? `act ${pct(r.act)}${r.ready != null ? ` · ready ${pct(r.ready)}` : ""} · ${num(r.floors)} fl${r.win > 0 ? ` · run ${pct(r.win, 1)}` : ""}` : "");
+function priceTxt(r) {  // the search check first, then the run model's rungs
+  if (!r) return "";
+  return [r.check != null ? `check ${sgn(r.check, r.se)}` : "", r.act != null ? `act ${pct(r.act)}` : "", r.ready != null ? `ready ${pct(r.ready)}` : "",
+    r.floors != null ? `${num(r.floors)} fl` : "", r.win ? `run ${pct(r.win)}` : ""].filter(Boolean).join(" · ");
+}
 function optionsHTML(text, kind) {
-  const opts = options(text), price = latestPrice(kind);
-  const rk = (price && price.ranked_by) || "act";  // the horizon the ladder ranked by (agent/price.py `ladder`)
-  const best = price ? Math.max(...Object.values(price.result).map((r) => r[rk])) : null;
+  const opts = options(text), price = DM.latestPrice(S.events, kind), best = DM.bestOption(price);
   const cards = [], rest = [];
   for (const o of opts) {
     const c = parseCardLabel(o.label), r = priceFor(price, o.label);
-    if (c) cards.push(`<div class="cardopt ${r && r[rk] === best ? "best" : ""}"><span class="n">${o.n}${c.price != null ? ` <span class="gold small">${c.price}g</span>` : ""}</span>${cardHTML(c.id, { upgrade: c.upgrade, cost: c.cost, star: c.star, desc: c.desc })}${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
+    if (c) cards.push(`<div class="cardopt ${r && r.option === best ? "best" : ""}"><span class="n">${o.n}${c.price != null ? ` <span class="gold small">${c.price}g</span>` : ""}</span>${cardHTML(c.id, { upgrade: c.upgrade, cost: c.cost, star: c.star, desc: c.desc })}${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
     else {
       let icon = "";
       const rm = /\brelic ([^:(]+?)(?::|\(|$)/.exec(o.label), pm = /\bpotion ([^:(]+?)(?::|\(|$)/.exec(o.label);
       if (rm && M.relicByTitle[rm[1].trim().toLowerCase()]) icon = iconHTML("relics", M.relicByTitle[rm[1].trim().toLowerCase()]);
       else if (pm && M.potionByTitle[pm[1].trim().toLowerCase()]) icon = iconHTML("potions", M.potionByTitle[pm[1].trim().toLowerCase()]);
       else { const cm = /card: (.+)$/.exec(o.label); if (cm) icon = cm[1].split(" | ").map((n) => cardIdByName(n)).filter(Boolean).map((id) => cardHTML(id, { mini: true })).join(""); }
-      rest.push(`<div class="opt ${r && r[rk] === best ? "best" : ""}"><span class="n">${o.n}</span>${icon ? `<span style="display:flex;gap:3px">${icon}</span>` : ""}<span>${esc(o.label)}</span>${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
+      rest.push(`<div class="opt ${r && r.option === best ? "best" : ""}"><span class="n">${o.n}</span>${icon ? `<span style="display:flex;gap:3px">${icon}</span>` : ""}<span>${esc(o.label)}</span>${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
     }
   }
   const prose = text.split("\n").slice(1).filter((l) => l && !/^\d+ /.test(l) && !HDR.test(l) && !/^(play:|answer:|full map:|public odds:|DRIVE:|SEARCH OBJECTIVE:)/.test(l) && !/^e\d+ /.test(l));
   return `${prose.length && kind !== "COMBAT" ? `<pre>${esc(prose.join("\n"))}</pre>` : ""}
     ${cards.length ? `<div class="cardrow" style="margin:6px 0">${cards.join("")}</div>` : ""}<div class="opts">${rest.join("")}</div>
-    ${price ? `<div class="dim small" style="margin-top:4px">priced ${ago(price.t)} (paired run-model rollouts, ranked by ${esc(price.ranked_by || "act")}): P(clear act) | next act ready | floors reached | P(win run)</div>` : ""}`;
+    ${price ? `<div class="dim small" style="margin-top:4px">priced ${ago(price.t)}, ranked by ${esc(RANKED[DM.rankKey(price)] || DM.rankKey(price))}${best ? `, best ${esc(best)}` : ""}: check = search-check log ratio vs the reference option &plusmn; se (feed: per-factor wins)</div>` : ""}`;
 }
 
 // ------------------------------------------------------------------ map
@@ -722,7 +725,7 @@ function parseMap(txt) {
       }
     }
     m = /^boss: (\d+) (.*)$/.exec(l);
-    if (m) boss = { r: +m[1], ids: m[2].trim().split(/[\s,]+/) };
+    if (m) boss = { r: +m[1], ids: m[2].split(/[\s,+]+/).filter(Boolean) };  // "boss: 14 QUEEN_BOSS + AEONGLASS_BOSS"
   }
   return { rows, nodes, boss };
 }
@@ -740,7 +743,7 @@ function mapModel() {  // the act map with the path taken, the current node and 
   return { P, here, route, key: mt + "|" + visited.map((n) => `r${n.r}c${n.c}`).join(",") + "|" + route.join(",") };
 }
 function mapSVG(m, o = {}) {  // o.compact: floors left to right (the map panel; o.big: its overlay); else bottom to top (the MAP screen) with offers and prices
-  const P = m.P, offers = o.offers || [], price = o.price, cmp = !!o.compact;
+  const P = m.P, offers = o.offers || [], price = o.price, cmp = !!o.compact, rk = DM.rankKey(price);
   const rs = Object.keys(P.rows).map(Number), maxR = Math.max(...rs, 1), cols = 7;
   let W, H, pos, boss, nr, ic, br;
   if (cmp) {
@@ -776,7 +779,7 @@ function mapSVG(m, o = {}) {  // o.compact: floors left to right (the map panel;
       <circle class="bg" cx="${x}" cy="${y}" r="${nr}"/>
       ${icon ? `<image href="${A(icon)}" x="${x - ic / 2}" y="${y - ic / 2}" width="${ic}" height="${ic}"/>` : `<text x="${x}" y="${y + 5}">${esc(n.type)}</text>`}
       ${off ? `<text x="${x - nr - 6}" y="${y - nr + 6}" style="fill:var(--gold);font-size:12px">${off.n}</text>` : ""}
-      ${r ? `<text class="ptag" x="${x + nr + 3}" y="${y + 4}" text-anchor="start">${pct(r.act)}</text>` : ""}</g>`;
+      ${r && r[rk] != null ? `<text class="ptag" x="${x + nr + 3}" y="${y + 4}" text-anchor="start">${rk === "check" ? sgn(r.check) : rk === "floors" ? num(r.floors) : pct(r[rk])}</text>` : ""}</g>`;
   }
   const bossIds = P.boss ? P.boss.ids : [];
   const bicon = bossIds.map((b) => M.encounters[b] && M.encounters[b].icon).find(Boolean);
@@ -789,7 +792,7 @@ function mapHTML(text) {
   const m = mapModel();
   if (!m) return `<div class="dim small">no map yet</div>` + optionsHTML(text, "MAP");
   const offers = options(text).map((o) => ({ n: o.n, coord: mapOptionCoord(o.label), label: o.label }));
-  return `<div id="map">${mapSVG(m, { offers, price: latestPrice("MAP") })}</div>${optionsHTML(text, "MAP")}`;
+  return `<div id="map">${mapSVG(m, { offers, price: DM.latestPrice(S.events, "MAP") })}</div>${optionsHTML(text, "MAP")}`;
 }
 function renderMiniMap() {  // the map panel: redrawn only when the map, the path or the planned route changed
   const m = mapModel(), key = m ? m.key : "";
@@ -816,7 +819,7 @@ function foeNames(ids) {  // target index -> display name; "Kin Follower 1", "Ki
   return titles.map((t) => (count[t] > 1 ? `${t} ${(seen[t] = (seen[t] || 0) + 1)}` : t));
 }
 function prettyAction(t) {
-  return esc(String(t || "")).replace(/ -&gt; e(\d+)\b/g, (m, n) => (ACT_CTX.foes[n] ? ` &rarr; <b>${esc(ACT_CTX.foes[n])}</b>` : m)).replace(/\bpotion (\d+)\b/g, (m, n) => { const id = ACT_CTX.pots[n]; return id ? `potion <b>${esc(M.potions[id] ? M.potions[id].title : titleCase(id))}</b>` : m; }).replace(/\b([A-Z][A-Z0-9_]{2,})\b/g, (m) => (M.cards[m] ? `<b>${esc(M.cards[m].title)}</b>` : M.potions[m] ? `<b>${esc(M.potions[m].title)}</b>` : m));
+  return esc(String(t || "")).replace(/ -&gt; e(\d+)\b/g, (m, n) => (ACT_CTX.foes[n] ? ` &rarr; <b>${esc(ACT_CTX.foes[n])}</b>` : m)).replace(/\bpotion (\d+)\b/g, (m, n) => { const id = ACT_CTX.pots[n]; return id ? `potion <b>${esc(M.potions[id] ? M.potions[id].title : titleCase(id))}</b>` : m; }).replace(/\b([A-Z][A-Z0-9_]{2,})\b/g, (m) => { const t = idTitle(m); return t ? `<b>${esc(t)}</b>` : m; });
 }
 function qRows(options, chosenText) {
   const qs = options.map((o) => o.q).filter((q) => q != null);
@@ -826,18 +829,22 @@ function qRows(options, chosenText) {
     return `<div class="qrow ${o.text === chosenText ? "chosen" : ""}"><span>${prettyAction(o.text)}${o.p != null ? ` <span class="faint">p${num(o.p, 2)}</span>` : ""}</span><span class="qbar"><i style="width:${w}%"></i></span><span class="small">${o.q == null ? "-" : num(o.q, 3)}</span></div>`;
   }).join("");
 }
-function priceTable(p, chosen) {
-  const keys = p.options || Object.keys(p.result || {});
-  const vals = keys.map((k) => p.result[k] || {});
-  const best = (f) => Math.max(...vals.map((v) => v[f] ?? -1));
-  const bw = best("win"), ba = best("act"), br = best("ready"), bf = best("floors");
-  const hasReady = vals.some((v) => v.ready != null), rk = p.ranked_by;
-  const th = (key, t) => `<th>${rk === key ? `<b>${t}</b>` : t}</th>`;  // the horizon the ladder ranked by (agent/price.py `ladder`) in bold
-  const isChosen = (k) => chosen && priceMatches(k, chosen);
-  return `<table class="pt"><tr><th>option</th>${th("win", "P(win run)")}${th("act", "P(clear act)")}${hasReady ? th("ready", "next act ready") : ""}${th("floors", "floors")}</tr>${keys.map((k, i) => {
-    const v = vals[i];
-    return `<tr class="${isChosen(k) ? "chosen" : ""}"><td>${prettyAction(k)}</td><td class="${v.win === bw && bw > 0 ? "best" : ""}">${pct(v.win, 1)}</td><td class="${v.act === ba ? "best" : ""}">${pct(v.act, 1)}</td>${hasReady ? `<td class="${v.ready === br ? "best" : ""}">${pct(v.ready, 1)}</td>` : ""}<td class="${v.floors === bf ? "best" : ""}">${num(v.floors)}</td></tr>`;
-  }).join("")}</table>`;
+const factorName = (f) => (/^\d+$/.test(f) ? `A${+f + 1}` : f.replace(/\b[A-Z][A-Z0-9_]{2,}\b/g, (m) => idTitle(m) || titleCase(m)));
+const factorHTML = (x) => `${esc(factorName(x.name))} win ${pct(x.win)}${x.mult != null && x.mult !== 1 ? ` at ${num(x.mult, 0)}x full HP` : ""}${x.floored ? ` <span class="faint">(scored on progress ${pct(x.scored)}: win floored)</span>` : ""}`;
+function priceTable(p, chosen) {  // a `price` event: the search check (score vs the reference option, per-factor wins) and the run model's rungs when priced
+  const rows = DM.priceRows(p);
+  if (!rows.length) return `<div class="dim small">${(p.options || []).length === 1 ? "one option: nothing to compare" : "no numbers"}</div>`;
+  const rk = DM.rankKey(p), best = DM.bestOption(p);
+  const cols = ["check", "win", "act", "ready", "floors"].filter((f) => rows.some((r) => (f === "win" ? r.win : r[f] != null)));
+  const cell = (r, f) => (f === "check" ? sgn(r.check, r.se) : f === "floors" ? num(r.floors) : pct(r[f]));
+  return `<table class="pt"><tr><th>option</th>${cols.map((f) => `<th>${f === rk ? `<b>${RANKED[f]}</b>` : RANKED[f]}</th>`).join("")}</tr>${rows.map((r) =>
+    `<tr class="${chosen && priceMatches(r.option, chosen) ? "chosen" : ""}"><td>${prettyAction(r.option)}${r.option === best ? ` <span class="good small">best</span>` : ""}${r.factors.length ? `<div class="faint small" style="white-space:normal">${r.factors.map(factorHTML).join(" · ")}</div>` : ""}</td>${cols.map((f) => `<td>${cell(r, f)}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+function whyHTML(why) {  // macro `why` (model.js parseWhy): rule IDs, numbers, judgment; free text as is
+  const w = DM.parseWhy(why);
+  if (!w) return "";
+  if (!w.rules.length && w.numbers == null && w.judgment == null) return `<div class="why">${esc(w.text)}</div>`;
+  return `<div class="why">${w.rules.map((r) => `<span class="rule">${esc(r)}</span>`).join("")}${w.numbers ? `<div><span class="faint small">numbers</span> ${esc(w.numbers)}</div>` : ""}${w.judgment ? `<div><span class="faint small">judgment</span> ${esc(w.judgment)}</div>` : ""}${w.rest ? `<div>${esc(w.rest)}</div>` : ""}</div>`;
 }
 function det(k, summary, body, dflt) {
   const open = k in S.open ? S.open[k] : dflt;
@@ -852,8 +859,7 @@ function feedItems() {
     switch (e.kind) {
       case "fight_start": fight = { kind: "fight", start: e, acts: [], end: null, t: e.t }; items.push(fight); break;
       case "fight_end": if (fight && (fight.start.id === e.id || !fight.end)) { fight.end = e; fight.t = e.t; fight = null; } else items.push({ kind: "fight", start: null, acts: [], end: e, t: e.t }); break;
-      case "action": case "advice": case "potion_proposal": case "potion_commit": case "potion_aside":
-      case "potion_check": case "potion_price": case "potion_keep": case "potion_allow":  // retired kinds, still in older run records
+      case "action": case "advice": case "potion_proposal": case "potion_commit": case "potion_declined": case "potion_aside":
         if (fight) { fight.acts.push(e); fight.t = e.t; } else items.push({ kind: "loose", e, t: e.t }); break;
       case "price": pendingPrice = e; break;
       case "macro": {
@@ -881,26 +887,20 @@ function macroHTML(it) {
   if (fl) FEED_FLOOR.last = fl;
   return `<div class="ev macro">${evHead(e.screen || "macro", "", showFl ? `<span class="dim small">${fl}</span>` : "", e.t)}
     <div class="chose" ${e.result ? `title="${esc("then " + e.result)}"` : ""}>${card ? cardHTML(card.id, { upgrade: card.upgrade, cost: card.cost, star: card.star, mini: true }) : ""}<div><span class="choice">${esc(card ? (card.price != null ? card.price + "g " : "") + cardTitle(card.id) + (card.upgrade ? "+" : "") : label)}</span></div></div>
-    ${e.why && !(opts.length <= 1 && /^only option/i.test(e.why)) ? `<div class="why">${esc(e.why)}</div>` : ""}
+    ${e.why && !(opts.length <= 1 && /^only option/i.test(e.why)) ? whyHTML(e.why) : ""}
     ${it.price ? priceTable(it.price, label) : ""}
     ${opts.length > 1 ? det("mo" + e.t, `<span class="dim small">${opts.length} options</span>`, optsBody, false) : ""}</div>`;
 }
 function actionHTML(e, i, n) {
-  if (e.kind === "macro") return `<div class="act small"><span class="k">by hand</span> ${esc(chosenLabel(e.state, e.choice))}${e.why ? `<div class="why">${esc(e.why)}</div>` : ""}</div>`;
+  if (e.kind === "macro") return `<div class="act small"><span class="k">by hand</span> ${esc(chosenLabel(e.state, e.choice))}${whyHTML(e.why)}</div>`;
   if (e.kind === "potion_proposal") {
     const rows = e.rows || [];
-    const arm = (r, k) => { const a = (r.arms || {})[k] || {}; return `${k} ${pct(a.win, 0)} win, ${num(a.hp)} HP`; };
+    const arm = (r, k) => { const a = (r.arms || {})[k] || {}; return `${k} ${pct(a.win)} win, ${num(a.hp)} HP`; };
     return `<div class="act small"><span class="k" style="color:var(--accent)">potions</span> turn ${esc(e.turn)}: ${rows.map((r) => `${iconHTML("potions", r.id, "sm")} <span class="${e.proposed === r.id ? "bad" : "dim"}">${e.proposed === r.id ? "PROPOSED " : ""}${esc(r.verdict || "")}: ${["now", "keep", "save"].map((k) => arm(r, k)).join(" / ")}</span>`).join(" &middot; ")}</div>`;
   }
-  if (e.kind === "potion_commit") return `<div class="act small"><span class="k" style="color:var(--accent)">potion</span> ${iconHTML("potions", e.id, "sm")} ${esc(e.text || "")}${e.verdict ? ` <span class="dim">(${esc(e.verdict)})</span>` : ""}</div>`;
+  if (e.kind === "potion_commit") return `<div class="act small"><span class="k" style="color:var(--accent)">potion</span> ${M.potions[e.id] ? iconHTML("potions", e.id, "sm") + " " : ""}${prettyAction(e.text)}${e.verdict ? ` <span class="dim">(${e.verdict === "search" ? "the search's throw, confirmed" : esc(e.verdict)})</span>` : ""}</div>`;
+  if (e.kind === "potion_declined") return `<div class="act small"><span class="k" style="color:var(--accent)">potion declined</span> ${prettyAction(e.text)} <span class="dim">(no potions for the rest of turn ${esc(e.turn)})</span></div>`;
   if (e.kind === "potion_aside") return `<div class="act small"><span class="k" style="color:var(--accent)">aside for the boss</span> ${(e.aside || []).map((p) => iconHTML("potions", p, "sm")).join("") || "none"}</div>`;
-  if (e.kind === "potion_check") {
-    const rows = e.rows || [];
-    return `<div class="act small"><span class="k" style="color:var(--accent)">potion check</span> turn ${esc(e.turn)}: ${rows.map((r) => `${iconHTML("potions", r.id, "sm")} <span class="${r.alert ? "bad" : "dim"}">${r.alert ? "ALERT " : ""}now vs hold: ${r.d_win ? (r.d_win > 0 ? "+" : "") + pct(r.d_win, 1) + " win, " : ""}${r.d_hp >= 0 ? "+" : ""}${num(r.d_hp)} HP &plusmn;${num(2 * (r.se_hp || 0))}</span>`).join(" &middot; ")}</div>`;
-  }
-  if (e.kind === "potion_price") { const p = e.price || {}; return `<div class="act small"><span class="k" style="color:var(--accent)">potion price</span> ${iconHTML("potions", p.potion, "sm")} spend ${num(p.throw, 3)} vs keep ${num(p.hold, 3)} (${p.kind || ""} survival; diff ${num(p.diff, 3)} &plusmn;${num(p.se, 3)})</div>`; }
-  if (e.kind === "potion_keep") return `<div class="act small"><span class="k" style="color:var(--accent)">keep</span> ${(e.kept || []).map((p) => iconHTML("potions", p, "sm")).join("")}</div>`;
-  if (e.kind === "potion_allow") return `<div class="act small"><span class="k" style="color:var(--accent)">allow</span> ${(e.allowed || []).map((p) => iconHTML("potions", p, "sm")).join("") || "none"}</div>`;
   const opts = e.options || [];
   const best = opts.reduce((a, o) => (o.q != null && (a == null || o.q > a.q) ? o : a), null);
   const tag = e.kind === "advice" ? `<span class="k">advice</span> ` : e.kind_ === "choose" ? `<span class="k">choose</span> ` : "";
@@ -980,7 +980,7 @@ function actsByTurn(all, keep = 150, fightId = null) {  // turn numbers over the
   let turn = 1, shown = null, n = 0, out = all.length > keep ? `<div class="faint small">(earlier actions not shown)</div>` : "";
   const from = Math.max(0, all.length - keep);
   all.forEach((a, i) => {
-    if ((a.kind === "potion_check" || a.kind === "potion_proposal") && a.turn) turn = +a.turn;
+    if ((a.kind === "potion_proposal" || a.kind === "potion_declined") && a.turn) turn = +a.turn;
     if (i >= from) {
       if (turn !== shown) { out += `<div class="turnhd">turn ${turn}</div>`; shown = turn; }
       ACT_CTX.foes = foeNames(foesAt(fightId, a, n));
@@ -1001,14 +1001,14 @@ function fightHTML(it, latest) {
   const lost = e && e.hp && e.hp_start ? e.hp_start[0] - e.hp[0] : null;
   const q = p.lost_q || (e && e.pred_lost_q);
   const quant = q ? lossHist(q, s ? s.hp : null, lost) : "";
-  const acts = it.acts.filter((a) => a.kind !== "advice" || true);
-  const head = `${icon ? `<img class="icon sm" src="${A(icon)}">` : ""}<span class="title">${esc(encTitle(enc))}</span>
+  const acts = it.acts;
+  const head = `${icon ? `<img class="icon sm" src="${A(icon)}" alt="">` : ""}<span class="title">${esc(encTitle(enc))}</span>
     ${s ? `<span class="small dim">HP ${s.hp}${e && e.hp ? ` &rarr; ${e.hp[0]}` : ""}/${s.max_hp}</span>` : e && e.hp ? `<span class="small dim">HP ${e.hp[0]}/${e.hp[1]}</span>` : ""}${latest && !e ? ` <span class="chip good">in progress</span>` : ""}`;
-  const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span title="${esc(pct(p.hp_lost, 1) + " of max HP")}">est. HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b></span>
+  const body = `<div class="pred"><span>predicted win <b>${pct(p.win)}</b></span><span title="${esc(pct(p.hp_lost) + " of max HP")}">est. HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b></span>
       ${lost != null ? `<span>actual lost <b class="${e.pit != null && e.pit > 0.9 ? "bad" : ""}">${lost}</b>${e.pit != null ? ` <span class="faint">(${pct(e.pit)} quantile)</span>` : ""}</span>` : ""}
       ${s && s.drive ? `<span class="faint" title="${esc(s.drive[0] + ": " + s.drive[1] + (s.budget != null ? `; search budget ${s.budget}s` : ""))}">${esc(s.drive[0])}</span>` : ""}</div>${quant}
     ${e && e.errors && e.errors.length ? `<div class="bad small">replay: ${esc(e.errors.join("; "))}</div>` : ""}
-    ${det("fa" + (s ? s.t : e.t), `<span class="dim small">${acts.filter((a) => a.kind === "action").length} actions, ${acts.filter((a) => a.kind === "potion_proposal" || a.kind === "potion_check").length} potion checks</span>`,
+    ${det("fa" + (s ? s.t : e.t), `<span class="dim small">${acts.filter((a) => a.kind === "action").length} actions, ${acts.filter((a) => a.kind === "potion_proposal").length} potion proposals</span>`,
       `<div style="margin-left:6px">${actsByTurn(acts, 150, s ? s.id : e ? e.id : null)}</div>`, latest && !e)}`;
   return `<div class="ev fight">${evHead("fight", "", head, (s || e).t)}${body}</div>`;
 }
@@ -1016,16 +1016,18 @@ function looseHTML(e) {
   const k = e.kind;
   if (k === "price") return `<div class="ev calc">${evHead("price", "", `<span class="dim small">${esc(e.screen)} (no decision yet)</span>`, e.t)}${priceTable(e, null)}</div>`;
   if (k === "action" || k === "advice" || k.startsWith("potion")) return `<div class="ev potion">${evHead(k, "", "", e.t)}${actionHTML(e, 0, 1)}</div>`;
-  if (["route", "routes", "rmcalc", "pickplan"].includes(k)) return `<div class="ev calc">${evHead(k, "", `<span class="dim small">${esc((e.nodes || []).join(" "))}</span>`, e.t)}${det("c" + e.t, `<span class="dim small">table</span>`, `<pre>${esc(e.text)}</pre>`, false)}</div>`;
+  if (k === "routes") return `<div class="ev calc">${evHead(k, "", "", e.t)}${det("c" + e.t, `<span class="dim small">table</span>`, `<pre>${esc(e.text)}</pre>`, false)}</div>`;
   if (k === "eval") {
-    const res = e.result || {}, vs = (e.spec && e.spec.variants) || [];
-    return `<div class="ev calc">${evHead("eval", "", `<span class="dim small">${esc(Array.isArray(e.spec && e.spec.encounters) ? e.spec.encounters.join(", ") : JSON.stringify((e.spec || {}).encounters || ""))}</span>`, e.t)}
-      <table class="pt"><tr><th>variant</th><th>win</th><th>HP lost</th></tr>${Object.entries(res).map(([i, r]) => `<tr><td>${esc((vs[+i] || {}).name || i)}</td><td>${pct(r.win, 1)}</td><td>${pct(r.hp_lost, 1)}</td></tr>`).join("")}</table></div>`;
+    const res = e.result || {}, vs = (e.spec && e.spec.variants) || [], encs = e.spec && e.spec.encounters;
+    const vtxt = (v) => ["add", "remove", "upgrade", "relics_add"].filter((f) => (v[f] || []).length).map((f) => `${f.replace("_", " ")} ${v[f].map((x) => idTitle(x) || titleCase(x)).join(", ")}`).concat(v.hp != null ? [`HP ${v.hp}`] : []).join("; ");
+    return `<div class="ev calc">${evHead("eval", "", `<span class="dim small">${esc(Array.isArray(encs) ? encs.map(encTitle).join(", ") : encs ? `${encs.act} ${encs.kind} pool${encs.n ? ` (${encs.n})` : ""}` : "")}${e.spec && e.spec.hp != null ? ` at HP ${esc(e.spec.hp)}` : ""}</span>`, e.t)}
+      <table class="pt"><tr><th>variant</th><th>win</th><th>HP lost</th></tr>${Object.entries(res).map(([i, r]) => { const v = vs[+i] || {}; return `<tr><td>${esc(v.name || i)}${vtxt(v) ? `<div class="faint small" style="white-space:normal">${esc(vtxt(v))}</div>` : ""}</td><td>${pct(r.win)}</td><td>${pct(r.hp_lost)}</td></tr>`; }).join("")}</table></div>`;
   }
-  if (k === "reward_eval") return `<div class="ev calc">${evHead("reward", "", `<span class="dim small">${esc((e.options || []).join(" | "))}</span>`, e.t)}${det("r" + e.t, `<span class="dim small">numbers</span>`, `<pre>${esc(JSON.stringify(e.result, null, 1))}</pre>`, false)}</div>`;
+  if (k === "relics") return `<div class="ev">${evHead("relics", "", `<span class="small">${(e.gained || []).map((r) => `+ ${iconHTML("relics", r, "sm")} ${esc(relicTitle(r))}`).join(" ")}${(e.lost || []).map((r) => ` &minus; ${esc(relicTitle(r))}`).join("")}</span>`, e.t)}</div>`;
+  if (k === "target") return `<div class="ev">${evHead("target deck", "", "", e.t)}${targetHTML(e.variant)}</div>`;
   if (k === "divergence" || k === "harness_error") return `<div class="ev warn">${evHead(k, "", "", e.t)}<div class="small">${esc(e.what || e.where || "")} ${esc(e.error || "")} ${e.game ? `game ${esc(e.game.join(", "))} vs sim ${esc((e.sim || []).join(", "))}` : ""}</div></div>`;
   if (k === "route_plan") return `<div class="ev calc">${evHead("route plan", "", `<span class="small">${esc((e.nodes || []).join(" → "))}</span>`, e.t)}</div>`;
-  if (k === "note") return `<div class="ev">${evHead("note", "", "", e.t)}<div class="why" style="background:var(--panel2)">${esc(e.text)}</div></div>`;
+  if (k === "note") return `<div class="ev">${evHead("note", "", "", e.t)}<div class="small">${esc(e.text)}</div></div>`;
   if (k === "run_end") return `<div class="ev warn">${evHead("run end", "", `<b>${esc(e.screen)}</b>`, e.t)}<pre>${esc(e.text || "")}</pre></div>`;
   return `<div class="ev">${evHead(k, "", "", e.t)}<pre>${esc(JSON.stringify(e).slice(0, 400))}</pre></div>`;
 }
@@ -1055,7 +1057,7 @@ async function pollLive() {
   if (r.status === 404) { if (S.live) { S.live = null; S.dirty = true; } return; }
   if (!r.ok) throw new Error("live " + r.status);
   S.liveTag = r.headers.get("ETag");
-  try { S.live = await r.json(); S.dirty = true; } catch (e) { /* mid-replace: next poll */ }
+  try { S.live = await r.json(); S.dirty = true; } catch (e) { S.liveTag = null; /* caught mid-write: the next poll reads it whole */ }
 }
 async function pollEvents() {
   if (!S.run) return false;
@@ -1076,7 +1078,9 @@ async function tick() {
     await pollLive();
     const grew = await pollEvents();
     if (grew) { renderFeed(); S.dirty = true; }
-    if (S.dirty) { renderTop(); renderScreen(); renderMiniMap(); S.dirty = false; }
+    if (S.dirty) { MODEL = DM.model(S.live, S.events); renderTop(); renderScreen(); renderMiniMap(); }
+    if (S.dirty || MODEL.running) renderOperator();
+    S.dirty = false;
     const t = Math.max((S.live && S.live.t) || 0, (S.events.length && S.events[S.events.length - 1].t) || 0);
     const age = t ? Date.now() / 1000 - t : null;
     $("dot").className = "dot " + (age == null ? "" : age < 120 ? "ok" : "stale");
@@ -1098,6 +1102,10 @@ document.addEventListener("click", (ev) => {  // a card opens its full view; any
   if (el) { openCardPop(el); return; }
   if (ev.target.closest && ev.target.closest("#mappanel")) { $("mappop").classList.remove("hidden"); renderBigMap(); }
 });
+document.addEventListener("error", (ev) => {  // an art file the cache lacks: its name as text, never a broken image
+  const t = ev.target;
+  if (t && t.tagName === "IMG") { const s = document.createElement("span"); s.className = "chip"; s.textContent = t.alt || t.title || ""; s.title = t.title || ""; t.replaceWith(s); }
+}, true);
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closeCardPop(); closeMapPop(); } });
 // the decision feed's width: drag its left edge (remembered in this browser; double-click resets)
 const FEEDW_KEY = "sts2dash.feedWidth";

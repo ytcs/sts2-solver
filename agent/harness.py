@@ -3,6 +3,7 @@ import json
 import os
 import re
 import threading
+import time
 import traceback
 import zlib
 
@@ -45,6 +46,11 @@ def _check_lines(got, radius):
             for lb, (p, se, pa, _t, pw, _c, mu) in sorted(got.items(), key=lambda x: -x[1][0])]
     return (f"search check: log ratio vs skip summed over the factors of P(win run) (near binding fights at current HP, binding radius {radius}; future boss rungs at full HP), "
             "the belt each option leaves; per factor its win rate, and where skip's win rate is floored the progress score that ranked it\n" + "\n".join(rows) + "\n")
+
+
+def _search_log(got):
+    """price event `search`: {label: [score, se, {factor: scored}, {factor: win}, {factor: HP multiple}]}"""
+    return {k: [round(v[0], 3), round(v[1], 3)] + [{str(a): round(x, 3) for a, x in d.items()} for d in (v[2], v[4], v[6])] for k, v in got.items()}
 
 
 class Harness(Live):
@@ -250,9 +256,10 @@ class Harness(Live):
             self.log.event("macro", screen=before.split("\n")[0], state=before[:1500], choice=step, why=why, result=reply.split("\n")[0])
             if kind != "COMBAT":
                 self._relic_watch(reply)
-            self.last_state = reply
             if reply.startswith("ERR"):
                 return reply
+            self.last_state = reply
+            self.log.live(screen=reply)
         if last_kind in ("COMBAT", "SELECT") and scr.kind(reply) not in ("COMBAT", "SELECT") and self.rp is not None:
             try:
                 self._fight_end(reply)
@@ -299,7 +306,7 @@ class Harness(Live):
         best = max(got, key=lambda lb: got[lb][0]) if got else None
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by="check", best=best,
                        result={k: {"check": round(v[0], 4)} for k, v in got.items()},
-                       search={k: [round(v[0], 3), round(v[1], 3), {str(a): round(x, 3) for a, x in v[2].items()}, {str(a): round(x, 3) for a, x in v[4].items()}] for k, v in got.items()}, radius=radius)
+                       search=_search_log(got), radius=radius)
         return _check_lines(got, radius) + VALIDATION + self._synergy(state, self._run())
 
     @_needs_run("no run in progress")
@@ -334,7 +341,7 @@ class Harness(Live):
         ranked_by, _why = PR.ladder(res)
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by=ranked_by, best=r["best"],
                        result={k: {m: float(v.mean()) for m, v in x.items()} for k, x in res.items()},
-                       search={k: [round(v[0], 3), round(v[1], 3), {str(a): round(x, 3) for a, x in v[2].items()}, {str(a): round(x, 3) for a, x in v[4].items()}] for k, v in got.items()}, override=override, terms=adj, radius=r["radius"])
+                       search=_search_log(got), override=override, terms=adj, radius=r["radius"])
         ready = ("; next act ready: P(win) after the ancient's heal vs the next act's bosses x0.5 and elites x0.5, 0 on a death in this act"
                  if "ready" in next(iter(res.values())) else "")
         check = ""
@@ -489,12 +496,20 @@ class Harness(Live):
 
     def handle(self, line):
         self._rc = None
+        self.log.live(running=line, t_running=round(time.time(), 2))
         out = self._handle(line)
         if _code_stamp() != self.code_stamp:
             out = "WARNING: harness code changed since this daemon started; `quit` reloads it (the reply below came from the old code)\n" + out
         self._watch_run_end(out)
-        self.log.live(cmd=line, reply=out, screen=self.last_state, fight=getattr(self, "_last_f", None) if self.rp is not None else None)
+        self.log.live(cmd=line, reply=out, screen=self.last_state, fight=getattr(self, "_last_f", None) if self.rp is not None else None, running=None, potion=self._potion_pending())
         return out
+
+    def _potion_pending(self):
+        pend = getattr(self, "_pending", None)
+        try:
+            return pend[2]["text"] if pend and self.rp is not None and pend[:2] == (self.fight_id, self._turn()) else None
+        except Exception:  # noqa: BLE001
+            return None
 
     def _watch_run_end(self, out):
         try:
