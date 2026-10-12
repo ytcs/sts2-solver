@@ -8,7 +8,7 @@ fidelity: the first attempt of each combat (combat_id without "#n"; attempt_id i
 Not compared (unlogged or not reconstructible): energy except at a spend, intent damage after the turn's first action or a power change since the
 turn-start display, a generated card's upgrade until it is played, cards whose pile is unknown (unlogged returns, unplaced generated cards), orbs,
 relic displays, powers' turn-start amounts. A logged pick the sim resolved itself (forced) is not a divergence (`diverged`).
-Needs the sts2 extension built from this branch (`Sim.exact`, `rng_counters`; a scratch venv until the shared reinstall).
+Needs the sts2 extension built from this branch (`Sim.exact`, `rng_counters`, `setup_counters`, `pick_upgrade`; a scratch venv until the shared reinstall).
 usage: python tools/codex_replay.py fidelity target/codex/replays --out target/review/replay_fidelity [--character ironclad] [--workers 4]
        python tools/codex_replay.py corpus target/codex/replays --out target/review/replay_corpus.json
        python tools/codex_replay.py repro target/review/replay_fidelity_repro/<field>.json"""
@@ -31,10 +31,17 @@ def _pascal(k):
     return "".join(p.capitalize() for p in k.split("_"))
 
 
+ENUMS = {"TinkerTimeType": ("None", "Attack", "Skill", "Power"),
+         "TinkerTimeRider": ("None", "Sapping", "Violence", "Choking", "Energized", "Wisdom", "Chaos", "Expertise", "Curious", "Improvement")}
+
+
 def _card(d):
+    """deck card; its saved state (Mad Science's Tinker Time type / rider, Genetic Algorithm's block, The Scythe's damage) as props"""
     out = dict(id=d["id"], upgrade=int(d.get("up") or 0), c=d.get("c"))
     if d.get("enchantment"):
         out["enchantment"] = dict(id=d["enchantment"], amount=int(d.get("amount") or 1))
+    if d.get("state"):
+        out["props"] = {k: ENUMS[k].index(v) if k in ENUMS and v in ENUMS[k] else v for k, v in ((_pascal(k), v) for k, v in d["state"].items())}
     return out
 
 
@@ -178,7 +185,7 @@ def _next_piles(evs):
                 if t == "shuffle" and c in (e.get("order_c") or []):
                     out[j, c] = "disc"
                 elif c in named:
-                    out[j, c] = "draw" if t == "draw" else "hand" if evs[j]["t"] == "generate" or t in ("play", "flush", "discard") else None
+                    out[j, c] = "draw" if t == "draw" else "hand" if t in ("play", "flush", "discard") else None
                 else:
                     continue
                 del pending[c]
@@ -233,8 +240,8 @@ def _names(e):
 
 
 def _returns(evs):
-    """unlogged returns to hand (Bolas, Thrumming Hatchet, Sovereign Blade, All for One...): a card played from hand whose previous logged move left
-    it elsewhere -> ({index of that move: [card]}, {index just before the play's cut: [card]}); in between the board holds it in limbo
+    """unlogged returns to hand (Bolas, Thrumming Hatchet, Sovereign Blade, All for One...): a card played or flushed from hand whose previous logged
+    move left it elsewhere -> ({index of that move: [card]}, {index just before the play's cut: [card]}); in between the board holds it in limbo
     (location unknown: tolerated where the sim has it)"""
     leave, back, last = collections.defaultdict(list), collections.defaultdict(list), {}
     for i, e in enumerate(evs):
@@ -244,6 +251,11 @@ def _returns(evs):
                 k = play_start(evs, i)
                 leave[j].append(e["c"])
                 back[max(j, k - 1)].append(e["c"])
+        if e["t"] == "flush":
+            for c in set(e.get("flushed_c") or []) | set(e.get("retained_c") or []):
+                if c in last and last[c][1] != "hand":
+                    leave[last[c][0]].append(c)
+                    back[max(last[c][0], i - 1)].append(c)
         if e["t"] not in ("draw", "play", "discard", "exhaust", "flush", "shuffle", "generate", "transform"):
             continue
         for c in _names(e) - {None}:
@@ -306,6 +318,8 @@ class Board:
         self.i += 1
         if self.unknown_cards and t != "generate":
             self.unknown_cards = [c for c in self.unknown_cards if c not in _names(e)]
+        if t == "turn" and e.get("side") == "player" and "ROLLING_BOULDER_POWER" in self.p["powers"]:
+            self.p["powers"]["ROLLING_BOULDER_POWER"] += 5  # RollingBoulderPower.cs SetAmount after each turn-start hit, never logged
         if t == "draw_order":
             self.deck_to_c = dict(zip(e["order_deck_c"], e["order_c"]))
             for c, dc in zip(e["order_c"], e["order_deck_c"]):
@@ -641,7 +655,9 @@ def human_actions(evs):
 
 
 def replay_fight(sc, start, evs, end, keep_ops=False):
-    """one combat in Sim.exact with the human's actions; before each play / potion the sim is diffed against the log and synced on a difference
+    """one combat in Sim.exact with the human's actions; before each play / potion the sim is diffed against the log and synced on a difference;
+    a fight that ends in the post-play phase of an end turn the log never closes (Howl from Beyond, Stone Calendar, end-of-turn orbs: an auto
+    play, flush or new player turn after the last action) gets that end turn; a logged end turn a card already ended (Void Form) is not repeated
     -> (result row, (scenario, ops) for a repro when keep_ops)"""
     row = dict(enc=start["encounter"], floor=start["floor"], act=start["act"], char=sc["character"], cuts=0, divs=[], fields=collections.Counter(),
                actions=0, failed=None, end=None, deck=sorted({c["id"] for c in sc["deck"]}), relics=[r["id"] for r in sc["relics"]])
@@ -659,7 +675,7 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
     for k, i in enumerate(human):
         nxt = human[k + 1] if k + 1 < len(human) else len(evs)
         picks[i] = [e for e in evs[i + 1:nxt] if e["t"] == "pick" and e.get("selector", "human") == "human" and not e.get("decision_type")]
-    starts = {}
+    starts, then = {}, dict(zip(human, human[1:]))
     for i in human:
         starts[play_start(evs, i) if evs[i]["t"] == "play" else i] = i
     turn, last, moves, cascade = 0, "start", [], False
@@ -669,13 +685,19 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
         if keep_ops:
             ops.append(("step", j))
 
-    def resolve(pks):
+    held = []
+
+    def resolve(pks, hold=False):
         """the window's logged picks on the sim's pending selections (each option once), then any selection the log did not show (confirm, else
-        an option not yet taken)"""
-        for pk in pks:
+        an option not yet taken); before an end turn an unasked pick is held for the end turn's selection if that window logs none and it
+        offers the pick's cards (an end-of-turn auto-play picks before the logged end turn: Stampede's Headbutt)"""
+        pks = pks or [pk for pk in held if sim.stage() == "choice" and all(any(t.endswith(f"({c['id']})") for _, t in sim.legal()) for c in pk.get("cards") or [])]
+        held.clear()
+        for n, pk in enumerate(pks):
             if sim.stage() != "choice":
                 row["fields"]["choice.unasked"] += 1
                 row.setdefault("unasked", []).append(last)
+                held.extend(pks[n:] if hold else [])
                 break
             used = set()
             for c in pk.get("cards") or []:
@@ -743,16 +765,23 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
                     if keep_ops:
                         ops.append(("sync", {GROUP[f.split(".")[0]]: log[GROUP[f.split(".")[0]]] for f in d}))
             try:
-                a = _act(sim, ae, b)
+                ended = ae["t"] == "end_turn" and json.loads(sim.snapshot())["turn"] > turn
+                a = None if ended else _act(sim, ae, b)
             except ValueError as ex:
                 row["failed"] = dict(step=row["actions"], turn=turn, why=str(ex)[:120], after=_label(ae))
                 break
-            if keep_ops:
+            if keep_ops and a:
                 ops.append(("apply", a))
             row["actions"] += 1
             last, moves = _label(ae), []
-            resolve(picks.get(starts[i], []))
+            resolve(picks.get(starts[i], []), hold=evs[then.get(starts[i], 0)]["t"] == "end_turn")
         b.apply(e)
+    tail = evs[human[-1] + 1:] if human else []
+    if not row["failed"] and end and sim.stage() == "play" and any(v["t"] == "play" and v.get("auto") or v["t"] == "flush"
+                                                                   or v["t"] == "turn" and v.get("side") == "player" for v in tail):
+        sim.end_turn()
+        if keep_ops:
+            ops.append(("apply", {"end_turn": True}))
     row["end"] = dict(log=(end or {}).get("result"), sim={1: "victory", -1: "loss"}.get(sim.outcome(), "ongoing"))
     if not row["failed"]:
         row["rng_end"] = dict(sim.rng_counters())
@@ -914,22 +943,15 @@ TIER = (("combat.over_early", 3), ("combat.unported", 3), ("player.hp", 3), ("en
 # cluster -> class, read off the log and the decompile for the clusters named; everything else stays a sim-bug candidate
 CLASSES = (
     (lambda f, a, e: f == "combat.unported", "sim gap (unported content)", "Sim.missing() names it"),
-    (lambda f, a, e: f == "potions" and a == "start", "reconstruction gap", "potion belt between fights (potion_got carries no slot)"),
+    (lambda f, a, e: f == "potions" and a == "start", "reconstruction gap", "potion belt between fights (potion_got carries no slot; potions made in a fight)"),
     (lambda f, a, e: f == "player.hp" and a == "start", "reconstruction gap", "HP carried between fights from hits / heals"),
-    (lambda f, a, e: f == "hand" and a == "start", "sim-bug candidate", "start-of-combat card generation: Toolbox / Choices Paradox offer other cards (option missing "
-                                                                       "in ~all their fights), Vexing Puzzlebox, Crossbow, Blessed Antler; Jeweled Mask is a format gap "
-                                                                       "(its draw-to-hand move is not logged)"),
-    (lambda f, a, e: f == "enemy.hp" and e == "OVICOPTER_NORMAL", "sim-bug candidate", "Tough Egg spawn HP off by one roll (check the skin pick ToughEgg.cs:118 and the HP roll stream)"),
-    (lambda f, a, e: f == "enemy.hp" and a == "start", "reconstruction gap?", "Fur Coat (lift 150: marked-node HP cut needs its saved map state), Sword of Jade, Kifuda"),
-    (lambda f, a, e: f == "player.block" and a.startswith("DEFEND"), "sim-bug candidate", "replayed play (play_count 2: Spiral enchantment) not replayed"),
-    (lambda f, a, e: f == "player.block" and a not in ("start", "end_turn"), "sim-bug candidate", "Genetic Algorithm, Seeker Strike, Child of the Stars; Pael's Claw, "
-                                                                                                   "Meat Cleaver (lift 5-17)"),
-    (lambda f, a, e: f == "energy" and a == "start", "sim-bug candidate", "turn-1 energy (spend event shows more): Hand Drill, Blessed Antler, Alchemical Coffer, (Fake) Venerable Tea Set, Fake Happy Flower"),
-    (lambda f, a, e: f == "energy" and a == "end_turn", "sim-bug candidate", "Distinguished Cape / Apparition, Punch Dagger, Kunai, Sand Castle"),
-    (lambda f, a, e: f == "player.hp" and a == "end_turn", "sim-bug candidate", "Whispering Earring, Fencing Manual; Calamity / Resonance / Void Form decks"),
-    (lambda f, a, e: f == "combat.over_early", "sim-bug candidate", "sim kills the player a turn early (Oddly Smooth Stone fights) or ends the fight"),
-    (lambda f, a, e: f == "hand" and a == "end_turn", "replay-format gap (mostly)", "turn-start returns to hand are not logged (Aggression, Bolas, Thrumming "
-                                                                                        "Hatchet: lift 7-15); visible only when the card is played later"),
+    (lambda f, a, e: f == "hand" and a == "start", "mixed", "opening shuffle differs from the logged order in a few runs (deck order); Power Cell / "
+                                                           "Jeweled Mask cards neither played nor flushed on turn 1 (unlogged move)"),
+    (lambda f, a, e: f == "enemy.hp" and a == "start", "reconstruction gap?", "Fur Coat (marked-node HP cut needs its saved map state), Sword of Jade, Kifuda"),
+    (lambda f, a, e: f == "energy" and a == "end_turn", "sim-bug candidate", "Distinguished Cape, Punch Dagger, Throwing Axe (lift 26-43)"),
+    (lambda f, a, e: f == "player.power.SERPENT_FORM_POWER", "replay-format gap", "the power event is missing in two runs' logs"),
+    (lambda f, a, e: f in ("hand", "discard") and a == "end_turn", "replay-format gap (mostly)", "unlogged moves to hand neither played nor flushed later "
+                                                                                                   "(Aggression, Sovereign Blade forge, All for One)"),
 )
 
 
@@ -981,6 +1003,7 @@ def report(rows, meta, out):
         e = by_enc[r["enc"]]
         e["fights"] += 1
         e["exact"] += r in exact
+        e["ended"] += bool((r["end"] or {}).get("log"))
         if r["divs"]:
             e[f"first:{field_kind(r['divs'][0]['field'])}@{r['divs'][0]['after'] if r['divs'][0]['after'] in ('start', 'end_turn') else 'card'}"] += 1
         if r["failed"] and not any(d["field"] == "combat.over_early" for d in r["divs"]):
@@ -1010,8 +1033,8 @@ def report(rows, meta, out):
                   f"{os.path.basename(clus_ex[f, a][0])[:16]} {clus_ex[f, a][1]}: {clus_ex[f, a][2]['step']} t{clus_ex[f, a][2]['turn']}: "
                   f"{json.dumps(clus_ex[f, a][2]['sim'])[:50]} vs {json.dumps(clus_ex[f, a][2]['log'])[:50]}") for (f, a), n in ranked[:60]]),
          "\n## Blocking encounters (Test Subject, Waterfall Giant, act-3 bosses: gate the next model round)\n",
-         _table(["encounter", "fights", "exact", "top first divergences"],
-                [(k, by_enc[k]["fights"], by_enc[k]["exact"], ", ".join(f"{f[6:]} {n}" for f, n in sorted(((f, n) for f, n in by_enc[k].items() if f.startswith("first:")), key=lambda x: -x[1])[:5]))
+         _table(["encounter", "fights", "ended", "exact", "exact / ended", "top first divergences"],
+                [(k, by_enc[k]["fights"], by_enc[k]["ended"], by_enc[k]["exact"], f"{by_enc[k]['exact'] / max(1, by_enc[k]['ended']):.3f}", ", ".join(f"{f[6:]} {n}" for f, n in sorted(((f, n) for f, n in by_enc[k].items() if f.startswith("first:")), key=lambda x: -x[1])[:5]))
                  for k in BLOCKING]),
          "\n## Collection roots: human decision states (actions taken in the sim) and those before the fight's first divergence (exact-prefix roots)\n",
          _table(["encounter", "fights", "strong-player fights", "decision states", "exact-prefix states"],
