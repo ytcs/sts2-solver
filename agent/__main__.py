@@ -151,7 +151,10 @@ def main():
             return
         start_daemon()
     try:
-        print(with_stop_tail(ask(line)), end="")
+        out = ask(line)
+        print(with_stop_tail(out), end="")
+        if out.startswith(("ERR", "REFUSED")):
+            sys.exit(1)
     except (ConnectionError, OSError) as e:
         if line == "quit":
             print("bye")

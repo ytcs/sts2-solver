@@ -35,9 +35,10 @@ Macro `-- why` = `rules: <IDs or new: claim> ; numbers: <tool and margin> ; judg
 ## Batch, quirks
 1. `python -m agent - <<'EOF'` one command per line; stops at `ERR`/`REFUSED` unless `- --keep-going`. A stopped reply repeats the reason last (`^ stopped: ...`).
 2. Variants share fights (`paired` = se of the difference); seeded per screen, `--seed N` fresh. Decide on q90 + death tail.
-3. Option numbers shift after each action: a bare `a <i>` after a chain step is refused; never chain map clicks.
-4. Crystal Sphere: `a 0 <x> <y>` (`sts2-crystal-sphere`). The sim applies Pantograph's +25 at boss start: give `eval --hp` the pre-heal HP, never add 25.
-5. Never `quit` the daemon unless code changed (+20 s cold).
+3. An unknown command answers `ERR unknown command` and exits 1 (discard a potion: `a dp <slot>`); chain shell calls with `&&`, never `;`.
+4. Option numbers shift after each action: a bare `a <i>` after a chain step is refused; never chain map clicks.
+5. Crystal Sphere: `a 0 <x> <y>` (`sts2-crystal-sphere`). The sim applies Pantograph's +25 at boss start: give `eval --hp` the pre-heal HP, never add 25.
+6. Never `quit` the daemon unless code changed (+20 s cold).
 
 ## Speed `[hyp]` (test: durations in `review`)
 Run ~30 min, fight 1-2 min; `combat` for easy fights; short whys.
