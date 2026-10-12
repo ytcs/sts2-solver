@@ -17,6 +17,7 @@ For the plan's target deck (`sts2-plan`) and the buckets (`sts2-deckbuilding`). 
 ## Elites and hallways
 - Infested Prisms (171 HP) `[code]`: each Skill played gives you Tainted 3 vs its 9x3: win with Attacks/Powers/potions.
 - Bygone Effigy: sleeps T1, SD; the starter deck loses it `[hyp]` (test: `eval --enc BYGONE_EFFIGY_ELITE`). Phrog Parasite: area damage `[hyp]`. Skulking Colony: FD vs Hardened Shell `[hyp]`. Terror Eel (150 HP, Shriek at 75) `[hyp]`.
+- Scrolls of Biting (Glory weak): Paper Cuts costs max HP per unblocked hit; block before damage; MANUAL (`data/drive_manual.json`) `[hyp]` (test: max HP lost per fight, manual vs auto).
 - Spiny Toad (hallway) `[code]`: Thorns 5 while Spiked, Explosion 25.
 
 ## Target decks `[hyp]` (earlier models; test: `eval --boss --v` of the target deck)
