@@ -27,7 +27,7 @@ def main():
     X = np.stack([calib_features(dict(encounter=r["enc"], act=r["act"]), r["p_win"])[0] for r in R])
     G = [calib_features(dict(encounter=r["enc"], act=r["act"]), r["p_win"])[1] for r in R]
     y = np.array([r["won"] for r in R])
-    fold = np.array([zlib.crc32(f"{r['arm']}|{r['seed']}".encode()) % 2 for r in R])
+    fold = np.array([zlib.crc32(r["seed"].encode()) % 2 for r in R])
     band = lambda r: hp_band(dict(hp=r["hp"], max_hp=r["mx"]))  # noqa: E731
 
     def fit(m):

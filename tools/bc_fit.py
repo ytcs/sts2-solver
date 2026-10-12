@@ -84,7 +84,7 @@ def main():
         return w
 
     base_rank = lambda t, f: ({"R": 0, "?": 1, "T": 1, "$": 2, "M": 3, "E": 9} if f < 0.45 else {"T": 0, "?": 1, "M": 2, "R": 3, "$": 4, "E": 9}).get(t, 5)  # noqa: E731
-    fold = lambda run: zlib.crc32(run.encode()) % 2  # noqa: E731
+    fold = lambda run: zlib.crc32(run.split("|")[-1].encode()) % 2  # noqa: E731
     acc = {"cloned": [], "base": []}
     racc = {"cloned": [], "base": []}
     for f in (0, 1):
