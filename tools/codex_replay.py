@@ -318,6 +318,8 @@ class Board:
         self.i += 1
         if self.unknown_cards and t != "generate":
             self.unknown_cards = [c for c in self.unknown_cards if c not in _names(e)]
+        if t == "turn" and e.get("side") == "player" and "ROLLING_BOULDER_POWER" in self.p["powers"]:
+            self.p["powers"]["ROLLING_BOULDER_POWER"] += 5  # RollingBoulderPower.cs SetAmount after each turn-start hit, never logged
         if t == "draw_order":
             self.deck_to_c = dict(zip(e["order_deck_c"], e["order_c"]))
             for c, dc in zip(e["order_c"], e["order_deck_c"]):
@@ -655,7 +657,7 @@ def human_actions(evs):
 def replay_fight(sc, start, evs, end, keep_ops=False):
     """one combat in Sim.exact with the human's actions; before each play / potion the sim is diffed against the log and synced on a difference;
     a fight that ends in the post-play phase of an end turn the log never closes (Howl from Beyond, Stone Calendar, end-of-turn orbs: an auto
-    play, flush or new player turn after the last action) gets that end turn
+    play, flush or new player turn after the last action) gets that end turn; a logged end turn a card already ended (Void Form) is not repeated
     -> (result row, (scenario, ops) for a repro when keep_ops)"""
     row = dict(enc=start["encounter"], floor=start["floor"], act=start["act"], char=sc["character"], cuts=0, divs=[], fields=collections.Counter(),
                actions=0, failed=None, end=None, deck=sorted({c["id"] for c in sc["deck"]}), relics=[r["id"] for r in sc["relics"]])
@@ -763,11 +765,12 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
                     if keep_ops:
                         ops.append(("sync", {GROUP[f.split(".")[0]]: log[GROUP[f.split(".")[0]]] for f in d}))
             try:
-                a = _act(sim, ae, b)
+                ended = ae["t"] == "end_turn" and json.loads(sim.snapshot())["turn"] > turn
+                a = None if ended else _act(sim, ae, b)
             except ValueError as ex:
                 row["failed"] = dict(step=row["actions"], turn=turn, why=str(ex)[:120], after=_label(ae))
                 break
-            if keep_ops:
+            if keep_ops and a:
                 ops.append(("apply", a))
             row["actions"] += 1
             last, moves = _label(ae), []
