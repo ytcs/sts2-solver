@@ -196,6 +196,7 @@ def _score(inst, e):
 def _macro_decisions(ev, run):
     """every macro decision with its cited rules, scored against the instrument logged on that screen; rows go to the rule ledger"""
     outcome = next((f"{e.get('screen')} {e.get('header')}" for e in reversed(ev) if e["kind"] == "run_end"), "unfinished")
+    seen = any(e["kind"] == "note" and (e.get("text") or "").startswith("seen_seed") for e in ev)
     inst, rows = None, []
     for e in ev:
         k = e["kind"]
@@ -215,7 +216,8 @@ def _macro_decisions(ev, run):
                 rows.append(dict(run=run, i=len(rows), screen=(e.get("screen") or "").split(" ")[0], header=e.get("screen"), choice=e.get("choice"),
                              rules=RULE_ID.findall(cited), new=cited.partition("new:")[2].strip() or None, judgment=_field(why, "judgment")[:300],
                              instrument=sc[0] if sc else None, best=sc[1] if sc else None, chosen=sc[2] if sc else None,
-                             agree=sc[3] if sc else None, margin=round(sc[4], 4) if sc and sc[4] is not None else None, outcome=outcome))
+                             agree=sc[3] if sc else None, margin=round(sc[4], 4) if sc and sc[4] is not None else None, outcome=outcome,
+                             **({"seen_seed": True} if seen else {})))
             if sc or (e.get("screen") or "").startswith("MAP"):
                 inst = None
     scored = [r for r in rows if r["agree"] is not None]
@@ -227,14 +229,16 @@ def _macro_decisions(ev, run):
     for r in rows:
         if r["new"]:
             lines.append(f"  new: [{r['screen']}] {r['new'][:200]}")
-    _append_new(LEDGER, [dict(run=run, i=-1, outcome=outcome, decisions=len(rows))] + rows, LEDGER_KEY)
+    if seen:
+        lines.append("seen seed (a replayed seed): rows flagged seen_seed, left out of `improve rules`")
+    _append_new(LEDGER, [dict(run=run, i=-1, outcome=outcome, decisions=len(rows), **({"seen_seed": True} if seen else {}))] + rows, LEDGER_KEY)
     return lines, [r for r in rows if r["new"] or r["agree"] is False], sum(1 for r in rows if r["screen"] == "CARD_REWARD" and r["instrument"] is None)
 
 
 def rules_table():
     if not os.path.exists(LEDGER):
         return "no ledger yet"
-    rows = [r for r in map(json.loads, filter(str.strip, open(LEDGER, encoding="utf-8"))) if r["i"] >= 0]
+    rows = [r for r in map(json.loads, filter(str.strip, open(LEDGER, encoding="utf-8"))) if r["i"] >= 0 and not r.get("seen_seed")]
     by = collections.defaultdict(list)
     for r in rows:
         for rid in r["rules"] or ["(none)"]:
