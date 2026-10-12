@@ -33,7 +33,7 @@ One character-dependent combat rule: Channel with no orb slots. Stars, Osty/Summ
 - C11. Port status: RNG, card rewards, potions, unknown rooms, rest, act transitions, shop, event selection done (`agent/runmodel.py`, `agent/tracker.py`); map = real current map + template later acts; event bodies partial; open: boss/treasure relic bag order, encounter tag rule (`AddWithoutRepeatingTags`, needs pool tags).
 
 ## D. Event and ancient-relic data vs decomp (`data/events.json`, `data/ancient_relics.json`, `agent/events.py`)
-One row per event option (sub-pages as `A > B`) and per ancient relic. Status: ok = matches the decomp; ok* = data matches, approximation or run-model gap noted; fixed = corrected; unmodelled = effect the vocabulary cannot express (an `unmodelled` note flags the rollout). Combat effects are the sim's (`content/relics/*.rs`). Run-model gaps not fixed: relic counters reset per fight (teas, Iron Club, Pumpkin Candle KindleCount), max HP gained in combat (Chosen Cheese) and in-combat gold are not carried back.
+One row per event option (sub-pages as `A > B`) and per ancient relic. Status: ok = matches the decomp; ok* = data matches, approximation or run-model gap noted; fixed = corrected; unmodelled = effect the vocabulary cannot express (an `unmodelled` note: -0.5 in the scripted event policy, skipped by `default_choose`; not shown in `price` output). Combat effects are the sim's (`content/relics/*.rs`). Run-model gaps not fixed: relic counters reset per fight (teas, Iron Club, Pumpkin Candle KindleCount), max HP gained in combat (Chosen Cheese) and in-combat gold are not carried back.
 
 | event / relic | option | status | what was wrong | file:line |
 |---|---|---|---|---|
@@ -52,7 +52,7 @@ One row per event option (sub-pages as `A > B`) and per ancient relic. Status: o
 | BrainLeech | RIP | ok* | colorless offer skips the rarity roll | data/events.json:230; Models.Events/BrainLeech.cs:19-73 |
 | Bugslayer | EXTERMINATION | ok |  | data/events.json:278; Models.Events/Bugslayer.cs:13-46 |
 | Bugslayer | SQUASH | ok |  | data/events.json:278; Models.Events/Bugslayer.cs:13-46 |
-| ByrdonisNest | EAT | fixed | condition no_event_pet ignored pet relics (Byrdpip, Pael's Legion): events.py allowed() | data/events.json:312; Models.Events/ByrdonisNest.cs:15-51 |
+| ByrdonisNest | EAT | fixed | event condition no_event_pet ignored pet relics (Byrdpip, Pael's Legion): events.py allowed() | data/events.json:312; Models.Events/ByrdonisNest.cs:15-51 |
 | ByrdonisNest | TAKE | unmodelled | Byrdonis Egg's Hatch rest option (Byrdpip) not modelled; note added | data/events.json:312; Models.Events/ByrdonisNest.cs:15-51 |
 | ColorfulPhilosophers | NECROBINDER | ok |  | data/events.json:352; Models.Events/ColorfulPhilosophers.cs:16-67 |
 | ColorfulPhilosophers | IRONCLAD | ok* | game offers 3 of the 4 other colours (own colour excluded); data lists all 5 | data/events.json:352; Models.Events/ColorfulPhilosophers.cs:16-67 |
