@@ -144,7 +144,8 @@ def fights(path):
 
 
 def _next_piles(evs):
-    """(event index, card) -> pile for generated and picked cards, read from the next event naming the card (the log does not say where they went);
+    """(event index, card) -> pile for generated and picked cards, read from the next event naming the card (the log does not say where they went;
+    a generated card next seen in a shuffle stays unplaced);
     generated card -> upgrade, from its first play"""
     out, pending, gen, up = {}, {}, set(), {}
     for i, e in enumerate(evs):
@@ -196,7 +197,8 @@ def _returns(evs):
 
 
 class Board:
-    """the logged combat state, folded event by event; snapshot() is the sts2diff schema (piles top-last as the game lists them)"""
+    """the logged combat state, folded event by event; snapshot() is the sts2diff schema (piles top-last as the game lists them). At a flush every
+    hand card not retained is discarded: cards with an end-of-turn effect in hand (Burn, Toxic, Infection, Decay, Regret...) are not in flushed_c"""
 
     def __init__(self, sc, start, evs=()):
         self.next_pile, self.gen_up, self.i, self.spent, self.unknown_cards = *_next_piles(evs), -1, False, []
@@ -243,6 +245,8 @@ class Board:
     def _apply(self, e):
         t = e["t"]
         self.i += 1
+        if self.unknown_cards and t != "generate":
+            self.unknown_cards = [c for c in self.unknown_cards if c not in _names(e)]
         if t == "draw_order":
             self.deck_to_c = dict(zip(e["order_deck_c"], e["order_c"]))
             for c, dc in zip(e["order_c"], e["order_deck_c"]):
@@ -263,8 +267,8 @@ class Board:
                 pass
             elif pile == "draw":
                 self.draw.insert(0, e["c"])
-            elif pile is not None:
-                getattr(self, pile).append(e["c"])
+            elif pile == "hand":
+                self.hand.append(e["c"])
             else:
                 self.unknown_cards.append(e["c"])
         elif t == "pick":
@@ -285,7 +289,8 @@ class Board:
         elif t == "exhaust":
             self._move(e["c"], self.exh)
         elif t == "flush":
-            for c in e.get("flushed_c") or []:
+            keep = set(e.get("retained_c") or [])
+            for c in list(e.get("flushed_c") or []) + [c for c in self.hand if c not in keep and c not in (e.get("flushed_c") or [])]:
                 self._move(c, self.disc)
         elif t in ("upgrade", "downgrade") and e.get("c") in self.cards:
             self.cards[e["c"]]["upgrade"] = int(e.get("up", (self.cards[e["c"]]["upgrade"] or 0) + 1) if t == "upgrade" else e.get("up", 0))
@@ -833,7 +838,8 @@ CLASSES = (
     (lambda f, a, e: f == "energy" and a == "end_turn", "sim-bug candidate", "Distinguished Cape / Apparition, Punch Dagger, Kunai, Sand Castle"),
     (lambda f, a, e: f == "player.hp" and a == "end_turn", "sim-bug candidate", "Whispering Earring, Fencing Manual; Calamity / Resonance / Void Form decks"),
     (lambda f, a, e: f == "combat.over_early", "sim-bug candidate", "sim kills the player a turn early (Oddly Smooth Stone fights) or ends the fight"),
-    (lambda f, a, e: f == "hand" and e == "PHROG_PARASITE_ELITE", "sim-bug candidate", "top encounter Phrog: Infection goes to discard (PhrogParasite.cs:77, Wriggler.cs:99)"),
+    (lambda f, a, e: f == "hand" and a == "end_turn", "replay-format gap (mostly)", "turn-start returns to hand are not logged (Aggression, Bolas, Thrumming "
+                                                                                        "Hatchet: lift 7-15); visible only when the card is played later"),
 )
 
 
