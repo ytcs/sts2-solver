@@ -127,7 +127,7 @@ class Live:
         d = getattr(self, "drive", None)
         if not d:
             return ""
-        how = "play each decision with `adv` then `a <i>` (`combat !` / `turn !` to auto-play anyway, with the reason)" if d[0] == "manual" else "`combat` is fine"
+        how = "a turn at a time with `turn` (read its alternatives; intervene with `a <i>`), `combat !` with the reason" if d[0] == "manual" else "`combat` is fine"
         return f"DRIVE: {d[0].upper()} ({d[1]}): {how}\nSEARCH OBJECTIVE: {getattr(self, 'fight_objective', 'linear')}\n"
 
     @staticmethod
@@ -235,9 +235,13 @@ class Live:
         self.log.event("advice", fight=self.fight_id, text=d["text"], options=[dict(text=o["text"], q=o["q"]) for o in d["options"][:6]], drive=getattr(self, "drive", None), foes=self._foes(f))
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook() + (f"\n{stop}" if stop else "") + (f"\n{fresh}" if fresh else "")
 
+    def _turn(self):
+        return json.loads(self.rp.sim.snapshot()).get("turn") if self.rp is not None else None
+
     def _decide(self, scenario, sim, budget, **kw):
         e = self.eng()
-        keep = e.keep(getattr(self, "aside", set()), self._is_boss())
+        declined = getattr(self, "_declined", None) is not None and self._declined == (self.fight_id, self._turn())
+        keep = True if declined else e.keep(getattr(self, "aside", set()), self._is_boss())
         return e.decide(scenario, sim, budget, keep_potions=keep, worth=getattr(self, "fight_worth", None), pot_cost=getattr(self, "pair_pot_cost", None), **kw)
 
     def _fight_objective(self, sc):
@@ -321,13 +325,30 @@ class Live:
         verb, arg = (words[0].lower() if words else ""), (words[1] if len(words) > 1 else "")
         if verb == "use":
             return self._commit(arg)
+        if verb in ("yes", "no"):
+            pend = getattr(self, "_pending", None)
+            if self.sync() is None or pend is None or pend[:2] != (self.fight_id, self._turn()):
+                return "ERR no potion proposal pending this turn\n"
+            self._pending = None
+            if verb == "no":
+                self._declined = pend[:2]
+                self.log.event("potion_declined", fight=self.fight_id, turn=pend[1], text=pend[2]["text"])
+                return "declined: no potions for the rest of this turn (`turn` / `combat` resume)\n"
+            d = pend[2]
+            self.potions_used += 1
+            self.fight_actions += 1
+            self.log.event("potion_commit", fight=self.fight_id, id=d["text"], text=d["text"], json=d["json"], priced=True, verdict="search")
+            reply = self._send("do " + d["json"])
+            if not reply.startswith("ERR"):
+                self.last_state = reply
+            return reply
         if verb == "aside":
             self.aside = potions.parse_names(arg)
             self._save_aside()
             self.log.event("potion_aside", aside=sorted(self.aside))
             return f"set aside for the boss: {sorted(self.aside) or 'nothing'}\n"
         if verb:
-            return "usage: potion use <name> | potion aside <name>[, name] | potion aside none\n"
+            return "usage: potion yes | potion no | potion use <name> | potion aside <name>[, name] | potion aside none\n"
         return f"set aside for the boss: {sorted(getattr(self, 'aside', set())) or 'nothing'}\n"
 
     def _commit(self, name):
@@ -472,6 +493,13 @@ class Live:
                 t0 = T()
                 d = self._decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self._tol())
                 tm["decide"] += T() - t0
+                if str(d["text"]).startswith("potion") and getattr(self, "gate", False):
+                    self._pending = (self.fight_id, self._turn(), d)
+                    alt = next((o for o in d["options"] if not str(o["text"]).startswith("potion")), None)
+                    out.append(f"POTION: the search would throw `{d['text']}` now (q {d['options'][0]['q']:.3f}" + (f"; best without a potion: `{alt['text']}` q {alt['q']:.3f}" if alt else "")
+                               + "). Confirm with `potion yes`, or `potion no` to play this turn without potions (`turn` / `combat` resume).")
+                    out.append(txt)
+                    return "\n".join(out)
                 if str(d["text"]).startswith("potion"):
                     self.potions_used += 1
                 self.fight_actions += 1

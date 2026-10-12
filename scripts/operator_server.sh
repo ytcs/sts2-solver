@@ -3,6 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SEED=$1; PORT=${2:-15700}; CHAR=${3:-ironclad}
+if (exec 3<>/dev/tcp/127.0.0.1/$PORT) 2>/dev/null; then echo "port $PORT is in use (another server?): stop it first"; exit 1; fi
 D=target/operator/$SEED/server
 mkdir -p $D/appdata $D/localappdata $D/tmp $D/saves
 DOTNET=${DOTNET:-$HOME/.dotnet/dotnet.exe}

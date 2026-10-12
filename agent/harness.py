@@ -37,6 +37,16 @@ def _needs_run(reply):
     return deco
 
 
+def _check_lines(got, radius):
+    def cell(a, m, w, mult):
+        hp = f" at {mult[a]:g}x full HP" if mult.get(a, 1) != 1 else ""
+        return f"{('A' + str(a + 1)) if isinstance(a, int) else a} win {w:.2f}{hp}" + ("" if abs(m - w) < 1e-9 else f" (scored on progress {m:.2f}: win floored)")
+    rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(cell(a, m, pw[a], mu) for a, m in sorted(pa.items(), key=lambda x: str(x[0])))
+            for lb, (p, se, pa, _t, pw, _c, mu) in sorted(got.items(), key=lambda x: -x[1][0])]
+    return (f"search check: log ratio vs skip summed over the factors of P(win run) (near binding fights at current HP, binding radius {radius}; future boss rungs at full HP), "
+            "the belt each option leaves; per factor its win rate, and where skip's win rate is floored the progress score that ranked it\n" + "\n".join(rows) + "\n")
+
+
 class Harness(Live):
     def __init__(self, log=None):
         self.engine = None
@@ -281,6 +291,17 @@ class Harness(Live):
         self.log.event("routes", text=text)
         return text
 
+    def _price_check(self, PR, st, opts, state):
+        """operator play, card reward / event: the validated search check only (`price --run` adds the run-model rollouts)"""
+        import numpy as np
+        stub = {o[0]: {"win": np.zeros(2), "act": np.zeros(2)} for o in opts}
+        got, radius = PR.search_check(st, opts, stub, self.eng(), PR.screen_seed("live", state), top=len(opts))
+        best = max(got, key=lambda lb: got[lb][0]) if got else None
+        self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by="check", best=best,
+                       result={k: {"check": round(v[0], 4)} for k, v in got.items()},
+                       search={k: [round(v[0], 3), round(v[1], 3), {str(a): round(x, 3) for a, x in v[2].items()}, {str(a): round(x, 3) for a, x in v[4].items()}] for k, v in got.items()}, radius=radius)
+        return _check_lines(got, radius) + VALIDATION + self._synergy(state, self._run())
+
     @_needs_run("no run in progress")
     def price(self, argline, state):
         from agent import price as PR
@@ -297,6 +318,8 @@ class Harness(Live):
         if len(opts) == 1:
             self.log.event("price", screen=scr.kind(state), options=[opts[0][0]], result=None)
             return f"price: one option on this screen ({opts[0][0]}): nothing to compare\n"
+        if self.gate and scr.kind(state) in ("CARD_REWARD", "EVENT") and "--run" not in args:
+            return self._price_check(PR, st, opts, state)
         if getattr(self, "_predictor", None) is None:
             from predictor import Predictor
             from solver import PREDICTOR_CKPT
@@ -318,14 +341,7 @@ class Harness(Live):
         if adj:
             check += "macro terms (data/macro_rules.json, P units on " + ranked_by + "): " + ", ".join(f"{k} {v:+.3f}" for k, v in adj.items()) + "\n"
         if got:
-            def cell(a, m, w, mult):
-                hp = f" at {mult[a]:g}x full HP" if mult.get(a, 1) != 1 else ""
-                return f"{('A' + str(a + 1)) if isinstance(a, int) else a} win {w:.2f}{hp}" + ("" if abs(m - w) < 1e-9 else f" (scored on progress {m:.2f}: win floored)")
-            rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(cell(a, m, pw[a], mu) for a, m in sorted(pa.items(), key=lambda x: str(x[0])))
-                    for lb, (p, se, pa, _t, pw, _c, mu) in sorted(got.items(), key=lambda x: -x[1][0])]
-            check += ("search check: log ratio vs skip summed over the factors of P(win run) (near binding fights at current HP, binding radius "
-                      f"{r['radius']}; future boss rungs at full HP), the belt each option leaves; per factor its win rate, and where skip's win rate is floored the progress score that ranked it\n"
-                      + "\n".join(rows) + (f"\n  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})" if override else "") + "\n")
+            check += _check_lines(got, r["radius"]) + (f"  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})\n" if override else "")
         if self.gate:
             check += VALIDATION
         else:
@@ -526,8 +542,8 @@ class Harness(Live):
             ans = " ".join(w for w in words if w != "!")
             secs = float(ans) if cmd in ("turn", "combat") and ans.replace(".", "", 1).isdigit() else secs
             if cmd in ("turn", "combat"):
-                if self.sync() is not None and getattr(self, "drive", ("auto",))[0] == "manual" and not force:
-                    return "REFUSED: this fight is MANUAL.\n" + self._drive_line()
+                if cmd == "combat" and self.sync() is not None and getattr(self, "drive", ("auto",))[0] == "manual" and not force:
+                    return "REFUSED: this fight is MANUAL: play it a turn at a time (`turn`, which prints each play's alternatives), or `combat !` with the reason.\n" + self._drive_line()
                 return self.play(cmd == "combat", secs)
             if cmd == "potions":
                 return self.potions_now()

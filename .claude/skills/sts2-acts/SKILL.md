@@ -6,7 +6,7 @@ description: Use in every fight and when planning fights: operator fight rules F
 # Fights, acts and encounter pools
 
 ## Operator fight rules
-- F1 [hyp] `DRIVE: MANUAL` (`data/drive_manual.json`; elites / bosses predicted below 0.95 or q90 loss >= 25% HP; any fight below 0.90 or q90 >= 40%): `adv` each decision and follow it unless you see what it misses (write that in the why). Add an encounter after a worst-10% fight that shows a solver mistake; remove it when the review shows the search plays it well. Test: outcome: per-encounter HP lost, manual vs auto.
+- F1 [hyp] `DRIVE: MANUAL` (`data/drive_manual.json`; elites / bosses predicted below 0.95 or q90 loss >= 25% HP; any fight below 0.90 or q90 >= 40%): play it with `turn` (one turn per call, every play printed with its alternatives) and intervene with `a <i>` where you see what the search misses (write that in the why). Add an encounter after a worst-10% fight that shows a solver mistake; remove it when the review shows the search plays it well. Test: outcome: per-encounter HP lost, manual vs auto.
 - F2 [hyp] Manual fights: plan 2-3 turns from `eN plan` + `draw`; write the plan in the why. Test: outcome: `agent.hindsight` on plan-marked turns.
 - F3 [hyp] Check lethal before `turn !` / `combat !` (Vulnerable x1.5); read power text and relic counters before big hits. Test: outcome: missed-lethal count in the review.
 - F4 [code] Potions: the search throws them at a reserve cost (`sts2-harness` Potions); at the first final boss it spends what the second does not need, at the last boss everything (E89). `potion aside` only to keep a potion for a later fight the search cannot see. Test: outcome: potions held at a death, ledger (should be 0).

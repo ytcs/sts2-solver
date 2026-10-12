@@ -21,7 +21,7 @@ def map_guard(state, step):
     if scr.kind(state) != "MAP":
         return None
     num = _option(step)
-    if num is None or "!" in step.split():
+    if num is None or "!" in step.split() or len(scr.options(state)) < 2:
         return None
     hp = scr.hp(state)
     line = scr.option_line(state, num)

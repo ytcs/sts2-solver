@@ -139,6 +139,7 @@ def _run_outcome(ev):
 RULE_ID = re.compile(r"\b(?:A[1-3]-\d+|IC\d+|[PDRFMI]\d+)\b")
 LEDGER = os.path.join(EVALS, "rules", "ledger.jsonl")
 LEDGER_KEY = ("run", "i")
+COMBAT_LINE = re.compile(r"^T\d+ E\d+/\d+", re.M)
 SAFE_WIN = 0.9
 
 
@@ -206,7 +207,7 @@ def _macro_decisions(ev, run):
             inst = ("routes", e)
         elif k == "eval" and any(v.get("name") == "rest" for v in (e.get("spec") or {}).get("variants", [])):
             inst = ("rest", e)
-        elif k == "macro":
+        elif k == "macro" and not (e.get("screen") or "").startswith("COMBAT") and not COMBAT_LINE.search(e.get("state") or ""):
             why = e.get("why") or ""
             cited = _field(why, "rules")
             sc = _score(inst, e) if inst else None
