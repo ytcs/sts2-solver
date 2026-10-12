@@ -40,7 +40,6 @@ train)
   G=target/round/gate
   mkdir -p "$G"
   REF=${REF:-models/solver_r9.pt}
-  [ -f data/bench/leaf_values.json ] || cp "$INPUTS/leaf_values.json" data/bench/
   ( python tools/death_gate.py --ckpt "$OUT" --ref "$REF" --out "$G/death.json" || true ) >"$G/death.log" 2>&1
   for ck in "$REF" "$OUT"; do
     python tools/power_coverage.py gate --parts "$INPUTS/base/r9_00[0-5].npz" --ckpt "$ck" --out "$G/sign_$(basename "$ck" .pt).json" >>"$G/sign.log" 2>&1
