@@ -81,6 +81,7 @@ def allowed(event, st):
         "min_basic_defends": lambda v: sum(x["id"].startswith("DEFEND_") for x in deck) >= v,
         "has_basic": lambda v: any(_basic(x) for x in deck) == v,
         "no_event_pet": lambda v: (not any(x["id"] == "BYRDONIS_EGG" for x in deck)) == v,
+        "deck_enchantable": lambda v: any(_enchantable(x, v) for x in deck),
     }
     return all(checks[k](v) for k, v in c.items() if k in checks)
 
@@ -107,6 +108,58 @@ def unmodelled(effects):
         if "fight" in e and unmodelled(e["extra"]):
             return True
     return False
+
+
+_KW = None
+
+
+def _kw(c):
+    """keywords of a deck card at its upgrade, from crates/sts2sim gen_cards.rs"""
+    global _KW
+    if _KW is None:
+        src = open(os.path.join(os.path.dirname(__file__), "..", "crates", "sts2sim", "src", "content", "gen_cards.rs"), encoding="utf-8").read()
+        _KW = {}
+        for m in re.finditer(r"CardDef::new\(ids::card::(\w+),[^\n]*", src):
+            line = m.group(0)
+            base = set(re.findall(r"kw::(\w+)", "".join(re.findall(r"\.kw\(([^)]*)\)", line))))
+            _KW[m.group(1)] = (base, set(re.findall(r"up_add_kw\(kw::(\w+)\)", line)), set(re.findall(r"up_remove_kw\(kw::(\w+)\)", line)),
+                               "VarKind::Block" in line)
+    base, add, rem, block = _KW.get(c["id"], (set(), set(), set(), False))
+    return ((base | add) - rem if c.get("upgrade") else base), block
+
+
+ENCHANT_TYPES = {"SHARP": "Attack", "VIGOROUS": "Attack", "CORRUPTED": "Attack", "INSTINCT": "Attack", "MOMENTUM": "Attack", "IMBUED": "Skill"}
+
+
+def _enchantable(c, ench):
+    """EnchantmentModel.CanEnchant and the overrides in Models.Enchantments (GainsBlock approximated by a Block var)"""
+    row = _card(c["id"])
+    kws, block = _kw(c)
+    if c.get("enchantment") or row.get("type") in ("Status", "Curse", "Quest") or row.get("rarity") in ("Curse", "Status") or "UNPLAYABLE" in kws:
+        return False
+    if ench in ENCHANT_TYPES:
+        return row.get("type") == ENCHANT_TYPES[ench]
+    if ench == "ROYALLY_APPROVED":
+        return row.get("type") in ("Attack", "Skill")
+    if ench == "SOULS_POWER":
+        return "EXHAUST" in kws
+    if ench == "SPIRAL":
+        return _basic(c) and c["id"].startswith(("STRIKE_", "DEFEND_"))
+    if ench == "GOOPY":
+        return c["id"].startswith("DEFEND_")
+    if ench == "NIMBLE":
+        return block
+    if ench == "SLITHER":
+        return not row.get("x")
+    return True
+
+
+_RARITY_RANK = {"Rare": 0, "Uncommon": 1, "Common": 2}
+
+
+def _enchant_targets(st, v):
+    ok = [c for c in st.deck if _enchantable(c, v["id"]) and (v.get("type") is None or _card(c["id"]).get("type") == v["type"]) and _matches(c, v)]
+    return sorted(ok, key=lambda c: (_basic(c), _RARITY_RANK.get(_card(c["id"]).get("rarity"), 3)))
 
 
 def _upgradable(c):
@@ -261,9 +314,7 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
                 to = spec.get("to") or rng.choice(_pool_cards(draws.character, exclude=(c["id"],)))
                 st.deck[st.deck.index(c)] = {"id": to, "upgrade": int(bool(spec.get("upgraded")))}
         elif k == "card_enchant":
-            ok = lambda c: not c.get("enchantment") and _card(c["id"]).get("rarity") not in ("Curse", "Status") and \
-                (v.get("type") is None or _card(c["id"]).get("type") == v["type"]) and _matches(c, v)
-            cands = [c for c in st.deck if ok(c) and not _basic(c)] + [c for c in st.deck if ok(c) and _basic(c)]
+            cands = _enchant_targets(st, v)
             n = _count(st, v["n"])
             if v.get("random"):
                 cands = rng.sample(cands, min(n, len(cands)))

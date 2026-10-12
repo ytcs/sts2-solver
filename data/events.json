@@ -1,7 +1,7 @@
 {
  "_conventions": {
   "acts": "act names from the act lists (Overgrowth / Underdocks = act index 0, Hive = 1, Glory = 2) or 'shared' (Models/ModelDb.cs AllSharedEvents)",
-  "condition": "IsAllowed in machine form; act keys use the game's 0-based CurrentActIndex (min_act, max_act, act), min_gold, min_hp (current HP), max_hp_frac (current/max), min_floor (TotalFloor), min_potions, min_tradable_relics, min_removable, min_transformable, min_basic_strikes, min_basic_defends, has_basic, no_event_pet, deck_enchantable (an enchantment id; approximated as true)",
+  "condition": "IsAllowed in machine form; act keys use the game's 0-based CurrentActIndex (min_act, max_act, act), min_gold, min_hp (current HP), max_hp_frac (current/max), min_floor (TotalFloor), min_potions, min_tradable_relics, min_removable, min_transformable, min_basic_strikes, min_basic_defends, has_basic, no_event_pet, deck_enchantable (an enchantment id: some deck card can take it, agent/events.py _enchantable)",
   "effects": "applied in order; see agent/events.py VOCAB. gold [lo, hi] is an inclusive uniform integer range. Event gold is not scaled by Poverty (A3 scales only encounter and treasure gold); no event reads the ascension level",
   "labels": "English option titles from localization/eng/events.json in SlayTheSpire2.pck; {Var} is filled at runtime (match as a wildcard)",
   "excluded": "the 8 ancients (Darv, Neow, Nonupeipe, Orobas, Pael, Tanx, Tezcatara, Vakuu), TheArchitect (the final-act story event, in no pool), Deprecated*"
@@ -1314,7 +1314,7 @@
    "allowed": true,
    "condition": {},
    "src": "decomp/MegaCrit.Sts2.Core.Models.Events/HungryForMushrooms.cs:9-31",
-   "note": "the HP changes are the relics' AfterObtained (Relics/BigMushroom.cs:24-27 +20 max HP, Relics/FragrantMushroom.cs:29-31 15 damage)",
+   "note": "the HP changes are the relics' AfterObtained (Relics/BigMushroom.cs:24-27 +20 max HP, Relics/FragrantMushroom.cs:26-35 15 damage then 2 random upgradable cards upgraded)",
    "options": [
     {
      "key": "BIG_MUSHROOM",
@@ -1337,6 +1337,9 @@
       },
       {
        "hp": -15
+      },
+      {
+       "card_upgrade_random": 2
       }
      ]
     }
