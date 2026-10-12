@@ -522,6 +522,7 @@ class Live:
                     out.append(reply)
                     return "\n".join(out)
                 if '"end_turn"' in d["json"] and not whole_fight:
+                    self.last_state = reply
                     self.sync()
                     out.append(reply)
                     return "\n".join(out)
