@@ -2,12 +2,24 @@
 """Fit the predictor's recorded-fight calibration (`rl/predictor.py` calibrate) on `tools/fight_calib.py --out` rows: logistic map of
 logit P(win) with act / kind terms (L2, IRLS) and, per act x kind (and starting-HP band where >= 40 wins), the quantile map of the HP change
 on a win from the predictor's pooled distribution to the realised one; per kind x P(win) band, the share of throwable potions used (the run
-model's potion consumption). Two-fold held out by run, then fit on all -> --out.
+model's potion consumption). Two-fold held out by seed, then fit on all -> --out.
 usage: tools/calib_fit.py target/review/fights.jsonl --out models/predictor_calib.json"""
 import argparse, collections, json, os, sys, zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [ROOT, os.path.join(ROOT, "rl")]
+
+
+def logistic(X, y, m, l2):
+    import numpy as np
+    w = np.zeros(X.shape[1]); w[0] = 1.0
+    reg = np.full(X.shape[1], l2); reg[0] = 0.0
+    for _ in range(50):
+        p = 1 / (1 + np.exp(-(X[m] @ w)))
+        g = X[m].T @ (p - y[m]) + reg * (w - (np.arange(len(w)) == 0))
+        H = (X[m] * (p * (1 - p))[:, None]).T @ X[m] + np.diag(reg + 1e-6)
+        w -= np.linalg.solve(H, g)
+    return w
 
 
 def main():
@@ -31,13 +43,7 @@ def main():
     band = lambda r: hp_band(dict(hp=r["hp"], max_hp=r["mx"]))  # noqa: E731
 
     def fit(m):
-        w = np.zeros(X.shape[1]); w[0] = 1.0
-        reg = np.full(X.shape[1], a.l2); reg[0] = 0.0
-        for _ in range(50):
-            p = 1 / (1 + np.exp(-(X[m] @ w)))
-            g = X[m].T @ (p - y[m]) + reg * (w - (np.arange(len(w)) == 0))
-            H = (X[m] * (p * (1 - p))[:, None]).T @ X[m] + np.diag(reg + 1e-6)
-            w -= np.linalg.solve(H, g)
+        w = logistic(X, y, m, a.l2)
         pred, real = collections.defaultdict(list), collections.defaultdict(list)
         rng = np.random.default_rng(0)
         for r, g_, mm in zip(R, G, m):
@@ -54,7 +60,7 @@ def main():
                 qmap[key] = [[round(float(x), 2) for x in qp], [round(float(x), 2) for x in qr]]
         return w, qmap
 
-    print("held out (2 folds by run): per group n, realised, raw predicted -> calibrated; Brier raw -> calibrated")
+    print("held out (2 folds by seed): per group n, realised, raw predicted -> calibrated; Brier raw -> calibrated")
     pc = np.zeros(len(R))
     hp_q = []
     for f in (0, 1):
@@ -79,6 +85,18 @@ def main():
             print(f"  {':'.join(map(str, key)):10s} n {len(a_):4d} | realised {a_[:, 0].mean():5.1f} {np.quantile(a_[:, 0], 0.1):5.1f} {np.quantile(a_[:, 0], 0.9):5.1f} | "
                   f"calibrated {a_[:, 1].mean():5.1f} {np.quantile(a_[:, 1], 0.1):5.1f} {np.quantile(a_[:, 1], 0.9):5.1f}")
     w, qmap = fit(np.ones(len(R), bool))
+    w_search = None
+    if all(r.get("p_search") is not None for r in R):
+        Xs = np.stack([calib_features(dict(encounter=r["enc"], act=r["act"]), r["p_search"])[0] for r in R])
+        ps, sraw = np.zeros(len(R)), np.array([r["p_search"] for r in R])
+        for f in (0, 1):
+            ps[fold == f] = 1 / (1 + np.exp(-(Xs[fold == f] @ logistic(Xs, y, fold != f, a.l2))))
+        print("search playouts (the `eval` instrument), held out by seed: per group n, realised, raw -> calibrated; Brier")
+        for g in sorted(set(G)):
+            m = np.array([x == g for x in G])
+            print(f"  {g:8s} n {m.sum():4d} | realised {y[m].mean():.3f} | {sraw[m].mean():.3f} -> {ps[m].mean():.3f} | Brier {np.mean((sraw[m] - y[m]) ** 2):.4f} -> {np.mean((ps[m] - y[m]) ** 2):.4f}")
+        print(f"  all      Brier {np.mean((sraw - y) ** 2):.4f} -> {np.mean((ps - y) ** 2):.4f}")
+        w_search = [round(float(v), 5) for v in logistic(Xs, y, np.ones(len(R), bool), a.l2)]
     from predictor import POT_BANDS, pot_key
     use = collections.defaultdict(lambda: [0, 0])
     for r in R:
@@ -87,7 +105,7 @@ def main():
             use[k][0] += r["used"]; use[k][1] += r["held"]
     pot_use = {k: round(u / h, 3) for k, (u, h) in use.items() if h >= 20}
     print("potion use share by kind x P band:", pot_use)
-    json.dump(dict(predictor=os.path.basename(PREDICTOR_CKPT), n=len(R), w=[round(float(v), 5) for v in w], hp_qmap=qmap, pot_use=pot_use,
+    json.dump(dict(predictor=os.path.basename(PREDICTOR_CKPT), n=len(R), w=[round(float(v), 5) for v in w], w_search=w_search, hp_qmap=qmap, pot_use=pot_use,
                    features=["logit p", "1", "elite", "boss", "act 2", "act 3", "logit p x elite", "logit p x boss"]), open(a.out, "w"), indent=1)
     print("fit on all ->", a.out, "w", np.round(w, 3), "hp quantile maps", len(qmap))
 

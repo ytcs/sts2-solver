@@ -2,7 +2,7 @@
 """Plan gate 1, fight side: per recorded fight, the predictor's win / end HP vs the realised outcome, pooled over arms. The scenario
 gets the potions live play could throw (none when a `potion_reserve` policy event kept them). Brier vs a constant, calibration bins,
 HP bias by act x kind, act clear as the product per run vs realised, divergence events by encounter. --out keeps the per-fight rows.
-usage: tools/fight_calib.py <events dir> [...] [--out target/review/fights.jsonl]"""
+usage: tools/fight_calib.py <events dir> [...] [--out target/review/fights.jsonl] [--search N]"""
 import argparse, collections, glob, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -50,6 +50,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dirs", nargs="+")
     ap.add_argument("--out")
+    ap.add_argument("--search", type=int, default=0, help="also the search playouts' P(win) (the `eval` instrument), N attempts per fight")
     a = ap.parse_args()
     import numpy as np
     import predictor as PR
@@ -58,6 +59,13 @@ def main():
     P = PR.Predictor(PREDICTOR_CKPT, batch=1024).fight_start([x["sc"] for x in F], 8)
     for x, w, h, p in zip(F, PR.p_win(P), PR.end_hp(P), P):
         x.update(won=float(x["end"] > 0), p_win=float(w), p_end=float(h), dist=[round(float(v), 5) for v in p])
+    if a.search:
+        from agent.engine import Engine
+        eng = Engine()
+        for k in range(0, len(F), 256):
+            for x, r in zip(F[k:k + 256], eng.solve([dict(x["sc"], name=str(j)) for j, x in enumerate(F[k:k + 256])], attempts=a.search, seed=104729)):
+                x["p_search"] = float(r["win"])
+            print(f"  searched {min(k + 256, len(F))}/{len(F)}", flush=True)
     if a.out:
         with open(a.out, "w") as fh:
             for x in F:

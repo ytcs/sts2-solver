@@ -7,6 +7,7 @@ mkdir -p target/job
 exec >>target/job/pod.log 2>&1
 trap 'echo "line $LINENO: $BASH_COMMAND" >target/job/FAILED' ERR
 INPUTS=${INPUTS:-/root/inputs}
+[ -n "${DEADLINE:-}" ] && (setsid nohup bash scripts/pod_guard.sh >/dev/null 2>&1 </dev/null &)
 echo "== $(date -u +%FT%TZ) pod_job start; $(nproc) CPUs; $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader)"
 . scripts/pod_setup.sh
 echo "waiting for $INPUTS/READY"

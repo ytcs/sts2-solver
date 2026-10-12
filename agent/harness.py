@@ -15,6 +15,9 @@ from agent.runlog import RunLog
 
 PRICING_FAILED = ("ERR", "REFUSED", "no run", "need --enc", "routes: no act map", "routes: boss unknown", "restcalc: not")
 PRICING = {"eval": "evaluate", "routes": "routes", "restcalc": "restcalc"}
+VALIDATION = ("validation (operator play: components, no verdict): the search check = near binding fights at current HP, the validated instrument "
+              "(deck strength vs live boss wins, Spearman 0.73, E70); run-model rungs (P(win run), act clear, readiness) are weak: act-2 clear 0.36 vs 0.71 "
+              "realised (E93, E94), far factors on act-1 decks have the wrong sign (E86); deck strength vs the final pair: `eval --pool Glory:boss --hp full --target`\n")
 
 
 def _needs_run(reply):
@@ -314,7 +317,10 @@ class Harness(Live):
             check += ("search check: log ratio vs skip summed over the factors of P(win run) (near binding fights at current HP, binding radius "
                       f"{r['radius']}; future boss rungs at full HP), the belt each option leaves; per factor P(win), or progress where skip floors\n"
                       + "\n".join(rows) + (f"\n  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})" if override else "") + "\n")
-        check += f"decision (shared with the scripted baseline): {r['best']}" + (" (card-reward deadline rule -> skip)" if r["terms_skip"] else "") + "\n"
+        if self.gate:
+            check += VALIDATION
+        else:
+            check += f"decision (shared with the scripted baseline): {r['best']}" + (" (card-reward deadline rule -> skip)" if r["terms_skip"] else "") + "\n"
         return PR.table(res) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + check + self._synergy(state, deck)
 
     def _synergy(self, state, deck=None):
@@ -346,7 +352,7 @@ class Harness(Live):
         return macro.brief_text(state, deck, self._context().horizon()) + "\n" + (bn + "\n" if bn else "")
 
     EVAL_VALUED = ("--enc", "--pool", "--attempts", "--hp", "--v")
-    EVAL_FLAGS = ("--boss", "--elites", "--next", "--all", "--future", "--smooth")
+    EVAL_FLAGS = ("--boss", "--elites", "--next", "--all", "--future", "--smooth", "--target")
 
     @_needs_run("no run in progress")
     def loot(self):
@@ -411,22 +417,36 @@ class Harness(Live):
                 elif t == "--hp":
                     spec["hp"] = val if val in ("full", "current") else int(val)
                 elif t == "--v":
-                    parts = val.split("|")
-                    v = dict(name=parts[0])
-                    for p in parts[1:]:
-                        k, x = p.split("=", 1)
-                        v[k] = int(x) if k == "hp" else [y for y in x.split(",") if y]
-                    spec["variants"].append(v)
+                    spec["variants"].append(self._variant(val))
+                elif t == "--target":
+                    spec["target"] = self._target()
+                    if not spec["target"]:
+                        return "eval --target: no target deck; set it with `target add=..|remove=..|upgrade=..|relics_add=..` (the plan's)\n"
         if "encounters" not in spec:
             return "need --enc IDS or --pool Act:kind[:n]"
         spec.setdefault("hold", "all")
         if not spec.pop("all", False):
             spec["_ctx"] = self._context().ctx
         deck = self._run()
+        if spec.get("target"):
+            deck = macro.apply_variant(deck, spec["target"])
         text, summary = macro.evaluate(self.eng(), deck, spec)
         self.log.event("eval", spec=spec, result=macro.loggable(summary))
         return text
 
+
+    @staticmethod
+    def _variant(val):
+        parts = val.split("|")
+        v = dict(name=parts[0])
+        for p in parts[1:]:
+            k, x = p.split("=", 1)
+            v[k] = int(x) if k == "hp" else [y for y in x.split(",") if y]
+        return v
+
+    def _target(self):
+        from agent import runlog
+        return next((e["variant"] for e in reversed(runlog.read(self.log.dir)) if e["kind"] == "target"), None)
 
     def reenact(self, cmd, rest):
         from agent.reenact import Reenactor
@@ -539,6 +559,11 @@ class Harness(Live):
             if cmd == "note":
                 self.log.event("note", text=rest)
                 return "noted\n"
+            if cmd == "target":
+                if rest.strip():
+                    self.log.event("target", variant=None if rest.strip() == "none" else self._variant("target|" + rest.strip()))
+                t = self._target()
+                return f"target deck (the plan's, vs the current deck; `eval --target` uses it as the baseline): {t or 'none'}\n"
             if cmd == "status":
                 return self.status() + "\n"
             if cmd == "newrun":

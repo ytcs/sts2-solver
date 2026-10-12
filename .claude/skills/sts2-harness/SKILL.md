@@ -4,18 +4,18 @@ description: Use before the first action of a run and whenever unsure how to dri
 ---
 
 # Harness operation
-`.venv/Scripts/python.exe -m agent <cmd>`, `STS2_DEVICE=cuda`. Double-quote `-- why`. All `[code]` (`agent/harness.py`) unless tagged.
+`.venv/Scripts/python.exe -m agent <cmd>`, `STS2_DEVICE=cuda`. Operator run (headless, scored): `bash scripts/operator_server.sh BASE01NN [port 15700]`, then every command with `STS2_BRIDGE=127.0.0.1:15700`; seeds BASE0121+ only (1-120 are training / arm seeds). Double-quote `-- why`. All `[code]` (`agent/harness.py`) unless tagged.
 
 ## Commands
 1. Look: `s`, `d`, `p draw|discard|exhaust`, `m` (`boss:` line), `relics`, `status`, `brief` (deck, buckets + gaps, boss / elites left, bottleneck line).
-2. `price [n] [--no-search]`: paired run-model rollouts (n 128) on this screen's options (card reward, shop incl. removal, catalogued event / ancient, rest, map, potion swap on rewards); on card reward / shop / event also the search check of the top options + skip + best removal: log ratio vs skip over the factors of P(win run), per factor P(win) (near binding fights at current HP, future boss rungs). Prints `decision` (shared with the scripted baseline).
+2. `price [n] [--no-search]`: paired run-model rollouts (n 128) on this screen's options (card reward, shop incl. removal, catalogued event / ancient, rest, map, potion swap on rewards); on card reward / shop / event also the search check of the top options + skip + best removal: log ratio vs skip over the factors of P(win run), per factor P(win) (near binding fights at current HP, future boss rungs). Operator play: components with their validation status, no verdict; trust the search check (validated) over the run-model rungs (weak in acts 1-2).
 3. Act: `a <i> [target] [-- why]`, always a why. Chain `a ~gold; ~card; ~proceed -- why` (`~text` case-insensitive; stops on error/combat; map click last; `a ~smith; ~Bash` passes the selection).
 4. `loot` after the card reward (`price` on it), relics and a stolen card are decided: takes gold, then potions into free slots. `[expert]` card reward before relics (War Paint-like pickups act on it), relics before gold (Bowler Hat-like); a free relic can be anti-synergy (Tungsten Rod vs Rupture/Inferno).
 5. Route: `draw r1c6 ...`; `routes [--attempts N] [--hp N] [--pf 0.15] [--w E=4,M=1] [--seed N]`: act DP on solver outcomes (reward weights `[hyp]`; unknown room = 15% fight, approximates `[code]` game_code.md C5); potion plan + elite arrival HP. **`routes` at every fork.**
 6. `restcalc [eval flags]`: act boss(es) at the HP now vs after resting (Regal Pillow included).
-7. `eval --pool <Act>:<regular|elite|boss>[:n] | --boss | --elites | --next | --enc IDS | --future [--all] [--smooth] [--hp full|current|N] [--attempts N] [--seed N] --v "name|add=ID|remove=ID|upgrade=ID|relics_add=ID|potions=IDS|enchant=ID:ENCH"`, or a JSON spec.
+7. `eval --pool <Act>:<regular|elite|boss>[:n] | --boss | --elites | --next | --enc IDS | --future [--all] [--smooth] [--hp full|current|N] [--attempts N] [--seed N] --v "name|add=ID|remove=ID|upgrade=ID|relics_add=ID|potions=IDS|enchant=ID:ENCH"`, or a JSON spec. `--target`: the baseline is the plan's target deck, not the current one (deck strength of the current act-1 deck vs the pair misleads, E86). Each variant line prints `(live x)`: the search playout win mapped to the live realised rate (seed-folded calibration; the raw number is a lower bound).
 8. Solver: `adv [secs]`; `turn`/`combat [secs]` in AUTO fights (`!` overrides MANUAL); `budget <s>|auto`. Search = 2 player turns then value net; exact turn search when values are blind. `SIMULATOR DESYNC`/`DIFFERS`: play by hand, `status`.
-9. `note <text>`, `newrun` (force new-run detection). A changed relic bar is logged (`relics` event).
+9. `target add=..|remove=..|upgrade=..|relics_add=..` sets the plan's target deck relative to the current deck (`none` clears; bare prints it); `note <text>`, `newrun` (force new-run detection). A changed relic bar is logged (`relics` event).
 
 ## Potions (`agent/proposal.py`, `agent/engine.py`)
 - The search throws potions at a reserve cost (POT_COST 0.06 ~ 10 HP each, half under win-only worth, E61) behind a 2-se margin gate; set-aside potions are withheld until a boss.
