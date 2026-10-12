@@ -45,10 +45,16 @@ def _card(d):
     return out
 
 
-# relic counters the log does not carry (relic_counter is rare for these): (saved property, card type played or "turn" = player turn start, period)
+# relic counters the log does not carry (relic_counter is rare for these): (saved property, card type played, "turn" = player turn start before the
+# hand draw or "side" = AfterSideTurnStart, which a fight won during the turn-start setup never reaches (Inferno kills: CombatManager.cs StartTurn), period)
 COUNTERS = {"TUNING_FORK": ("SkillsPlayed", "Skill", 10), "NUNCHAKU": ("AttacksPlayed", "Attack", 10), "PEN_NIB": ("AttacksPlayed", "Attack", 10),
-            "HAPPY_FLOWER": ("TurnsSeen", "turn", 3), "FAKE_HAPPY_FLOWER": ("TurnsSeen", "turn", 5), "PENDULUM": ("TurnsSeen", "turn", 3),
+            "HAPPY_FLOWER": ("TurnsSeen", "side", 3), "FAKE_HAPPY_FLOWER": ("TurnsSeen", "side", 5), "PENDULUM": ("TurnsSeen", "turn", 3),
             "POLLINOUS_CORE": ("TurnsSeen", "turn", 4)}
+# what kills at the player's turn-start setup (AfterPlayerTurnStart), before AfterSideTurnStart; a draw-phase kill (auto play) is logged before the turn;
+# a choice during the setup pauses it and AfterSideTurnStart runs first (CombatManager.cs StartTurn WaitForPauseOrCompletion)
+TURN_SETUP = {"INFERNO_POWER", "MERCURY_HOURGLASS", "ROLLING_BOULDER_POWER", "MR_STRUGGLES", "CRIMSON_MANTLE_POWER", "FESTIVE_POPPER"}
+# card saved state a play grows on the deck version: (state key, shown key, base, increase, increase per upgrade)
+GROWS = {"GENETIC_ALGORITHM": ("increased_block", "current_block", 1, 3, 1), "THE_SCYTHE": ("increased_damage", "current_damage", 13, 5, 2)}
 # relic saved state set on entering a rest site (AfterRoomEntered), never logged
 REST = {"VENERABLE_TEA_SET": ("GainEnergyInNextCombat", True), "FAKE_VENERABLE_TEA_SET": ("GainEnergyInNextCombat", True)}
 _TYPES = {}
@@ -62,20 +68,74 @@ def card_type(cid):
 
 
 class Run:
-    """run state between combats, from the event stream (headers after a resume are authoritative)"""
+    """run state between combats, from the event stream (headers after a resume are authoritative). A reload (`remap`) goes back to a save the
+    log does not name (room entry, the rewards screen, a page of an event); the first decision / shop screen the reload presents again names it:
+    relics, potions, HP and gold go back to their state before that screen's first presentation in the room (gains since then are re-logged).
+    A resume states the state itself."""
 
     def __init__(self):
         self.deck, self.relics, self.potions, self.slots = [], [], {}, 3
         self.hp = self.max_hp = None
         self.gold, self.char, self.seed = 99, None, None
-        self.saved, self.prev = {}, None
+        self.saved, self.prev, self.shown, self.reloaded, self.unseen, self.paused, self.made, self.toy_box = {}, None, {}, False, [], False, set(), None
+
+    def _melt(self):
+        """Toy Box (ToyBox.cs AfterCombatEnd): every 3rd combat of 15 melts its first unmelted wax relic, which no hook sees again"""
+        box = next((r for r in self.relics if r["id"] == "TOY_BOX"), None)
+        n = (box or {}).get("props", {}).get("CombatsSeen", 0)
+        if box is None or n >= 15:
+            return
+        box["props"] = dict(box["props"], CombatsSeen=n + 1)
+        wax = next((r for r in self.relics if r["props"].get("IsWax") and not r["props"].get("IsMelted")), None)
+        if (n + 1) % 3 == 0 and wax is not None:
+            wax["props"] = dict(wax["props"], IsMelted=True)
+
+    def _grow(self, e):
+        """a deck card's play grows its deck version (Goopy's amount, Genetic Algorithm's block, The Scythe's damage), logged only with the next deck"""
+        i = next((i for i, c in enumerate(self.deck) if c.get("c") == e.get("deck_c")), None)
+        if i is None:
+            return
+        c = self.deck[i]
+        if c.get("enchantment") == "GOOPY":
+            self.deck[i] = c = dict(c, amount=int(c.get("amount") or 1) + 1)
+        if c["id"] in GROWS and c.get("state"):
+            key, cur, base, inc, up = GROWS[c["id"]]
+            n = int(c["state"].get(key) or 0) + inc + up * int(c.get("up") or 0)
+            self.deck[i] = dict(c, state=dict(c["state"], **{key: n, cur: base + n}))
 
     def apply(self, e):
+        t = e["t"]
+        if t in ("decision", "shop"):
+            key = (t, e.get("decision_type"), e.get("event_id"), e.get("page_index"), e.get("floor"))
+            if self.reloaded and key in self.shown:
+                self.relics, self.potions, self.slots, self.hp, self.max_hp, self.gold = copy.deepcopy(self.shown[key])
+            self.shown.setdefault(key, copy.deepcopy((self.relics, self.potions, self.slots, self.hp, self.max_hp, self.gold)))
+            self.reloaded = False
         self._apply(e)
+        if t in ("room_exit", "resume"):
+            self.shown, self.reloaded = {}, False
+        elif t == "remap" and (self.prev or {}).get("t") != "resume":
+            self.reloaded = True
         self.prev = e
 
     def _apply(self, e):
         t = e["t"]
+        if t in ("play", "potion_used", "end_turn", "combat_start", "orb_passive", "orb_evoke", "pick") or t == "death" and e.get("killed_by") not in TURN_SETUP:
+            self.unseen = []
+        if t == "energy" and e.get("src") == "turn" or t == "pick":
+            self.paused = t == "pick"
+        if t == "combat_start":
+            self.made = set()
+        elif t == "generate":
+            self.made.add(e.get("c"))
+        elif t == "play" and e.get("c") not in self.made:
+            self._grow(e)
+        if t == "combat_end":
+            self._melt()
+            for r in self.unseen:
+                prop, _, period = COUNTERS[r["id"]]
+                r["props"][prop] = (r["props"].get(prop, 0) - 1) % period
+            self.unseen = []
         if t == "header":
             self.char, self.seed = e.get("character"), e.get("seed")
             self.deck = list(e.get("starting_deck") or [])
@@ -93,14 +153,20 @@ class Run:
         elif t == "deck":
             self.deck = list(e["cards"])
         elif t == "relic":
-            self.relics.append(dict(id=e["id"], props={COUNTERS[e["id"]][0]: 0} if e["id"] in COUNTERS else {}, at=e.get("s", 0)))
+            wax = e["id"] != "TOY_BOX" and e.get("decision_id") is not None and e.get("decision_id") == self.toy_box
+            self.toy_box = e.get("decision_id") if e["id"] == "TOY_BOX" else self.toy_box
+            self.relics.append(dict(id=e["id"], props=dict({COUNTERS[e["id"]][0]: 0} if e["id"] in COUNTERS else {}, **{"IsWax": True} if wax else {}),
+                                    at=e.get("s", 0)))
         elif (t == "play" or t == "turn" and e.get("side") == "player") and any(r["id"] in COUNTERS for r in self.relics):
-            kind = "turn" if t == "turn" else card_type(e.get("id"))
+            state = next((c.get("state") for c in self.deck if c.get("c") == e.get("deck_c")), None) or {}
+            kind = ("turn", "side") if t == "turn" else (state.get("tinker_time_type") or card_type(e.get("id")),)
             for r in self.relics:
                 prop, want, period = COUNTERS.get(r["id"], (None, "", 0))
-                if want == kind and period:
+                if want in kind and period:
                     r["props"][prop] = (r["props"].get(prop, 0) + 1) % period
                     r.pop("counter", None)
+                    if want == "side" and not self.paused:
+                        self.unseen.append(r)
         elif t == "relic_lost":
             i = next((i for i, r in enumerate(self.relics) if r["id"] == e["id"]), None)
             if i is not None:
@@ -141,7 +207,8 @@ class Run:
         return dict(character=self.char, seed=self.seed, ascension=10, encounter=start["encounter"], act=start["act"] - 1, total_floor=start["floor"],
                     hp=self.hp, max_hp=self.max_hp, gold=self.gold, max_energy=3, max_potion_slots=self.slots,
                     base_orb_slots=3 if self.char == "DEFECT" else 0, deck=[_card(c) for c in self.deck],
-                    relics=[dict(r, props=dict(r["props"])) for r in self.relics],
+                    relics=[dict(r, props={k: v for k, v in r["props"].items() if k not in ("IsWax", "IsMelted")}) for r in self.relics
+                            if not r["props"].get("IsMelted")],
                     potions=[dict(slot=s, id=p) for s, p in sorted(self.potions.items())],
                     rng={k: start["rng_state"][k] for k in STREAMS if k in start.get("rng_state", {})})
 
@@ -172,20 +239,28 @@ def fights(path):
         yield cur[0], cur[1], cur[2], None
 
 
+# where a card picked by the card just played goes (CardPileCmd.Add in each card's OnPlay), for a pick the log never names again
+PICK_TO = dict.fromkeys(("HEADBUTT", "COSMIC_INDIFFERENCE", "GLIMMER", "PHOTON_CUT", "THINKING_AHEAD"), "draw") | dict.fromkeys(
+    ("DREDGE", "GRAVEBLAST", "HOLOGRAM", "NEOWS_FURY", "SECRET_TECHNIQUE", "SECRET_WEAPON", "SEEKER_STRIKE", "TUTOR", "WISH"), "hand")
+
+
 def _next_piles(evs):
     """(event index, card) -> pile for generated and picked cards, read from the next event naming the card (the log does not say where they went;
-    a generated card next seen in a shuffle stays unplaced);
+    a generated card next seen in a shuffle stays unplaced; a pick never named again goes where its card puts it, PICK_TO, as does one put on top
+    of the draw pile that an auto play takes next: Havoc; an ethereal exhaust is from the hand);
     generated card -> upgrade, from its first play"""
-    out, pending, gen, up = {}, {}, set(), {}
+    out, pending, gen, up, src, by = {}, {}, set(), {}, None, {}
     for i, e in enumerate(evs):
         t = e["t"]
+        src = e.get("id") if t == "play" else None if t in ("end_turn", "turn") else src
         if pending and t not in ("afflict", "unafflict", "upgrade", "downgrade", "enchant"):
             named = {e.get("c"), e.get("from_c")} | set(e.get("flushed_c") or []) | set(e.get("retained_c") or [])
             for c, j in list(pending.items()):
                 if t == "shuffle" and c in (e.get("order_c") or []):
                     out[j, c] = "disc"
                 elif c in named:
-                    out[j, c] = "draw" if t == "draw" else "hand" if t in ("play", "flush", "discard") else None
+                    auto_top = t == "play" and e.get("auto") and PICK_TO.get(by.get((j, c))) == "draw"
+                    out[j, c] = "draw" if t == "draw" or auto_top else "hand" if t in ("play", "flush", "discard") or e.get("ethereal") else None
                 else:
                     continue
                 del pending[c]
@@ -194,10 +269,14 @@ def _next_piles(evs):
             gen.add(e["c"])
         elif t == "pick":
             pending.update({c["c"]: i for c in e.get("cards") or [] if c.get("c") is not None})
+            by.update({(i, c["c"]): src for c in e.get("cards") or [] if c.get("c") is not None})
         elif t == "play" and e.get("c") in gen and e["c"] not in up:
             up[e["c"]] = int(e.get("up") or 0)
         elif t == "upgrade":
             gen.discard(e.get("c"))
+    for c, j in pending.items():
+        if PICK_TO.get(by.get((j, c))):
+            out[j, c] = PICK_TO[by[j, c]]
     return out, up
 
 
@@ -359,7 +438,7 @@ class Board:
             self.spent = False
             rp = e.get("result_pile")
             self._move(e["c"], {"discard": self.disc, "exhaust": self.exh, "hand": self.hand, "draw": self.draw}.get(rp))
-        elif t == "discard":
+        elif t in ("discard", "play_blocked"):
             self._move(e["c"], self.disc)
         elif t == "exhaust":
             self._move(e["c"], self.exh)
@@ -378,6 +457,10 @@ class Board:
             self.cards[e["c"]]["affliction"] = dict(id=e["affliction"], amount=e.get("amount_total", e.get("amount")))
         elif t == "unafflict" and e.get("c") in self.cards:
             self.cards[e["c"]].pop("affliction", None)
+        elif t == "end_turn" and e.get("side") == "player":
+            for c in self.cards.values():
+                if (c.get("affliction") or {}).get("id") == "BOUND":
+                    del c["affliction"]  # ChainsOfBindingPower.cs BeforeSideTurnEnd; older logs do not log the unafflict
         elif t == "enchant" and e.get("c") in self.cards:
             self.cards[e["c"]]["enchantment"] = dict(id=e["enchantment"], amount=e.get("amount_total", e.get("amount")))
         elif t == "energy":
@@ -627,9 +710,9 @@ REPLAY_POWERS = {"BURST_POWER", "DUPLICATION_POWER", "ECHO_FORM_POWER", "ONE_TWO
 def play_start(evs, i):
     """index where play i begins: the energy / star spend (absolute, logged just before the play, summing to its cost) and a play-doubling power
     used up (Burst, Duplication) and block the spend itself grants (Child of the Stars: card-less block right after a star spend) belong to it;
-    other energy losses there (Bread on turn 1) do not"""
-    j, cost = i, dict(energy=evs[i].get("cost_paid") or 0, stars=evs[i].get("stars_paid") or 0)
-    spend = lambda v: v["t"] in cost and "src" not in v and 0 < -(v.get("d") or 0) <= cost[v["t"]]
+    other energy losses there (Bread on turn 1) do not; an X cost's spend is logged in some log versions only, whole when it is"""
+    j, cost, x = i, dict(energy=evs[i].get("cost_paid") or 0, stars=evs[i].get("stars_paid") or 0), "x_value" in evs[i]
+    spend = lambda v: v["t"] in cost and "src" not in v and (0 < -(v.get("d") or 0) <= cost[v["t"]] if not x else -(v.get("d") or 0) == cost[v["t"]] > 0)
     while j > 0:
         v, k = evs[j - 1], j - 1
         while k > 0 and evs[k]["t"] == "block" and evs[k].get("src") == "player" and "card" not in evs[k] and evs[k].get("reason") == "gained":
@@ -657,7 +740,8 @@ def human_actions(evs):
 def replay_fight(sc, start, evs, end, keep_ops=False):
     """one combat in Sim.exact with the human's actions; before each play / potion the sim is diffed against the log and synced on a difference;
     a fight that ends in the post-play phase of an end turn the log never closes (Howl from Beyond, Stone Calendar, end-of-turn orbs: an auto
-    play, flush or new player turn after the last action) gets that end turn; a logged end turn a card already ended (Void Form) is not repeated
+    play, flush, new player turn or a status / curse hitting the player from hand after the last action: Wither, Burn) gets that end turn; a
+    logged end turn a card already ended (Void Form) is not repeated
     -> (result row, (scenario, ops) for a repro when keep_ops)"""
     row = dict(enc=start["encounter"], floor=start["floor"], act=start["act"], char=sc["character"], cuts=0, divs=[], fields=collections.Counter(),
                actions=0, failed=None, end=None, deck=sorted({c["id"] for c in sc["deck"]}), relics=[r["id"] for r in sc["relics"]])
@@ -766,7 +850,7 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
                         ops.append(("sync", {GROUP[f.split(".")[0]]: log[GROUP[f.split(".")[0]]] for f in d}))
             try:
                 ended = ae["t"] == "end_turn" and json.loads(sim.snapshot())["turn"] > turn
-                a = None if ended else _act(sim, ae, b)
+                a = None if ended else _act(sim, ae, b, _dealt(evs, starts[i]))
             except ValueError as ex:
                 row["failed"] = dict(step=row["actions"], turn=turn, why=str(ex)[:120], after=_label(ae))
                 break
@@ -778,7 +862,9 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
         b.apply(e)
     tail = evs[human[-1] + 1:] if human else []
     if not row["failed"] and end and sim.stage() == "play" and any(v["t"] == "play" and v.get("auto") or v["t"] == "flush"
-                                                                   or v["t"] == "turn" and v.get("side") == "player" for v in tail):
+                                                                   or v["t"] == "turn" and v.get("side") == "player"
+                                                                   or v["t"] == "hit" and v.get("dst") == "player" and card_type(v.get("card")) in ("Status", "Curse")
+                                                                   for v in tail):
         sim.end_turn()
         if keep_ops:
             ops.append(("apply", {"end_turn": True}))
@@ -792,8 +878,20 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
     return row, ((pre, ops) if keep_ops else None)
 
 
-def _act(sim, e, b):
-    """the human's action on the sim -> its Sim.apply JSON; ValueError when the sim cannot take it"""
+def _dealt(evs, i):
+    """hp + block the play at i took from its target (its own hits, up to the next action)"""
+    e, out = evs[i], 0
+    for v in evs[i + 1:]:
+        if v["t"] in ("play", "end_turn", "potion_start") and not v.get("play_index"):
+            break
+        if v["t"] == "hit" and e["t"] == "play" and v.get("card") == e["id"] and e.get("target_cid") is not None and v.get("dst_cid") == e["target_cid"]:
+            out += (v.get("dmg") or 0) + (v.get("blocked") or 0)
+    return out
+
+
+def _act(sim, e, b, dealt=0):
+    """the human's action on the sim -> its Sim.apply JSON; ValueError when the sim cannot take it. Copies alike in id / upgrade / enchantment
+    (a Music Box clone, a second Thrash) can differ in damage the sim does not show: a targeted attack takes the one that deals the logged damage"""
     t = e["t"]
     if t == "end_turn":
         sim.end_turn()
@@ -822,8 +920,22 @@ def _act(sim, e, b):
     if not cand:
         raise ValueError(f"card {e['id']} not in sim hand")
     err = None
-    ench = ((b.cards.get(e.get("c")) or {}).get("enchantment") or {}).get("id")
-    for j in sorted(cand, key=lambda j: ((hand[j].get("enchantment") or {}).get("id") != ench, hand[j].get("cost") != e.get("cost_value"))):
+    ench, aff = (((b.cards.get(e.get("c")) or {}).get(k) or {}).get("id") for k in ("enchantment", "affliction"))
+    order = sorted(cand, key=lambda j: ((hand[j].get("enchantment") or {}).get("id") != ench, (hand[j].get("affliction") or {}).get("id") != aff,
+                                        hand[j].get("cost") != e.get("cost_value")))
+    if dealt and tgt is not None and len(order) > 1:
+        def took(j):
+            c = sim.copy()
+            try:
+                c.play(j, tgt)
+            except ValueError:
+                return None
+            en, was = json.loads(c.snapshot())["enemies"], sn["enemies"]
+            if len(en) != len(was):
+                return sum(x["hp"] + x["block"] for x in was) - sum(x["hp"] + x["block"] for x in en)
+            return was[tgt]["hp"] + was[tgt]["block"] - en[tgt]["hp"] - en[tgt]["block"]
+        order.sort(key=lambda j: took(j) != dealt)
+    for j in order:
         for tg in dict.fromkeys([tgt, None]):
             try:
                 sim.play(j, tg)
@@ -846,10 +958,15 @@ def _first_attempts(path):
 
 def chain(path, keep=None):
     """replay_fight over a replay's first attempts in order; relic saved state the sim changed in a fight (Tuning Fork's SkillsPlayed, Tea of
-    Discourtesy's CombatsLeft...) is carried over the log's unless the log stated it later (header / resume / relic_counter: Girya's lifts)
+    Discourtesy's CombatsLeft...) is carried over the log's unless the log stated it later (header / resume / relic_counter: Girya's lifts); a
+    reloaded fight's later attempts are replayed too (no row) since the last one is what the run carries on from
     -> (rows, (scenario, ops) of fight `keep`)"""
-    rows, carry, kept = [], {}, None
-    for k, (sc, st, evs, end) in enumerate(_first_attempts(path)):
+    rows, carry, kept, seen = [], {}, None, set()
+    for sc, st, evs, end in fights(path):
+        cid = str(st.get("combat_id")).split("#")[0]
+        first = cid not in seen
+        seen.add(cid)
+        k = len(seen) - 1
         if sc["character"] not in CHARS or (keep is not None and k > keep):
             break
         rel = []
@@ -864,13 +981,15 @@ def chain(path, keep=None):
             row = dict(enc=st["encounter"], char=sc["character"], error="replay format: no rng_state / draw_order", fields={}, divs=[], relics=[])
         else:
             try:
-                row, ops = replay_fight(sc, st, evs, end, keep_ops=k == keep)
-                kept = ops if k == keep else kept
+                row, ops = replay_fight(sc, st, evs, end, keep_ops=first and k == keep)
+                kept = ops if first and k == keep else kept
             except (KeyError, TypeError, IndexError, ValueError) as ex:
                 row = dict(enc=st["encounter"], char=sc["character"], error=f"reconstruction crash: {ex!r}"[:160], fields={}, divs=[], relics=[])
         for rid, props in (row.pop("relic_props", None) or {}).items():
             before = next((r["props"] for r in rel if r["id"] == rid), {})
             carry[rid] = (st.get("s", 0), dict(carry.get(rid, (0, {}))[1], **{p: v for p, v in props.items() if before.get(p) != v}))
+        if not first:
+            continue
         row.update(run=os.path.basename(path)[:-9], k=k, plays=dict(collections.Counter(e["id"] for e in evs if e["t"] == "play" and not e.get("auto"))))
         if row.get("divs"):
             d = row["divs"][0]
@@ -948,7 +1067,8 @@ CLASSES = (
     (lambda f, a, e: f == "hand" and a == "start", "mixed", "opening shuffle differs from the logged order in a few runs (deck order); Power Cell / "
                                                            "Jeweled Mask cards neither played nor flushed on turn 1 (unlogged move)"),
     (lambda f, a, e: f == "enemy.hp" and a == "start", "reconstruction gap?", "Fur Coat (marked-node HP cut needs its saved map state), Sword of Jade, Kifuda"),
-    (lambda f, a, e: f == "energy" and a == "end_turn", "sim-bug candidate", "Distinguished Cape, Punch Dagger, Throwing Axe (lift 26-43)"),
+    (lambda f, a, e: f == "energy" and a == "start", "reconstruction gap", "Bread's turn-1 loss read as the play's spend where a log version "
+                                                                           "omits spends"),
     (lambda f, a, e: f == "player.power.SERPENT_FORM_POWER", "replay-format gap", "the power event is missing in two runs' logs"),
     (lambda f, a, e: f in ("hand", "discard") and a == "end_turn", "replay-format gap (mostly)", "unlogged moves to hand neither played nor flushed later "
                                                                                                    "(Aggression, Sovereign Blade forge, All for One)"),
