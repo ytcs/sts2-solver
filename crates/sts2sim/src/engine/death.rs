@@ -49,6 +49,11 @@ impl Combat {
         };
         if dies {
             let should_remove = self.cr(c).in_combat && self.should_creature_be_removed_after_death(c);
+            if self.cr(c).side == Side::Enemy
+                && (!should_remove || self.any_true(hookbit::should_stop_combat_from_ending, |cx, me, l| me.owner == c && l.should_stop_combat_from_ending(cx, me)))
+            {
+                self.held_deaths = self.held_deaths.saturating_add(1);
+            }
             self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c, false));
             let side = self.cr(c).side;
             let mut teammates: ArrayVec<Cid, MAX_CREATURES> = ArrayVec::new();
@@ -124,6 +129,16 @@ impl Combat {
             }
         }
         None
+    }
+
+    pub fn death_pending(&self) -> bool {
+        self.enemies.iter().any(|&e| {
+            let cr = self.cr(e);
+            cr.in_combat
+                && (cr.is_dead()
+                    || (self.is_primary_enemy(e)
+                        && self.move_view(e).is_some_and(|(_, intents)| intents.iter().any(|i| matches!(i, crate::defs::Intent::DeathBlow | crate::defs::Intent::DeathBlowAttack { .. })))))
+        })
     }
 
     pub fn should_creature_be_removed_after_death(&self, c: Cid) -> bool {

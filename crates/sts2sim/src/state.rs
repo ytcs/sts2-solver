@@ -553,6 +553,7 @@ pub struct Combat {
     pub deck_upgradable: u128,
     pub cur_power_card: CardIdx,
     pub auto_select: bool,
+    pub held_deaths: u16,
 }
 
 impl Creature {
@@ -683,6 +684,7 @@ impl Clone for Combat {
             deck_upgradable,
             cur_power_card,
             auto_select,
+            held_deaths,
         } = self;
         *character = src.character;
         *ascension = src.ascension;
@@ -769,6 +771,7 @@ impl Clone for Combat {
         *deck_upgradable = src.deck_upgradable;
         *cur_power_card = src.cur_power_card;
         *auto_select = src.auto_select;
+        *held_deaths = src.held_deaths;
     }
 }
 

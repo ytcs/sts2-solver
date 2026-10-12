@@ -164,7 +164,7 @@ impl SearchEnginePy {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
-        let cfg = sts2env::search::SearchCfg { m, k, roll_cap, leaf_turns, max_steps, win, loss, hp_bonus, turn_cap, val_w, cover, futures, clairvoyant, exact: sts2env::search::ExactCfg { on: exact, loss: ex_loss, tie: ex_tie, dets: ex_dets, cap: ex_cap }, hp_cap, pot_cost, stolen_cost, gold_cost, maxhp_cost, greedy_from };
+        let cfg = sts2env::search::SearchCfg { m, k, roll_cap, leaf_turns, max_steps, win, loss, hp_bonus, turn_cap, val_w, cover, futures, clairvoyant, exact: sts2env::search::ExactCfg { on: exact, loss: ex_loss, tie: ex_tie, dets: ex_dets, cap: ex_cap }, hp_cap, pot_cost, stolen_cost, gold_cost, maxhp_cost, greedy_from, settle_deaths: false };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let n_scen = scs.len();
         let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
