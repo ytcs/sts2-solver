@@ -98,6 +98,14 @@ def build_state(it):
             sim.apply(json.dumps(op[1]))
         elif op[0] == "set_power":
             assert sim.set_power(*op[1:]), op
+        elif op[0] == "kill":
+            sim.kill(op[1])
+        elif op[0] == "settle":
+            for _ in range(20):
+                if sim.stage() != "choice":
+                    break
+                legal = sim.legal()
+                sim.step(next((j for j, t in legal if t == "confirm"), legal[0][0]))
         elif op[0] == "pick_if_choice":
             if sim.stage() == "choice":
                 legal = sim.legal()
@@ -142,6 +150,30 @@ def se(x):
     return float(x.std(ddof=1) / np.sqrt(len(x))) if len(x) > 1 else 0.0
 
 
+def playouts(eng, it, n):
+    """the item's state, solver play-out target (n attempts, hidden info re-sampled) and the value head at build, in place"""
+    sim = build_state(it)
+    assert sim.outcome() == 0, it["name"]
+    starts = []
+    for k in range(n):
+        s = sim.copy()
+        s.determinize(1000 + k)
+        starts.append(s)
+    out = eng.play_on(it["scenario"], starts, list(range(5000, 5000 + n)))
+    res = np.array([o[0] for o in out])
+    frac = np.array([o[1] for o in out])
+    win = (res == 1).astype(np.float64)
+    obj = np.where(res == 1, 1.0 + 0.5 * np.minimum(frac, 1.0), -1.0)
+    pw, v = net_values(eng.solver.net, [sim], [it["scenario"]["max_hp"]])
+    it["state"] = describe(sim)
+    it["target"] = dict(n=n, win=float(win.mean()), win_se=se(win), obj=float(obj.mean()), obj_se=se(obj))
+    it["net_at_build"] = dict(p_win=round(float(pw[0]), 4), value=round(float(v[0]), 4))
+    t = it["target"]
+    print(f"{it['name']:40s} net P(win) {pw[0]:.3f} value {v[0]:+.3f} | play-outs win {t['win']:.3f} +- {t['win_se']:.3f} obj {t['obj']:+.3f} +- {t['obj_se']:.3f} | {it['state']}",
+          flush=True)
+    return it
+
+
 def cmd_build(a):
     os.environ.setdefault("STS2_DEVICE", "cpu")
     from agent.engine import Engine
@@ -151,26 +183,7 @@ def cmd_build(a):
         items = [it for it in items if it["name"] in a.only.split(",")]
     old = {it["name"]: it for it in json.load(open(a.out))["items"]} if os.path.exists(a.out) else {}
     for it in items:
-        sim = build_state(it)
-        assert sim.outcome() == 0, it["name"]
-        starts = []
-        for k in range(a.n):
-            s = sim.copy()
-            s.determinize(1000 + k)
-            starts.append(s)
-        out = eng.play_on(it["scenario"], starts, list(range(5000, 5000 + a.n)))
-        res = np.array([o[0] for o in out])
-        frac = np.array([o[1] for o in out])
-        win = (res == 1).astype(np.float64)
-        obj = np.where(res == 1, 1.0 + 0.5 * np.minimum(frac, 1.0), -1.0)
-        pw, v = net_values(eng.solver.net, [sim], [it["scenario"]["max_hp"]])
-        it["state"] = describe(sim)
-        it["target"] = dict(n=a.n, win=float(win.mean()), win_se=se(win), obj=float(obj.mean()), obj_se=se(obj))
-        it["net_at_build"] = dict(p_win=round(float(pw[0]), 4), value=round(float(v[0]), 4))
-        old[it["name"]] = it
-        t = it["target"]
-        print(f"{it['name']:40s} net P(win) {pw[0]:.3f} value {v[0]:+.3f} | play-outs win {t['win']:.3f} +- {t['win_se']:.3f} obj {t['obj']:+.3f} +- {t['obj_se']:.3f} | {it['state']}",
-              flush=True)
+        old[it["name"]] = playouts(eng, it, a.n)
     doc = ("Value-head bench at states where an enemy's death hides HP (tools/leaf_bench.py, E102). target: solver play-outs (models/solver_r9.pt, "
            "Solver M=3 K=8, hidden info re-sampled per attempt; lower bounds). check: the value head's P(win) within 2 se of target win (se floored at 1/n).")
     model = json.load(open(os.path.join(ROOT, "models", "current.json")))["policy"]

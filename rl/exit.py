@@ -16,12 +16,17 @@ DEATH_ENCOUNTERS = frozenset({"TEST_SUBJECT_BOSS", "WATERFALL_GIANT_BOSS", "AXEB
 
 def root(sc, seed, start):
     """a fight root at a recorded state, rebuilt the same way at collection and at every replay: a replay recipe (tools/codex_replay.py `run_ops`:
-    logged RNG, the human's actions before the `stop`-th) or a sync state (`Sim.from_state`); then the hidden piles and RNG are resampled from the
-    fight's seed (the human's draw order and RNG future stay hidden)"""
-    if "ops" in start:
+    logged RNG, the human's actions before the `stop`-th), a bench recipe (tools/leaf_bench.py `build_state` ops from its `seed`: monster vars
+    and moves a sync cannot set) or a sync state (`Sim.from_state`); then the hidden piles and RNG are resampled from the fight's seed (the
+    human's draw order and RNG future stay hidden)"""
+    if "ops" in start or "build" in start:
         sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
-        from codex_replay import run_ops
-        s = run_ops(start["scenario"], start["ops"], stop=start["stop"])
+        if "build" in start:
+            from leaf_bench import build_state
+            s = build_state(dict(scenario=sc, seed=start["seed"], ops=start["build"]))
+        else:
+            from codex_replay import run_ops
+            s = run_ops(start["scenario"], start["ops"], stop=start["stop"])
         assert s.determinize(int(seed)), "a root mid-card cannot be resampled"
         return s
     return sts2.Sim.from_state(json.dumps(sc), int(seed), json.dumps(start))

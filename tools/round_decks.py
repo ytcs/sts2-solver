@@ -5,7 +5,7 @@ codex:  community runs (target/codex/a10.jsonl.gz, `codex.walk`): deck, relics a
         and 3, meta.at "start") and entering each act's boss (meta.at "boss"), potions sampled as gen_curriculum does; encounter = one of that
         act's bosses.
 boss:   community decks entering an act boss (codex meta.at "boss"), their logged HP and potions, split evenly over the bosses (act-3 bosses: humans
-        win ~0.79, the search ~0.58, the predictor ~0.37).
+        win ~0.79, the search ~0.58, the predictor ~0.37); a deck already met at a boss in a --seen slice meets another boss of its act, decks not met first.
 strong: decks scored by the predictor against their act's bosses at full HP without potions; each act's strongest --top share paired with that act's
         hallway and elite fights at shaped HP.
 usage: tools/round_decks.py arms --out target/r10/decks/arms.json
@@ -154,14 +154,20 @@ def strong(a):
 
 
 def boss(a):
+    from agent import pools
     rng = random.Random(a.seed)
-    decks = [sc for fn in a.decks for sc in json.load(open(fn)) if sc["meta"].get("at") == "boss" and sc["act"] in a.acts]
+    drop = {r for fn in a.exclude_runs for r in json.load(open(fn))["runs"]}
+    seen = {(sc["meta"]["run"], sc["act"], sc["encounter"]) for fn in a.seen for sc in json.load(open(fn))}
+    met = {k[:2] for k in seen}
+    decks = [sc for fn in a.decks for sc in json.load(open(fn)) if sc["meta"].get("at") == "boss" and sc["act"] in a.acts and sc["meta"]["run"] not in drop]
     by = collections.defaultdict(list)
     for d in decks:
-        by[d["encounter"]].append(d)
+        new = [b for b in pools.pool(d["meta"]["act_name"], "boss") if (d["meta"]["run"], d["act"], b) not in seen]
+        if new:
+            by[d["encounter"] if d["encounter"] in new else rng.choice(new)].append(d)
     per = a.n // max(len(by), 1)
-    out = [dict(d, name=f"boss_{enc}_{i}_{d['name']}", meta=dict(d["meta"], source="boss", deck_source=d["meta"]["source"]))
-           for enc, ds in sorted(by.items()) for i, d in enumerate(rng.sample(ds, min(per, len(ds))))]
+    out = [dict(d, encounter=enc, name=f"boss_{enc}_{i}_{d['name']}", meta=dict(d["meta"], source="boss", deck_source=d["meta"]["source"]))
+           for enc, ds in sorted(by.items()) for i, d in enumerate(sorted(rng.sample(ds, len(ds)), key=lambda d: (d["meta"]["run"], d["act"]) in met)[:per])]
     print({enc: min(per, len(ds)) for enc, ds in sorted(by.items())})
     _dump(out, a.out, collections.Counter())
 
@@ -193,6 +199,8 @@ def main():
     s.add_argument("--out", required=True)
     s.add_argument("--n", type=int, required=True, help="fights in total, split evenly over the bosses")
     s.add_argument("--acts", type=int, nargs="+", default=[2])
+    s.add_argument("--seen", nargs="*", default=[], help="boss slices already collected: a deck seen there meets another boss of its act")
+    s.add_argument("--exclude-runs", nargs="*", default=[], help="files listing held-out runs (`runs`, e.g. data/bench/contrast_holdout.json)")
     s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     dict(arms=arms, codex=codex_decks, strong=strong, boss=boss)[a.cmd](a)
