@@ -219,7 +219,9 @@ def playouts(fs, a, st, rows, F):
     # job specs only: a determinized Sim is large, so each batch's starts are built just before its run
     played = {n for n, kind, _sa, row in rows if kind == "play" and row["agree"]}
     # a selection is scored only after the search agreed on the play itself (else the play's pair already holds it)
-    specs = [(n, kind, sa, row, j) for n, kind, sa, row in rows if not (row["agree"] or (kind == "sel" and n not in played)) for j in range(a.n)]
+    # kind "free" (rescore): also the search's own play-out from s (V(s) of the play-out policy) on the same copy, agreeing states included
+    specs = [(n, kind, sa, row, j) for n, kind, sa, row in rows
+             if kind == "free" or not (row["agree"] or (kind == "sel" and n not in played)) for j in range(a.n)]
     specs += [(None, "s0", None, f, j) for f in F if any(x[0] is f for x in st) for j in range(a.n)]
 
     def build(spec):
@@ -234,7 +236,12 @@ def playouts(fs, a, st, rows, F):
         assert base.determinize(dseed)
         base.step(i["act"])
         h = base.copy()
-        if kind == "play":
+        if kind == "free":
+            fr = r.copy(); fr.determinize(dseed)
+            x = None
+            if not row["agree"]:
+                x = r.copy(); x.determinize(dseed); x.step(sa)
+        elif kind == "play":
             x = r.copy(); x.determinize(dseed); x.step(sa)
         else:
             x = base.copy()
@@ -252,6 +259,8 @@ def playouts(fs, a, st, rows, F):
                 break
             h.step(m)
         sd = a.seed + 77_777 + 1_000_003 * j + n
+        if kind == "free":
+            return [(f["pre"], h, sd), (f["pre"], fr, sd)] + ([] if x is None else [(f["pre"], x, sd)]), hsel
         return [(f["pre"], h, sd), (f["pre"], x, sd)], hsel
 
     po, tail, per = collections.defaultdict(list), [], max(1, a.batch // 2)
@@ -260,12 +269,15 @@ def playouts(fs, a, st, rows, F):
         for spec in specs[b0:b0 + per]:
             js, hsel = build(spec)
             if js:
-                owners.append((spec[0], spec[1], hsel, len(jobs)))
+                owners.append((spec[0], spec[1], hsel, len(jobs), len(js)))
                 jobs += js
         res = run_batch(fs, [x[0] for x in jobs], [x[1] for x in jobs], [x[2] for x in jobs]) if jobs else []
-        for n, kind, hsel, o in owners:
+        for n, kind, hsel, o, k in owners:
             if kind == "s0":
                 tail.append(res[o])
+            elif kind == "free":  # [h win, h hp, s win, s hp, hsel, free win, free hp]; s = h where the search agreed
+                sv = res[o + 2] if k == 3 else res[o]
+                po[(n, kind)].append([res[o][0], res[o][1], sv[0], sv[1], hsel, res[o + 1][0], res[o + 1][1]])
             else:
                 po[(n, kind)].append([res[o][0], res[o][1], res[o + 1][0], res[o + 1][1], hsel])
     return po, tail
@@ -349,7 +361,7 @@ def rescore(a):
         for w in (w for w in want if w["fight"] == fid):
             r, s, i = by[w["stop"]]
             st.append((f, r, s, i))
-            rows.append((len(st) - 1, w["kind"], w["s_action"], dict(w, agree=False)))
+            rows.append((len(st) - 1, w["kind"], w["s_action"], dict(w, agree=bool(w.get("agree")) if w["kind"] == "free" else False)))
             if w["kind"] == "sel":  # the play agreed: mark it so the selection is scored
                 rows.append((len(st) - 1, "play", None, dict(agree=True)))
         po, _ = playouts(fs, a, st, rows, [])
