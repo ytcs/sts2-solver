@@ -737,11 +737,11 @@ def human_actions(evs):
             or e["t"] == "potion_start" and e.get("id") not in AUTO_POTIONS or (e["t"] == "end_turn" and e.get("side") == "player")]
 
 
-def replay_fight(sc, start, evs, end, keep_ops=False):
+def replay_fight(sc, start, evs, end, keep_ops=False, watch=None):
     """one combat in Sim.exact with the human's actions; before each play / potion the sim is diffed against the log and synced on a difference;
     a fight that ends in the post-play phase of an end turn the log never closes (Howl from Beyond, Stone Calendar, end-of-turn orbs: an auto
     play, flush, new player turn or a status / curse hitting the player from hand after the last action: Wither, Burn) gets that end turn; a
-    logged end turn a card already ended (Void Form) is not repeated
+    logged end turn a card already ended (Void Form) is not repeated; `watch(sim, event, row)` sees the sim before each human action
     -> (result row, (scenario, ops) for a repro when keep_ops)"""
     row = dict(enc=start["encounter"], floor=start["floor"], act=start["act"], char=sc["character"], cuts=0, divs=[], fields=collections.Counter(),
                actions=0, failed=None, end=None, deck=sorted({c["id"] for c in sc["deck"]}), relics=[r["id"] for r in sc["relics"]])
@@ -848,6 +848,8 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
                     _sync(sim, sn, log, d)
                     if keep_ops:
                         ops.append(("sync", {GROUP[f.split(".")[0]]: log[GROUP[f.split(".")[0]]] for f in d}))
+            if watch:
+                watch(sim, ae, row)
             try:
                 ended = ae["t"] == "end_turn" and json.loads(sim.snapshot())["turn"] > turn
                 a = None if ended else _act(sim, ae, b, _dealt(evs, starts[i]))
@@ -956,7 +958,7 @@ def _first_attempts(path):
             yield sc, st, evs, end
 
 
-def chain(path, keep=None):
+def chain(path, keep=None, watch=None):
     """replay_fight over a replay's first attempts in order; relic saved state the sim changed in a fight (Tuning Fork's SkillsPlayed, Tea of
     Discourtesy's CombatsLeft...) is carried over the log's unless the log stated it later (header / resume / relic_counter: Girya's lifts); a
     reloaded fight's later attempts are replayed too (no row) since the last one is what the run carries on from
@@ -981,7 +983,7 @@ def chain(path, keep=None):
             row = dict(enc=st["encounter"], char=sc["character"], error="replay format: no rng_state / draw_order", fields={}, divs=[], relics=[])
         else:
             try:
-                row, ops = replay_fight(sc, st, evs, end, keep_ops=first and k == keep)
+                row, ops = replay_fight(sc, st, evs, end, keep_ops=first and k == keep, watch=watch if first else None)
                 kept = ops if first and k == keep else kept
             except (KeyError, TypeError, IndexError, ValueError) as ex:
                 row = dict(enc=st["encounter"], char=sc["character"], error=f"reconstruction crash: {ex!r}"[:160], fields={}, divs=[], relics=[])
