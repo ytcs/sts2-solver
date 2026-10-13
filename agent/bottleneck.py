@@ -79,19 +79,27 @@ def term_vars(path, act):
     return _CACHE[key]
 
 
-def line(path, act=None, top=4):
+def line(path, act=None):
     """one line for `brief`: energy-bound share and the most ignored cards (left at end of turn, no energy / with energy / played); with an act,
     the human per-(run, act) medians beside each share"""
     r = analyze(path, act)
     if not r["turns"]:
         return ""
-    ign = [f"{c['card']} {c['left_no_energy']}/{c['left_with_energy']}/{c['played']}" for c in r["cards"] if c["left"] >= 3 and c["ignore_rate"] >= 0.5][:top]
     h = human(r["char"], act) if act is not None else {}
     hm = lambda m: f" (human median {h[m]:.0%})" if m in h else ""
     return (f"bottleneck ({r['turns']} turns{'' if act is None else f', act {act + 1}'}): cards left with no energy {r['energy_bound_share']:.0%}{hm('energy_bound')}; "
             f"turns ending with energy and nothing playable {r['draw_bound_share']:.0%}{hm('draw_bound')} ({r['wasted_energy']:.1f} energy/turn wasted); "
-            f"energy on Strikes/Defends {r['basic_energy_share']:.0%}{hm('basic')}"
-            + (f"; ignored (left@0E/left@>=1E/played): {', '.join(ign)}" if ign else ""))
+            f"energy on Strikes/Defends {r['basic_energy_share']:.0%}{hm('basic')}")
+
+
+def dead_line(path, top=6):
+    """dead weight over the whole run: drafted cards mostly held at end of turn (played / held), worst first; a tech card kept for one fight can be intended"""
+    r = analyze(path)
+    dead = [c for c in r["cards"] if c["card"] not in STARTER and not c["card"].startswith(("STRIKE_", "DEFEND_")) and c["left"] >= 3 and c["ignore_rate"] >= 0.5]
+    if not dead:
+        return ""
+    return "dead weight this run (played/held at end of turn; a tech card kept for one fight can be intended): " + ", ".join(
+        f"{c['card']} {c['played']}/{c['left']}" for c in dead[:top])
 
 
 def main():
