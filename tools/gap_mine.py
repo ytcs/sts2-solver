@@ -199,7 +199,8 @@ def decide_batch(fs, items, rounds, seed0):
 
 def run_batch(fs, scen, starts, seeds):
     rows = fs.run(scen, np.arange(len(scen), dtype=np.uint32), np.asarray(seeds, np.uint64), starts=starts)
-    return [(int(r[1] == 1), float(r[6]) if r[1] == 1 else 0.0) for r in rows]
+    # win 1 / loss 0 / -1 = no result (truncated, unimplemented, overflow: the engine's outcome 2 / 3 / 4 is not a loss)
+    return [(1 if r[1] == 1 else 0 if r[1] == -1 else -1, float(r[6]) if r[1] == 1 else 0.0) for r in rows]
 
 
 def wpart(path, rows):
@@ -409,22 +410,28 @@ def rescore(a):
     fights = {f["id"]: f for f in json.load(open(a.fights))}
     fs = make_fs(a)
     out, t0 = [], time.time()
-    st, rows = [], []  # every listed state in one batched run (a fight's few states alone leave the GPU batch mostly idle)
+    st, rows, F = [], [], []  # every listed state in one batched run (a fight's few states alone leave the GPU batch mostly idle)
     for fid in sorted({w["fight"] for w in want}):
         f = fights[fid]
-        need = {w["stop"] for w in want if w["fight"] == fid}
-        by = {i["stop"]: (r, s, i) for r, s, i in states(f) if i["stop"] in need}
-        for w in (w for w in want if w["fight"] == fid):
+        need = {w["stop"] for w in want if w["fight"] == fid and w["kind"] != "s0"}
+        s0 = any(w["kind"] == "s0" for w in want if w["fight"] == fid)
+        by = {i["stop"]: (r, s, i) for k, (r, s, i) in enumerate(states(f)) if i["stop"] in need or (s0 and k == 0)}
+        if s0:  # V(s0) again: play-outs from the fight's first decision
+            st.append((f,) + by[min(by)])
+            F.append(f)
+        for w in (w for w in want if w["fight"] == fid and w["kind"] != "s0"):
             r, s, i = by[w["stop"]]
             st.append((f, r, s, i))
             rows.append((len(st) - 1, w["kind"], w["s_action"], dict(w, agree=bool(w.get("agree")) if w["kind"] == "free" else False)))
             if w["kind"] == "sel":  # the play agreed: mark it so the selection is scored
                 rows.append((len(st) - 1, "play", None, dict(agree=True)))
     print(f"{len(st)} states built in {time.time() - t0:.0f}s", flush=True)
-    po, _ = playouts(fs, a, st, rows, [])
+    po, tail = playouts(fs, a, st, rows, F)
     for n, kind, _sa, row in rows:
         if (n, kind) in po:
             out.append(dict(row, pairs=po[(n, kind)]))
+    for k, f in enumerate(F):
+        out.append(dict(kind="s0", fight=f["id"], playouts=[list(x) for x in tail[k * a.n:(k + 1) * a.n]]))
     wpart(os.path.join(a.out, f"rescore_{a.seed}.jsonl.gz"), out)
     print(f"rescored {len(out)} of {len(want)} in {(time.time() - t0) / 60:.1f} min", flush=True)
 
@@ -452,7 +459,9 @@ def cls(r):
 
 
 def pdiff(pairs):
-    p = np.array(pairs, float)
+    p = np.array([q for q in pairs if q[0] >= 0 and q[2] >= 0], float)
+    if not len(p):
+        return float("nan"), float("nan"), float("nan"), float("nan")
     dw, dh = p[:, 0] - p[:, 2], p[:, 1] - p[:, 3]
     se = lambda d: float(d.std(ddof=1) / np.sqrt(len(d))) if len(d) > 1 else float("nan")
     return float(dw.mean()), se(dw), float(dh.mean()), se(dh)
@@ -471,9 +480,21 @@ def report(a):
     rows = rparts(os.path.join(a.out, "part_*.jsonl.gz"))
     s0 = {r["fight"]: r for r in rows if r["kind"] == "s0"}
     dec = [r for r in rows if r["kind"] != "s0"]
+    if a.recheck:
+        # parts run before the outcome codes counted a truncated / overflowed play-out as a loss: their V(s0) play-outs and every pair with
+        # |dwin| >= 0.1 were re-run with codes, and replace the originals
+        rc = rparts(a.recheck)
+        by = {(r["fight"], r["stop"], r["kind"]): r for r in dec}
+        for r in rc:
+            if r["kind"] == "s0":
+                s0[r["fight"]]["playouts"], s0[r["fight"]]["rechecked"] = r["playouts"], True
+            else:
+                by[(r["fight"], r["stop"], r["kind"])].update(pairs=r["pairs"], rechecked=True)
     for r in dec:
         if r.get("pairs"):
-            r["dwin"], r["dwin_se"], r["dhp"], r["dhp_se"] = pdiff(r["pairs"])
+            x = pdiff(r["pairs"])
+            if not np.isnan(x[0]):
+                r["dwin"], r["dwin_se"], r["dhp"], r["dhp_se"] = x
             r["class"] = cls(r)
         elif not r["agree"]:
             r["class"] = cls(r)
@@ -487,7 +508,7 @@ def report(a):
 
     def gap(fs_):
         h = np.array([s0[x]["won"] for x in fs_], float)
-        v = np.array([np.mean([p[0] for p in s0[x]["playouts"]]) for x in fs_])
+        v = np.array([np.mean([p[0] for p in s0[x]["playouts"] if p[0] >= 0]) for x in fs_])
         return dict(n=len(fs_), human=round(h.mean(), 3), live=round(v.mean(), 3), gap=round((h - v).mean(), 3), se=round(se(h - v), 3))
 
     groups = dict(all=list(s0), ironclad=[x for x in s0 if s0[x]["char"] == "IRONCLAD"], others=[x for x in s0 if s0[x]["char"] != "IRONCLAD"])
@@ -548,7 +569,8 @@ def report(a):
     if a.free:
         # performance difference along the human's exact prefix: sum_t [Q(s_t, human) - V_free(s_t)], V_free = the play-out policy's own move
         # (single-round search, the E136 player); = sum (H - S) (human vs the 8-round decide) + sum (S - F) (decide vs the play-out policy)
-        fr = rparts(a.free)
+        fr = [dict(r, pairs=[p for p in r["pairs"] if min(p[0], p[2], p[5]) >= 0]) for r in rparts(a.free)]
+        fr = [r for r in fr if r["pairs"]]
         pool = sorted({x for p in a.free_pool.split(",") for x in json.load(open(p))})
         comp = {}
         for nm, (i, j) in dict(H_F=(0, 5), S_F=(2, 5), H_S=(0, 2)).items():
@@ -621,7 +643,7 @@ def main():
     p = sp.add_parser("report")
     p.add_argument("--fights", required=True); p.add_argument("--out", required=True)
     p.add_argument("--data", required=True); p.add_argument("--summary", required=True)
-    p.add_argument("--free", default=""); p.add_argument("--free-pool", default=""); p.add_argument("--top", default="")
+    p.add_argument("--free", default=""); p.add_argument("--free-pool", default=""); p.add_argument("--top", default=""); p.add_argument("--recheck", default="")
     a = ap.parse_args()
     dict(prep=prep, run=run, rescore=rescore, patch=patch, report=report)[a.cmd](a)
 
