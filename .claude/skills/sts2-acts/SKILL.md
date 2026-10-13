@@ -6,16 +6,16 @@ description: Use in every fight and when planning fights: operator fight rules F
 # Fights, acts and encounter pools
 
 ## Operator fight rules
-- F1 [hyp] `DRIVE: MANUAL` (`data/drive_manual.json`; elites / bosses predicted below 0.95 or q90 loss >= 25% HP; any fight below 0.90 or q90 >= 40%): play it with `turn` (one turn per call, every play printed with its alternatives) and intervene with `a <i>` where you see what the search misses (write that in the why). Add an encounter after a worst-10% fight that shows a solver mistake; remove it when the review shows the search plays it well. Test: outcome: per-encounter HP lost, manual vs auto.
+- F1 [hyp] `DRIVE: MANUAL` (`data/drive_manual.json`; elites / bosses predicted below 0.95 or q90 loss >= 25% HP; any fight below 0.90 or q90 >= 40%): play it with `turn` and intervene with `a <i>` where you see what the search misses (say so in the why). Add an encounter after a worst-10% fight that shows a solver mistake; remove it when the review shows the search plays it well. Test: outcome: per-encounter HP lost, manual vs auto.
 - F2 [hyp] Manual fights: plan 2-3 turns from `eN plan` + `draw`; write the plan in the why. Test: outcome: `agent.hindsight` on plan-marked turns.
 - F3 [hyp] Check lethal before `turn !` / `combat !` (Vulnerable x1.5); read power text and relic counters before big hits. Test: outcome: missed-lethal count in the review.
 - F4 [code] Potions: the search throws them at a reserve cost (`sts2-harness` Potions); at the first final boss it spends what the second does not need, at the last boss everything (E89). `potion aside` only to keep a potion for a later fight the search cannot see. Test: outcome: potions held at a death, ledger (should be 0).
 - F5 [hyp] Not playing a card can be best (stranded draw, Skill vs Enrage, a wasted doubling). Test: outcome: hindsight on turns ending with an unplayed card the next turn wanted.
-- F6 [hyp] Multi-phase bosses (a death that revives, `encounters.md`): end a phase on the turn its next attack would be lethal or heavy, since the revive turn deals no damage; hold debuff potions for the new phase (the revive strips debuffs). Test: outcome: HP lost on phase-change turns, `agent.hindsight` on the boss fight.
+- F6 [hyp] Multi-phase bosses (a death that revives): end a phase on the turn its next attack would be lethal or heavy (the revive turn deals no damage); hold debuff potions for the new phase (the revive strips debuffs). Test: outcome: HP lost on phase-change turns, `agent.hindsight` on the boss fight.
 
 ## Encounter assignment [code] (ActModel.GenerateRooms, RoomSet.cs)
-- Act start pre-rolls hidden lists (monsters: weak first, then regular; elites; boss; ancient). The Nth monster / elite room entered gets list[N]. Never read the lists.
-- Bag per kind, refilled with the whole pool, avoiding the previous entry's tags. After n met of pool P the next is in the pool minus the last n mod P met. `eval` / `routes` / `price` apply it.
+- Act start pre-rolls hidden lists (monsters: weak first, then regular; elites; boss; ancient); the Nth monster / elite room entered gets list[N]. Never read the lists.
+- Bag per kind, refilled with the whole pool, avoiding the previous entry's tags: after n met of pool P the next is in the pool minus the last n mod P met. `eval` / `routes` / `price` apply it.
 - Three elites per pool. Rooms (excl. boss, ancient): Overgrowth 15, Underdocks 15, Hive 14, Glory 13; weak fights 3 / 3 / 2 / 2. A10: second boss.
 
 ## Pools [code] (ids `_WEAK`, `_NORMAL`, `_ELITE`, `_BOSS`)
@@ -23,4 +23,4 @@ description: Use in every fight and when planning fights: operator fight rules F
 - A1 Underdocks: weak Corpse Slugs, Seapunk, Sludge Spinner, Toadpoles; elites Phantasmal Gardeners, Skulking Colony, Terror Eel; bosses Waterfall Giant, Soul Fysh, Lagavulin Matriarch.
 - A2 Hive: weak Bowlbugs, Exoskeletons, Thieving Hopper, Tunneler; elites Decimillipede, Entomancer, Infested Prisms; bosses The Insatiable, Knowledge Demon, Kaiser Crab.
 - A3 Glory: weak Devoted Sculptor, Scrolls of Biting, Turret Operator; elites Knights, Mecha Knight, Soul Nexus; bosses Queen, Test Subject, Aeonglass.
-- Regular: the act's other `_NORMAL` encounters. Act 1 variant (Overgrowth / Underdocks) is seeded ~50/50 (map library, E92).
+- Regular: the act's other `_NORMAL` encounters. Act 1 variant (Overgrowth / Underdocks) is seeded ~50/50 (E92).
