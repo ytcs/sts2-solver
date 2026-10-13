@@ -55,6 +55,11 @@ def _boss_act(sc):
     return next((d["act"] for n, d in pools.ACTS.items() if enc in pools.pool(n, "boss")), sc.get("act") or 0)
 
 
+def _live_boss(sc):
+    """boss factors the instruments play with the live search: acts 2 and 3 (E96: the weak player is within 0.01 of realised act-1 boss wins)"""
+    return _is_boss(sc) and _boss_act(sc) >= 1
+
+
 class Engine:
     def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0, exact_turn=True, hp_cap=True, pot_cost=POT_COST, pot_margin_se=POT_MARGIN_SE):
         self.solver = Solver() if ckpt is None else Solver(ckpt)
@@ -165,14 +170,14 @@ class Engine:
         res = self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,
                                 worth=None if worth is None else [worth] * len(scenarios), run=self._live_run if live else None)
         for r, sc in zip(res, scenarios):
-            r["player"] = "live" if live and _is_boss(sc) else "weak"
+            r["player"] = "live" if live and _live_boss(sc) else "weak"
         return res
 
     def _live_run(self, scenarios, js, jd, worth=None):
         """fs.run with the boss jobs on the live search (live_fs), at most LIVE_CHUNK jobs per call, with the live player's objective and reserve
         for the boss's act: act-1/2 bosses win-only with decide's reserve under that worth, final-act bosses linear (no pair table) with reserve 0
         (E137), as E136 measured it"""
-        boss = np.array([_is_boss(s) for s in scenarios], bool)[js]
+        boss = np.array([_live_boss(s) for s in scenarios], bool)[js]
         out = np.zeros((len(js), 9), np.float32)
         weak = np.flatnonzero(~boss)
         if len(weak):
