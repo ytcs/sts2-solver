@@ -60,6 +60,23 @@ def decision_guard(state, step, why, priced, reward_screen):
     return None
 
 
+def _card_of(label):
+    m = re.match(r"^(?:\d+ )?(?:\d+g card )?(.+?)\(", label)
+    return macro.card_from_name(m.group(1))[0] if m and "can't afford" not in label else None
+
+
+def target_warning(state, step, missing):
+    """a nudge, never a refusal: a card reward pick or a shop exit that passes over a card the target deck still lacks"""
+    kind, num = scr.kind(state), _option(step)
+    if kind not in ("CARD_REWARD", "SHOP") or num is None or not missing:
+        return None
+    line = scr.option_line(state, num)
+    if kind == "SHOP" and not re.search(r"(?i)leave", line):
+        return None
+    passed = sorted(({_card_of(label) for _, label in scr.options(state)} & set(missing)) - {_card_of(line)})
+    return f"WARNING: passed over {', '.join(passed)}, on the target deck's add list (sts2-plan); if the plan changed, update it with `target`.\n" if passed else None
+
+
 def reward_key(state):
     opts, _skip = macro.parse_card_options(state)
     return scr.floor_key(state), tuple(o[1] for o in opts)

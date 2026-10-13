@@ -5,7 +5,7 @@ import sys
 
 import numpy as np
 
-from agent import bottleneck, events as EV, macro, pools, routes, runmodel as R, screen as scr, terms as TM, tracker
+from agent import bottleneck, events as EV, macro, pools, routes, runlog, runmodel as R, screen as scr, terms as TM, tracker
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, os.path.join(ROOT, "rl"))
@@ -39,6 +39,7 @@ def run_state(deck, ctx, events_path, state_text):
                     [b for b in ctx.bosses if b not in set(ctx.seen)] or list(ctx.bosses), frontier, nodes or None,
                     len(seen.get("weak", [])) + len(seen.get("regular", [])))
     st.bottleneck = bottleneck.term_vars(events_path, ctx.act) if TM.USED & set(R.NO_BOTTLENECK) else None
+    st.target = runlog.target(os.path.dirname(events_path))
     return st
 
 
@@ -508,6 +509,13 @@ def binding_fights(st, engine, seed, k=2, attempts=32):
 # mandatory future fights only: elites are optional (a weak deck routes around them), so they are no factor of P(win run)
 FAR_RUNGS = ((1, "boss"), (2, "boss"))
 INFORMATIVE = 0.1
+ON_TARGET = " on target"
+
+
+def _on_target(st, key, sc):
+    """a far rung prices the plan's deck when a target is set: the pieces this option's deck still lacks are added (taking one completes it)"""
+    t = getattr(st, "target", None)
+    return macro.apply_variant(sc, macro.target_left(t["variant"], sc, t.get("base"))) if t and key.endswith(ON_TARGET) else sc
 
 
 def _at_hp(x, h):
@@ -520,7 +528,7 @@ def operating_mults(st, engine, sets, seed, attempts=24):
     flat = [(key, e, m) for key, encs, hp in sets if hp == "full" for e in encs for m in macro.SMOOTH_MULTS]
     if not flat:
         return out
-    rows = engine.solve([_at_hp(st.scenario(e), st.max_hp * m) for _k, e, m in flat], attempts=attempts, seed=seed)
+    rows = engine.solve([_on_target(st, k, _at_hp(st.scenario(e), st.max_hp * m)) for k, e, m in flat], attempts=attempts, seed=seed)
     p = {}
     for (key, _e, m), r in zip(flat, rows):
         p.setdefault(key, {}).setdefault(m, []).append(r["win"])
@@ -540,7 +548,7 @@ def _horizon_sets(st, engine, seed):
             out.append((f"boss {e}", [e], "full"))
     for a, k in FAR_RUNGS:
         if a > st.act:
-            out.append((f"A{a + 1} {k}", [e for n in pools.act_names(a) for e in pools.pool(n, k)], "full"))
+            out.append((f"A{a + 1} {k}" + (ON_TARGET if getattr(st, "target", None) else ""), [e for n in pools.act_names(a) for e in pools.pool(n, k)], "full"))
     return out, radius
 
 
@@ -571,7 +579,7 @@ def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=
             s2 = st.copy()
             if first.get(lb) is not None:
                 first[lb](s2, R.Draws(random.Random(k), st.base["character"], st.act))
-            sc = [_at_hp(s2.scenario(e), s2.max_hp * mult[key]) if hp == "full" else s2.scenario(e, hp=s2.hp) for key, e, hp in slots]
+            sc = [_on_target(s2, key, _at_hp(s2.scenario(e), s2.max_hp * mult[key])) if hp == "full" else s2.scenario(e, hp=s2.hp) for key, e, hp in slots]
             sig = json.dumps(sc, sort_keys=True)
             if sig in seen:
                 continue

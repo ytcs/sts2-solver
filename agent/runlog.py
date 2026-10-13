@@ -87,3 +87,9 @@ def read(run_dir):
         return []
     with open(p, encoding="utf-8") as f:
         return [json.loads(l) for l in f]
+
+
+def target(run_dir):
+    """the latest `target` event (variant, act, base) or None (none set, or cleared with `target none`)"""
+    ev = next((e for e in reversed(read(run_dir)) if e["kind"] == "target"), None)
+    return ev if ev and ev.get("variant") else None
