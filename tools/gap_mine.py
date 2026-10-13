@@ -326,6 +326,7 @@ def playouts(fs, a, st, rows, F):
         res = [ended(x[1]) for x in jobs]
         for q, g in zip(live, got):
             res[q] = g
+        print(f"  play-outs: batch {b0 // per + 1} of {(len(specs) + per - 1) // per}, {len(jobs)} jobs", flush=True)
         for n, kind, hsel, o, k in owners:
             if kind == "s0":
                 tail.append(res[o])
@@ -408,20 +409,22 @@ def rescore(a):
     fights = {f["id"]: f for f in json.load(open(a.fights))}
     fs = make_fs(a)
     out, t0 = [], time.time()
+    st, rows = [], []  # every listed state in one batched run (a fight's few states alone leave the GPU batch mostly idle)
     for fid in sorted({w["fight"] for w in want}):
         f = fights[fid]
-        by = {i["stop"]: (r, s, i) for r, s, i in states(f)}
-        st, rows = [], []
+        need = {w["stop"] for w in want if w["fight"] == fid}
+        by = {i["stop"]: (r, s, i) for r, s, i in states(f) if i["stop"] in need}
         for w in (w for w in want if w["fight"] == fid):
             r, s, i = by[w["stop"]]
             st.append((f, r, s, i))
             rows.append((len(st) - 1, w["kind"], w["s_action"], dict(w, agree=bool(w.get("agree")) if w["kind"] == "free" else False)))
             if w["kind"] == "sel":  # the play agreed: mark it so the selection is scored
                 rows.append((len(st) - 1, "play", None, dict(agree=True)))
-        po, _ = playouts(fs, a, st, rows, [])
-        for n, kind, _sa, row in rows:
-            if (n, kind) in po:
-                out.append(dict(row, pairs=po[(n, kind)]))
+    print(f"{len(st)} states built in {time.time() - t0:.0f}s", flush=True)
+    po, _ = playouts(fs, a, st, rows, [])
+    for n, kind, _sa, row in rows:
+        if (n, kind) in po:
+            out.append(dict(row, pairs=po[(n, kind)]))
     wpart(os.path.join(a.out, f"rescore_{a.seed}.jsonl.gz"), out)
     print(f"rescored {len(out)} of {len(want)} in {(time.time() - t0) / 60:.1f} min", flush=True)
 
