@@ -20,4 +20,5 @@ description: Use before fighting an unfamiliar enemy, at any event after floor 1
 
 ## Events
 - M10 [code] Slippery Bridge: Overcome removes the shown card; Hold On costs 3, 4, 5 ... HP and re-rolls. Price each card `eval --v "x|remove=ID"`.
+- M12 [code] Foul Potion (FoulPotion.cs): 12 damage to everyone in combat, or thrown at a Merchant for 100 gold; `price` does not see gold.
 - M11 [code] Catalog `data/events.json`; `price` prices catalogued events; otherwise judgment, cite `new:`.
