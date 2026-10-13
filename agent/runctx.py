@@ -65,7 +65,7 @@ class RunContext:
             boss = [b for b in boss if b not in set(ctx.get("seen", []))]
         elites = [e for n in names for e in (pools.pool(n, "elite") if act != self.act else macro.narrow(pools.pool(n, "elite"), "elite", ctx))]
         nxt = [e for n in (pools.act_names(act + 1) if act < 2 else []) for k in ("elite", "boss") for e in pools.pool(n, k)]
-        return dict(boss=boss, elites=elites, next=nxt, ctx=ctx)
+        return dict(boss=boss, elites=elites, next=nxt, ctx=ctx, act=act)
 
     def future(self):
         ctx, out = self.ctx, []

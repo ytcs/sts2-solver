@@ -7,7 +7,7 @@ import time
 import traceback
 import zlib
 
-from agent import bottleneck, guards, macro, runctx, skillgate, tracker
+from agent import bottleneck, guards, macro, runctx, runlog, skillgate, tracker
 from agent import screen as scr
 from agent.args import Args
 from agent.bridge import call
@@ -24,6 +24,13 @@ PRICING = {"eval": "evaluate", "routes": "routes", "restcalc": "restcalc"}
 VALIDATION = ("validation (operator play: components, no verdict): the search check = near binding fights at current HP, the validated instrument "
               "(deck strength vs live boss wins, Spearman 0.73, E70); run-model rungs (P(win run), act clear, readiness) are weak: act-2 clear 0.36 vs 0.71 "
               "realised (E93, E94), far factors on act-1 decks have the wrong sign (E86); deck strength vs the final pair: `eval --pool Glory:boss --hp full --target`\n")
+ENGINES = ("AGGRESSION", "BARRICADE", "CORRUPTION", "CRIMSON_MANTLE", "DARK_EMBRACE", "DEMON_FORM", "FEEL_NO_PAIN", "HELLRAISER", "INFERNO", "JUGGERNAUT", "RUPTURE")
+
+
+def _engine_line(ids):
+    hit = sorted(set(ids) & set(ENGINES))
+    return (f"engine caveat ({', '.join(hit)}): the search's piloting of this engine is unvalidated (E96 validated search vs live only on the bot's "
+            "own decks); the number is a lower bound (`prior` for the community split)\n") if hit else ""
 
 
 def _needs_run(reply):
@@ -221,7 +228,7 @@ class Harness(Live):
         if " -- " in argline:
             argline, why = argline.split(" -- ", 1)
         steps = [t.strip() for t in argline.split(";") if t.strip()]
-        reply, last_kind = "", None
+        reply, last_kind, warn = "", None, ""
         for i, step in enumerate(steps):
             before = self.last_state if i else first or call("peek")
             if not i and (before.startswith("ERR") or scr.busy(before)):
@@ -251,6 +258,9 @@ class Harness(Live):
             guard = guards.map_guard(before, step) or (guards.decision_guard(before, step, why, self.priced, self.reward_screen) if self.gate and os.environ.get("STS2_DECISION_GUARDS", "").lower() != "off" else None)
             if guard:
                 return guard
+            if self.gate and kind in ("CARD_REWARD", "SHOP") and runlog.target(self.log.dir):
+                left = self._target_left(self._run())
+                warn += guards.target_warning(before, step, [macro._card(c)["id"] for c in (left or {}).get("add", [])]) or ""
             last_kind = kind
             reply = self._send("a " + step)
             self.log.event("macro", screen=before.split("\n")[0], state=before[:1500], choice=step, why=why, result=reply.split("\n")[0])
@@ -273,7 +283,9 @@ class Harness(Live):
                 self._bookkeeping_error("fight start", e)
         if scr.kind(reply) == "COMBAT":
             reply = reply.rstrip("\n") + "\n" + self._combat_info()
-        return self._public(reply, fight_start=scr.kind(reply) == "COMBAT" and last_kind not in ("COMBAT", "SELECT"))
+        out = self._public(reply, fight_start=scr.kind(reply) == "COMBAT" and last_kind not in ("COMBAT", "SELECT"))
+        # the warning trails the reply: live.json and the run-end watch read the screen from its first lines
+        return out.rstrip("\n") + "\n" + warn if warn else out
 
     def _public(self, reply, fight_start=False):
         if scr.kind(reply) in ("MAP", "SHOP"):
@@ -308,7 +320,13 @@ class Harness(Live):
                        result={k: {"check": round(v[0], 4)} for k, v in got.items()},
                        search=_search_log(got), radius=radius)
         notes = PR.unmodelled_lines(state, got)
-        return _check_lines(got, radius) + ("\n".join(notes) + "\n" if notes else "") + VALIDATION + self._synergy(state, self._run())
+        return _check_lines(got, radius) + ("\n".join(notes) + "\n" if notes else "") + VALIDATION + self._plan_note(got, state) + self._synergy(state, self._run())
+
+    def _plan_note(self, got, state):
+        """the far rungs' deck (the target's when set) and the engine caveat for the offered cards"""
+        far = ("far rungs `on target`: priced on the target deck (the pieces each option's deck lacks added; a target card's own far factor is then 0, "
+               "its value assumed by the plan)\n") if any(k.endswith(" on target") for v in got.values() for k in v[2]) else ""
+        return far + _engine_line(self._offered(state))
 
     @_needs_run("no run in progress")
     def price(self, argline, state):
@@ -357,7 +375,7 @@ class Harness(Live):
             check += VALIDATION
         else:
             check += f"decision (shared with the scripted baseline): {r['best']}" + (" (card-reward deadline rule -> skip)" if r["terms_skip"] else "") + "\n"
-        return PR.table(res) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + check + self._synergy(state, deck)
+        return PR.table(res) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + check + self._plan_note(got, state) + self._synergy(state, deck)
 
     def _synergy(self, state, deck=None):
         """plan overlap of the items offered on this screen (counts, for the operator to judge; data/synergy_candidates_<char>.json)"""
@@ -367,6 +385,13 @@ class Harness(Live):
         except runctx.NoRun:
             return ""
         ids = [c["id"] for c in deck["deck"]] + [r["id"] for r in deck["relics"]]
+        rows = synergy.lines(dict.fromkeys(self._offered(state)), ids)
+        return ("synergy (bundle: role, pieces you own; completes / needs: A + B pay off only with C; candidates, not measurements):\n" + "\n".join(rows) + "\n") if rows else ""
+
+    @staticmethod
+    def _offered(state):
+        """ids of the cards (relic idents) offered on a card reward / shop / rewards screen"""
+        from agent import price as PR
         items = []
         for _, label in scr.options(state):
             m = re.match(r"^(?:\d+g )?(card|relic) (.+?)(?:\(|:|$)", label) or re.match(r"^()(.+?)\(", label)
@@ -374,8 +399,20 @@ class Harness(Live):
                 name = m.group(2).strip()
                 cid = PR._card_id(name)[0] if m.group(1) != "relic" else None
                 items.append(cid or PR._ident(name))
-        rows = synergy.lines(dict.fromkeys(i for i in items if i), ids)
-        return ("synergy (bundle: role, pieces you own; completes / needs: A + B pay off only with C; candidates, not measurements):\n" + "\n".join(rows) + "\n") if rows else ""
+        return [i for i in items if i]
+
+    def _target_left(self, deck):
+        ev = runlog.target(self.log.dir)
+        return macro.target_left(ev["variant"], deck, ev.get("base")) if ev else None
+
+    def _plan_lines(self, deck):
+        """plan nudges, never refusals: the target's missing pieces; from act 2 on, no target for the act ahead (set at the previous boss)"""
+        ev, act = runlog.target(self.log.dir), self._context().horizon()["act"]
+        out = [f"target missing: {macro.pieces(self._target_left(deck))}"] if ev else []
+        if act >= 1 and (ev is None or ev.get("act", -1) < act):
+            was = f" (the current one was set for act {ev['act'] + 1})" if ev and "act" in ev else ""
+            out.append(f"no target deck for act {act + 1}{was}: set one with `target` (sts2-plan)")
+        return "".join(x + "\n" for x in out)
 
     def brief(self):
         state = call("peek")
@@ -385,7 +422,7 @@ class Harness(Live):
             return state
         ev = os.path.join(self.log.dir, "events.jsonl")
         bn = bottleneck.line(ev) if os.path.exists(ev) else ""
-        return macro.brief_text(state, deck, self._context().horizon()) + "\n" + (bn + "\n" if bn else "")
+        return self._plan_lines(deck) + macro.brief_text(state, deck, self._context().horizon()) + "\n" + (bn + "\n" if bn else "")
 
     EVAL_VALUED = ("--enc", "--pool", "--attempts", "--hp", "--v")
     EVAL_FLAGS = ("--boss", "--elites", "--next", "--all", "--future", "--smooth", "--target", "--potions")
@@ -457,7 +494,7 @@ class Harness(Live):
                 elif t == "--potions":
                     spec["hold"] = []
                 elif t == "--target":
-                    spec["target"] = self._target()
+                    spec["target"] = runlog.target(self.log.dir)
                     if not spec["target"]:
                         return "eval --target: no target deck; set it with `target add=..|remove=..|upgrade=..|relics_add=..` (the plan's)\n"
         if "encounters" not in spec:
@@ -467,10 +504,13 @@ class Harness(Live):
             spec["_ctx"] = self._context().ctx
         deck = self._run()
         if spec.get("target"):
+            t = spec["target"]
+            spec["target"] = macro.target_left(t["variant"], deck, t.get("base")) if "variant" in t else t
             deck = macro.apply_variant(deck, spec["target"])
         text, summary = macro.evaluate(self.eng(), deck, spec)
         self.log.event("eval", spec=spec, result=macro.loggable(summary))
-        return text
+        cav = _engine_line([macro._card(c)["id"] for v in spec["variants"] + [spec.get("target") or {}] for c in v.get("add", [])])
+        return text.rstrip("\n") + "\n" + cav if cav else text
 
 
     @staticmethod
@@ -482,9 +522,36 @@ class Harness(Live):
             v[k] = int(x) if k == "hp" else [y for y in x.split(",") if y]
         return v
 
-    def _target(self):
-        from agent import runlog
-        return next((e["variant"] for e in reversed(runlog.read(self.log.dir)) if e["kind"] == "target"), None)
+    @_needs_run("no run in progress\n")
+    def target(self, rest):
+        deck = self._run()
+        if rest:
+            self.log.event("target", variant=None if rest == "none" else self._variant("target|" + rest), act=self._context().horizon()["act"],
+                           base=macro.deck_counts(deck["deck"]))
+        t = runlog.target(self.log.dir)
+        return (f"target deck (the plan's, a diff vs the deck it was set on; `eval --target` and `price`'s far rungs use it): {t['variant'] if t else 'none'}\n"
+                + (f"target missing: {macro.pieces(self._target_left(deck))}\n" if t else ""))
+
+    def prior(self, rest):
+        """community prior (tools/community_lut.py): `prior KEY [ITEM ..]`, `prior pair [ITEM ..]` (the map's final pair); no run: `prior CHAR KEY ..`"""
+        lut = getattr(self, "_lut", None)
+        if lut is None:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("community_lut", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "community_lut.py"))
+            lut = self._lut = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(lut)
+        words = rest.split()
+        try:
+            char, bosses = self._run()["character"], self._context().bosses
+        except runctx.NoRun:
+            char, bosses, words = (words or [""])[0], [], words[1:]
+        if not words:
+            return "usage: prior KEY [CARD|RELIC ..] | prior pair [..] (KEY: an elite / boss id or prefix, ACT<N>, ACT<N>:<BOSS>)\n"
+        if words[0].lower() != "pair":
+            return lut.lines(char, words[0], words[1:])
+        if len(bosses) < 2:
+            return "prior pair: the final pair is not on the map yet; ACT3 pools every act-3 first boss\n" + lut.lines(char, "ACT3", words[1:])
+        return "".join(lut.lines(char, k, words[1:], tag=not i) for i, k in enumerate((f"ACT3:{bosses[0]}", *bosses)))
 
     def reenact(self, cmd, rest):
         from agent.reenact import Reenactor
@@ -543,7 +610,7 @@ class Harness(Live):
         line = line.strip()
         cmd, _, rest = line.partition(" ")
         peeked = None
-        if self.gate and cmd not in skillgate.READ_ONLY:
+        if self.gate and cmd not in skillgate.READ_ONLY and cmd != "prior":  # `prior` reads no game state (READ_ONLY lives in skillgate.py)
             peeked = call("peek")
             why = self._skill_refusal(peeked)
             if why:
@@ -594,6 +661,8 @@ class Harness(Live):
                 return out
             if cmd == "brief":
                 return self.brief()
+            if cmd == "prior":
+                return self.prior(rest)
             if cmd == "price":
                 now = call("peek")
                 self._detect_new_run(now)
@@ -612,10 +681,7 @@ class Harness(Live):
                 self.log.event("note", text=rest)
                 return "noted\n"
             if cmd == "target":
-                if rest.strip():
-                    self.log.event("target", variant=None if rest.strip() == "none" else self._variant("target|" + rest.strip()))
-                t = self._target()
-                return f"target deck (the plan's, vs the current deck; `eval --target` uses it as the baseline): {t or 'none'}\n"
+                return self.target(rest.strip())
             if cmd == "status":
                 return self.status() + "\n"
             if cmd == "newrun":

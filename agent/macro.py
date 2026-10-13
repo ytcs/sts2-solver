@@ -1,3 +1,4 @@
+import collections
 import copy
 
 import numpy as np
@@ -44,6 +45,38 @@ def apply_variant(base, v):
     if "hp" in v:
         s["hp"] = int(v["hp"])
     return s
+
+
+def deck_counts(deck):
+    """the deck a target diff is set against: copies and upgraded copies per card id"""
+    return {"cards": dict(collections.Counter(d["id"] for d in deck)), "up": dict(collections.Counter(d["id"] for d in deck if d.get("upgrade")))}
+
+
+def target_left(v, deck_json, base=None):
+    """the target's pieces this deck still lacks. A target is a diff vs the deck it was set on (`base`); without a base an add or upgrade is done
+    once the deck holds that many, a removal never is"""
+    now, owned = deck_counts(deck_json["deck"]), {r if isinstance(r, str) else r["id"] for r in deck_json.get("relics", [])}
+    was = (base or {}).get("cards")
+    out = dict(v)
+    for key, have, b, sign in (("add", now["cards"], was or {}, 1), ("upgrade", now["up"], (base or {}).get("up", {}), 1),
+                               ("remove", now["cards"], now["cards"] if was is None else was, -1)):
+        ids = [_card(c)["id"] for c in v.get(key, [])]
+        left = {i: sign * (b.get(i, 0) + sign * ids.count(i) - have.get(i, 0)) for i in ids}
+        out[key] = []
+        for c, i in zip(v.get(key, []), ids):
+            if left[i] > 0:
+                out[key].append(c)
+                left[i] -= 1
+    out["relics_add"] = [r for r in v.get("relics_add", []) if r not in owned]
+    out["relics_remove"] = [r for r in v.get("relics_remove", []) if r in owned]
+    return {k: x for k, x in out.items() if k in v}
+
+
+def pieces(v):
+    """`add A, Bx2; upgrade C`: a variant's card and relic changes, for a line"""
+    parts = [f"{k} " + ", ".join(f"{c}x{n}" if n > 1 else c for c, n in collections.Counter(map(str, v[k])).items())
+             for k in ("add", "remove", "upgrade", "enchant", "relics_add", "relics_remove") if v.get(k)]
+    return "; ".join(parts) or "none"
 
 
 PANTOGRAPH_HEAL = 25
@@ -273,7 +306,6 @@ def parse_card_options(state):
 
 
 def brief_text(state, deck_json, hz):
-    import collections
     from agent import card_tags, screen
     head = screen.header_line(state, state.split("\n")[0])
     c = collections.Counter(d["id"] + ("+" if d.get("upgrade") else "") for d in deck_json["deck"])
