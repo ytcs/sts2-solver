@@ -421,7 +421,7 @@ class Harness(Live):
         except runctx.NoRun:
             return state
         ev, ctx = os.path.join(self.log.dir, "events.jsonl"), self._context()
-        bn = bottleneck.line(ev, ctx.act) if os.path.exists(ev) else ""
+        bn = (bottleneck.line(ev, ctx.act) or bottleneck.line(ev)) if os.path.exists(ev) else ""
         return self._plan_lines(deck) + macro.brief_text(state, deck, ctx.horizon()) + "\n" + (bn + "\n" if bn else "")
 
     EVAL_VALUED = ("--enc", "--pool", "--attempts", "--hp", "--v")
