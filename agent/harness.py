@@ -573,7 +573,9 @@ class Harness(Live):
         out = self._handle(line)
         if out.startswith("commands: s | a <i>") and line.split()[:1] not in (["help"], ["?"]):
             out = f"ERR unknown command `{line.split()[0]}`" + chr(10) + out
-        if self.gate and "-- combat over" in out and "GAME_OVER" not in out:
+        ended = "-- combat over" in out or re.search(r"(?m)^REWARDS$", out)
+        if self.gate and ended and "GAME_OVER" not in out and getattr(self, "_briefed", None) != self.fight_id:
+            self._briefed = self.fight_id
             try:
                 out = out.rstrip("\n") + "\n-- brief\n" + self.brief()
             except Exception:  # noqa: BLE001
