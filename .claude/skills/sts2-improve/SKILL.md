@@ -13,9 +13,9 @@ Rules change on decision-level evidence; one run cannot move a win rate. Forks (
 4. Change rules (I1-I4), each edit citing the ledger or an E#; commit skill + ledger together. Skills get the rule, never the run story; numbers go to `docs/research/evidence.md`.
 
 ## Meta-rules
-- I1 One change per rule per run; a rule changes only on its own test's evidence.
-- I2 Promote `[hyp]` -> `[sim]` when its instrument test agrees on >= 5 citations with no disagreement beyond 2 se; narrow or rewrite when it disagrees on >= 2 decisions beyond 2 se; a rule contradicted by an E# measurement is rewritten that run.
-- I3 A `[hyp]` rule with no checkable test after K = 10 citations is deleted; a rule never cited in 10 runs is deleted unless it is `[code]`.
+- I1 One change per rule per run; a rule changes only on its own test's evidence. A lapse that recurs after its rule was rewritten goes to a harness guard or readout (`docs/plan.md`), not another rewrite (E145).
+- I2 Promote `[hyp]` -> `[sim]` when its instrument test agrees on >= 5 citations with no disagreement beyond 2 se; narrow or rewrite when it disagrees on >= 2 decisions beyond 2 se; a rule contradicted by an E# measurement is rewritten that run. A row counts for a rule only when the scored instrument is its test's (`routes` models no shops or events; `price` sees no gold, M12); a choice that breaks the rule it cites is a lapse, not evidence.
+- I3 A `[hyp]` rule with no checkable test after K = 10 citations is deleted; a rule never cited in 10 runs is deleted unless it is `[code]` or a fight rule (F#: the ledger holds macro whys only).
 - I4 A `new:` claim the instrument agreed with becomes a `[hyp]` rule with a test in the most specific skill; one the instrument contradicted is recorded in the ledger only.
 - I5 Every 5 runs (meta-review): decision agreement and margin trend, rules cited vs unused, decisions with no rule; whether this loop changed anything that later held. Propose architecture changes (skills, IDs, tests, this skill) in `docs/plan.md` and apply them: this skill is under the same rules.
 - I6 Instrument confidence decides how hard a disagreement counts: deck strength vs a named boss (E70) > `routes` > `price` far rungs (E86) > the learned value heads (E95).
