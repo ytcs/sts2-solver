@@ -10,6 +10,7 @@ def analyze(path, act=None):
     from agent import synergy
     played, left, left_poor, left_rich = collections.Counter(), collections.Counter(), collections.Counter(), collections.Counter()
     turns = stranded = starved = wasted = 0
+    spent = basic_spent = 0
     cur_act = None
     for l in open(path, encoding="utf-8"):
         e = json.loads(l)
@@ -20,7 +21,12 @@ def analyze(path, act=None):
         t = str(e.get("text", ""))
         m = re.match(r"play (\S+)", t)
         if m:
-            played[m.group(1).split("#")[0].rstrip("+")] += 1
+            base = m.group(1).split("#")[0].rstrip("+")
+            played[base] += 1
+            k = synergy.item_tags(base)[2]
+            if k and k > 0:
+                spent += k
+                basic_spent += k if base.startswith(("STRIKE_", "DEFEND_")) else 0
         elif t.startswith("end turn") and "hand_left" in e:
             turns += 1
             en = e.get("energy_left") or 0
@@ -44,7 +50,7 @@ def analyze(path, act=None):
     energy_bound = sum(left_poor.values()) / max(1, sum(left.values()))
     return dict(turns=turns, energy_bound_share=round(energy_bound, 2), ignored_share=round(sum(left_rich.values()) / max(1, sum(left.values())), 2),
                 stranded=round(stranded / max(1, turns), 2), draw_bound_share=round(starved / max(1, turns), 2),
-                wasted_energy=round(wasted / max(1, turns), 2), cards=rows)
+                wasted_energy=round(wasted / max(1, turns), 2), basic_energy_share=round(basic_spent / max(1, spent), 2), cards=rows)
 
 
 _CACHE = {}
@@ -71,7 +77,7 @@ def line(path, act=None, top=4):
         return ""
     ign = [f"{c['card']} {c['left_no_energy']}/{c['left_with_energy']}/{c['played']}" for c in r["cards"] if c["left"] >= 3 and c["ignore_rate"] >= 0.5][:top]
     return (f"bottleneck ({r['turns']} turns{'' if act is None else f', act {act + 1}'}): cards left with no energy {r['energy_bound_share']:.0%}; "
-            f"turns ending with energy and nothing playable {r['draw_bound_share']:.0%} ({r['wasted_energy']:.1f} energy/turn wasted)"
+            f"turns ending with energy and nothing playable {r['draw_bound_share']:.0%} ({r['wasted_energy']:.1f} energy/turn wasted); energy on Strikes/Defends {r['basic_energy_share']:.0%}"
             + (f"; ignored (left@0E/left@>=1E/played): {', '.join(ign)}" if ign else ""))
 
 
@@ -83,6 +89,7 @@ def main():
     r = analyze(a.events, a.act)
     print(f"{r['turns']} turns; cards left in hand with no energy to spare: {r['energy_bound_share']:.0%} (high -> energy bottleneck)")
     print(f"turns ending with energy and nothing playable: {r['draw_bound_share']:.0%}, {r['wasted_energy']:.2f} energy/turn wasted (high -> draw bottleneck)")
+    print(f"energy spent on Strikes/Defends: {r['basic_energy_share']:.0%} (high -> draw or removal deficiency: better cards not reached or crowded out)")
     print(f"{'card':28s} played  left  left@0E  left@>=1E  ignore")
     for x in r["cards"]:
         if x["left"]:
