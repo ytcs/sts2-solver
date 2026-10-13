@@ -379,8 +379,9 @@ def cls(r):
         return "selection"
     h, s = r["h_key"], r["s_key"]
     if h.startswith("potion") or s.startswith("potion"):
+        # boss 1 of the final pair: a human keeping a potion for boss 2 is priced as a loss by the fight-only objective
         return ("potion: both, different" if h.startswith("potion") and s.startswith("potion") else
-                "potion: human drinks" if h.startswith("potion") else "potion: search drinks")
+                "potion: human drinks" if h.startswith("potion") else "potion: search drinks") + f" (boss {min(r['pair_pos'], 2)})"
     if h == "end_turn" or s == "end_turn":
         return "end turn: human ends" if h == "end_turn" else "end turn: search ends"
     if h.rsplit(" -> ", 1)[0] == s.rsplit(" -> ", 1)[0]:
@@ -443,7 +444,15 @@ def report(a):
             summary["gap"][b] = gap(v)
     summary["gap"]["ironclad_exact_to_end"] = gap([x for x in groups["ironclad"] if s0[x]["n_stops"] == s0[x]["actions"]])
 
-    def table(sel, nf, by):
+    def per_fight(rs, fl, f=lambda r: r["dwin"]):
+        """sum per fight over all fights fl (0 where none) -> mean, se clustered by fight"""
+        s = collections.Counter()
+        for r in rs:
+            s[r["fight"]] += f(r)
+        v = np.array([s[x] for x in fl], float)
+        return round(float(v.mean()), 4), round(se(v), 4)
+
+    def table(sel, fl, by):
         T = collections.defaultdict(list)
         for r in sel:
             T[by(r)].append(r)
@@ -452,22 +461,24 @@ def report(a):
             sc = [r for r in v if "dwin" in r]
             d = np.array([r["dwin"] for r in sc]) if sc else np.zeros(0)
             hp = np.array([r["dhp"] for r in sc]) if sc else np.zeros(0)
+            pf, pfse = per_fight(sc, fl)
             out.append(dict(key=k, n=len(v), scored=len(sc), mean_dwin=round(float(d.mean()), 4) if len(d) else None, se=round(se(d), 4) if len(d) > 1 else None,
-                            mean_dhp=round(float(hp.mean()), 2) if len(hp) else None, per_fight=round(float(d.sum()) / nf, 4),
+                            mean_dhp=round(float(hp.mean()), 2) if len(hp) else None, per_fight=pf, per_fight_se=pfse,
                             human_better=int(sum(r["dwin"] > 2 * r["dwin_se"] for r in sc)), search_better=int(sum(r["dwin"] < -2 * r["dwin_se"] for r in sc))))
         return out
 
     for g, fl in groups.items():
         if not fl:
             continue
-        fl = set(fl)
-        sel = [r for r in dec if r["fight"] in fl]
+        fl = sorted(fl)
+        sel = [r for r in dec if r["fight"] in set(fl)]
         dis = [r for r in sel if not r["agree"]]
-        nf = len(fl)
-        d = np.array([r["dwin"] for r in dis if "dwin" in r])
-        summary[g] = dict(fights=nf, decisions=len(sel), disagreements=len(dis), agree_rate=round(1 - len(dis) / max(len(sel), 1), 3),
-                          human_not_in_search_opts=sum(not r["h_in_opts"] for r in dis),
-                          explained_per_fight=round(float(d.sum()) / nf, 4),
+        nf = fl
+        pf, pfse = per_fight([r for r in dis if "dwin" in r], fl)
+        summary[g] = dict(fights=len(fl), decisions=len(sel), disagreements=len(dis), agree_rate=round(1 - len(dis) / max(len(sel), 1), 3),
+                          ties=sum(r.get("tie", False) for r in sel), human_not_in_search_opts=sum(not r["h_in_opts"] for r in dis),
+                          explained_per_fight=pf, explained_per_fight_se=pfse,
+                          explained_per_fight_hp=per_fight([r for r in dis if "dwin" in r], fl, lambda r: r["dhp"]),
                           by_class=table(dis, nf, lambda r: r["class"]),
                           by_boss=table(dis, nf, lambda r: r["enc"]),
                           by_phase=table(dis, nf, lambda r: (f"TS{r['phase']} " if r["enc"] == "TEST_SUBJECT_BOSS" else "") +
@@ -477,14 +488,37 @@ def report(a):
                           by_hp=table(dis, nf, lambda r: f"hp {min(int(4 * r['hp'] / max(r['max_hp'], 1)), 3)}/4"),
                           by_margin=table(dis, nf, lambda r: "near tie (search q margin < 0.02)" if (r["q_margin"] is not None and r["q_margin"] < 0.02)
                                           else "human move not proposed" if not r["h_in_opts"] else "clear (margin >= 0.02)"))
+    if a.free:
+        # performance difference along the human's exact prefix: sum_t [Q(s_t, human) - V_free(s_t)], V_free = the play-out policy's own move
+        # (single-round search, the E136 player); = sum (H - S) (human vs the 8-round decide) + sum (S - F) (decide vs the play-out policy)
+        fr = rparts(a.free)
+        pool = sorted({x for p in a.free_pool.split(",") for x in json.load(open(p))})
+        comp = {}
+        for nm, (i, j) in dict(H_F=(0, 5), S_F=(2, 5), H_S=(0, 2)).items():
+            for unit, off in (("win", 0), ("hp", 1)):
+                v = lambda r, i=i, j=j, off=off: float(np.mean([p[i + off] - p[j + off] for p in r["pairs"]])) / r["rho"]
+                comp[f"{nm}_{unit}"] = per_fight(fr, pool, v)
+        st_ = lambda rs, i, j: (round(float(np.mean([np.mean([p[i] - p[j] for p in r["pairs"]]) for r in rs])), 4), len(rs)) if rs else None
+        summary["free"] = dict(doc="per fight over the pool (Ironclad), states sampled 1/rho; H human move, S 8-round decide move, F play-out policy",
+                               pool_fights=len(pool), states=len(fr), gap_on_pool=gap([x for x in pool if x in s0]), per_fight=comp,
+                               per_state_S_F_agree=st_([r for r in fr if r["agree"]], 2, 5), per_state_S_F_disagree=st_([r for r in fr if not r["agree"]], 2, 5),
+                               per_state_H_F=st_(fr, 0, 5), hsel_unmatched=sum(p[4] for r in fr for p in r["pairs"]))
+    fresh = {}
+    if a.top:
+        for r in rparts(a.top):
+            fresh[(r["fight"], r["stop"], r["kind"])] = pdiff(r["pairs"])
     pat = collections.defaultdict(list)
     for r in dec:
         if "dwin" in r:
             pat[(r["class"], short(r["h_key"]), short(r["s_key"]), r["enc"])].append(r)
     top = sorted(pat.items(), key=lambda kv: -sum(r["dwin"] for r in kv[1]))
-    pk = lambda kv: dict(class_=kv[0][0], human=kv[0][1], search=kv[0][2], boss=kv[0][3], n=len(kv[1]), sum_dwin=round(sum(r["dwin"] for r in kv[1]), 3),
-                         mean_dhp=round(float(np.mean([r["dhp"] for r in kv[1]])), 1),
-                         example=max(kv[1], key=lambda r: r["dwin"])["fight"] + f":{max(kv[1], key=lambda r: r['dwin'])['stop']}")
+
+    def pk(kv):
+        ex = max(kv[1], key=lambda r: abs(r["dwin"]))
+        fr_ = [fresh[(r["fight"], r["stop"], r["kind"])] for r in kv[1] if (r["fight"], r["stop"], r["kind"]) in fresh]
+        return dict(class_=kv[0][0], human=kv[0][1], search=kv[0][2], boss=kv[0][3], n=len(kv[1]), sum_dwin=round(sum(r["dwin"] for r in kv[1]), 3),
+                    mean_dhp=round(float(np.mean([r["dhp"] for r in kv[1]])), 1), example=f"{ex['fight']}:{ex['stop']} ({ex['kind']}, dwin {ex['dwin']:+.3f})",
+                    fresh=None if not fr_ else dict(n=len(fr_), sum_dwin=round(sum(x[0] for x in fr_), 3), se=round(float(np.sqrt(sum(x[1] ** 2 for x in fr_))), 3)))
     summary["top_human_better"] = [pk(kv) for kv in top[:15]]
     summary["top_search_better"] = [pk(kv) for kv in top[::-1][:10]]
     os.makedirs(os.path.dirname(os.path.abspath(a.summary)), exist_ok=True)
@@ -495,12 +529,12 @@ def report(a):
             continue
         s = summary[g]
         print(f"\n== {g}: {s['fights']} fights, {s['decisions']} decisions, {s['disagreements']} disagreements (agree {s['agree_rate']}), "
-              f"human move not proposed {s['human_not_in_search_opts']}, explained per fight {s['explained_per_fight']:+.4f}")
+              f"ties {s['ties']}, human move not proposed {s['human_not_in_search_opts']}, sum H-S per fight {s['explained_per_fight']:+.4f} +- {s['explained_per_fight_se']:.4f}")
         for t in ("by_class", "by_boss", "by_phase", "by_kill", "by_hp", "by_margin"):
             print(f"-- {t}")
             for x in s[t]:
                 print(f"  {str(x['key']):42s} n {x['n']:5d} scored {x['scored']:5d} dwin {x['mean_dwin'] if x['mean_dwin'] is not None else '-':>8} "
-                      f"+- {x['se'] if x['se'] is not None else '-':>7} dhp {x['mean_dhp'] if x['mean_dhp'] is not None else '-':>6} per-fight {x['per_fight']:+.4f} "
+                      f"+- {x['se'] if x['se'] is not None else '-':>7} dhp {x['mean_dhp'] if x['mean_dhp'] is not None else '-':>6} per-fight {x['per_fight']:+.4f} +- {x['per_fight_se']:.4f} "
                       f"H>S {x['human_better']} S>H {x['search_better']}")
     print("\n-- top patterns (human better)")
     for x in summary["top_human_better"][:10]:
@@ -527,6 +561,7 @@ def main():
     p = sp.add_parser("report")
     p.add_argument("--fights", required=True); p.add_argument("--out", required=True)
     p.add_argument("--data", required=True); p.add_argument("--summary", required=True)
+    p.add_argument("--free", default=""); p.add_argument("--free-pool", default=""); p.add_argument("--top", default="")
     a = ap.parse_args()
     dict(prep=prep, run=run, rescore=rescore, report=report)[a.cmd](a)
 
