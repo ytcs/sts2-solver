@@ -7,7 +7,7 @@ import time
 import traceback
 import zlib
 
-from agent import bottleneck, guards, macro, runctx, runlog, skillgate, tracker
+from agent import bottleneck, guards, macro, pools, runctx, runlog, skillgate, tracker
 from agent import screen as scr
 from agent.args import Args
 from agent.bridge import call
@@ -51,7 +51,8 @@ def _check_lines(got, radius):
         return f"{('A' + str(a + 1)) if isinstance(a, int) else a} win {w:.2f}{hp}" + ("" if abs(m - w) < 1e-9 else f" (scored on progress {m:.2f}: win floored)")
     rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(cell(a, m, pw[a], mu) for a, m in sorted(pa.items(), key=lambda x: str(x[0])))
             for lb, (p, se, pa, _t, pw, _c, mu) in sorted(got.items(), key=lambda x: -x[1][0])]
-    return (f"search check: log ratio vs skip summed over the factors of P(win run) (near binding fights at current HP, binding radius {radius}; future boss rungs at full HP), "
+    # both callers (`price`) run search_check with live=True
+    return (f"search check ({macro.player_tag([{'player': 'live'}])}): log ratio vs skip summed over the factors of P(win run) (near binding fights at current HP, binding radius {radius}; future boss rungs at full HP), "
             "the belt each option leaves; per factor its win rate, and where skip's win rate is floored the progress score that ranked it\n" + "\n".join(rows) + "\n")
 
 
@@ -306,7 +307,7 @@ class Harness(Live):
         rc = self._context()
         if a.has("--hp"):
             state = re.sub(r"HP \d+/", f"HP {a.get('--hp', cast=int)}/", state, count=1)
-        text = routes.analyse(self.eng(), deck, rc.map_text, state, rc.ctx, rc.names[0], a.get("--attempts", 24, int), a.get("--pf", 0.15, float), weights=a.weights())
+        text = routes.analyse(self.eng(), deck, rc.map_text, state, rc.ctx, rc.names[0], a.get("--attempts", 24, int), a.get("--pf", 0.15, float), weights=a.weights(), live=True)
         self.log.event("routes", text=text)
         return text
 
@@ -314,11 +315,11 @@ class Harness(Live):
         """operator play, card reward / event: the validated search check only (`price --run` adds the run-model rollouts)"""
         import numpy as np
         stub = {o[0]: {"win": np.zeros(2), "act": np.zeros(2)} for o in opts}
-        got, radius = PR.search_check(st, opts, stub, self.eng(), PR.screen_seed("live", state), top=len(opts))
+        got, radius = PR.search_check(st, opts, stub, self.eng(), PR.screen_seed("live", state), top=len(opts), live=True)
         best = max(got, key=lambda lb: got[lb][0]) if got else None
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by="check", best=best,
                        result={k: {"check": round(v[0], 4)} for k, v in got.items()},
-                       search=_search_log(got), radius=radius)
+                       search=_search_log(got), radius=radius, boss_player="live")
         notes = PR.unmodelled_lines(state, got)
         return _check_lines(got, radius) + ("\n".join(notes) + "\n" if notes else "") + VALIDATION + self._plan_note(got, state) + self._synergy(state, self._run())
 
@@ -358,12 +359,12 @@ class Harness(Live):
             unpriced = []
             opts, note = PR.bundles(st, PR.shop_items(st, state, unpriced), self._predictor)
             note = f"; {note}" + (f"; not priced (no simulator id): {', '.join(unpriced)}" if unpriced else "")
-        r = PR.decide(st, state, self._predictor, None if "--no-search" in args else self.eng(), opts, n=n, seed=PR.screen_seed("live", state))
+        r = PR.decide(st, state, self._predictor, None if "--no-search" in args else self.eng(), opts, n=n, seed=PR.screen_seed("live", state), live=True)
         res, adj, got, override = r["res"], r["adj"], r["check"], r["override"]
         ranked_by, _why = PR.ladder(res)
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by=ranked_by, best=r["best"],
                        result={k: {m: float(v.mean()) for m, v in x.items()} for k, x in res.items()},
-                       search=_search_log(got), override=override, terms=adj, radius=r["radius"])
+                       search=_search_log(got), override=override, terms=adj, radius=r["radius"], boss_player="live")
         ready = ("; next act ready: P(win) after the ancient's heal vs the next act's bosses x0.5 and elites x0.5, 0 on a death in this act"
                  if "ready" in next(iter(res.values())) else "")
         check = ""
@@ -470,7 +471,7 @@ class Harness(Live):
         if argline.startswith("{"):
             spec = json.loads(argline)
         else:
-            spec = dict(variants=[dict(name="baseline")], attempts=64)
+            spec = dict(variants=[dict(name="baseline")])
             for t, val in Args(argline, self.EVAL_VALUED, self.EVAL_FLAGS).items:
                 if t == "--enc":
                     spec["encounters"] = val.split(",")
@@ -502,12 +503,15 @@ class Harness(Live):
         spec.setdefault("hold", "all")
         if not spec.pop("all", False):
             spec["_ctx"] = self._context().ctx
+        # bosses play out on the live search (~5 jobs/s on the 4070): 128 attempts at the final pair, 64 elsewhere (E150)
+        final = {b for n in pools.act_names(2) for b in pools.pool(n, "boss")}
+        spec.setdefault("attempts", 128 if set(macro.resolve_encounters(spec)) <= final else 64)
         deck = self._run()
         if spec.get("target"):
             t = spec["target"]
             spec["target"] = macro.target_left(t["variant"], deck, t.get("base")) if "variant" in t else t
             deck = macro.apply_variant(deck, spec["target"])
-        text, summary = macro.evaluate(self.eng(), deck, spec)
+        text, summary = macro.evaluate(self.eng(), deck, spec, live=True)
         self.log.event("eval", spec=spec, result=macro.loggable(summary))
         cav = _engine_line([macro._card(c)["id"] for v in spec["variants"] + [spec.get("target") or {}] for c in v.get("add", [])])
         return text.rstrip("\n") + "\n" + cav if cav else text

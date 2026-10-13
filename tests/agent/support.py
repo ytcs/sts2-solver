@@ -124,8 +124,9 @@ class FakeEngine:
                 sorted((c["id"], c.get("upgrade", 0), json.dumps(c.get("enchantment"), sort_keys=True)) for c in sc.get("deck", [])),
                 sorted(r["id"] for r in sc.get("relics", [])), [p["id"] for p in sc.get("potions", [])])
 
-    def solve(self, scenarios, attempts=64, seed=None, groups=None, worth=None):
-        self.log.append(dict(attempts=attempts, **({"worth": worth.get("kind", "table")} if worth is not None else {}), scen=[[sc.get("name"), sc.get("encounter"), sc.get("hp"), [p["id"] for p in sc.get("potions", [])]] for sc in scenarios]))
+    def solve(self, scenarios, attempts=64, seed=None, groups=None, worth=None, live=False):
+        self.log.append(dict(attempts=attempts, **({"worth": worth.get("kind", "table")} if worth is not None else {}), **({"live": True} if live else {}),
+                             scen=[[sc.get("name"), sc.get("encounter"), sc.get("hp"), [p["id"] for p in sc.get("potions", [])]] for sc in scenarios]))
         out = []
         for sc in scenarios:
             rng = random.Random(_h(self._key(sc), attempts))
@@ -136,7 +137,7 @@ class FakeEngine:
             w = len(wins) / attempts
             out.append(dict(win=w, win_se=(w * (1 - w) / attempts) ** 0.5, hp_lost=sum(hp - e for e in ends) / attempts / max(sc.get("max_hp", 80), 1),
                             hp_lost_se=0.01, hp_left_on_win=(sum(wins) / len(wins)) if wins else 0.0, attempts=attempts, aborted=0, ends=ends,
-                            wins=[1.0 if e > 0 else 0.0 for e in ends]))
+                            wins=[1.0 if e > 0 else 0.0 for e in ends], player="live" if live and str(sc.get("encounter", "")).endswith("_BOSS") else "weak"))
         return out
 
     @staticmethod

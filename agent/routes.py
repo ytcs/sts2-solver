@@ -78,14 +78,16 @@ def _matrix(hists, grid, maxhp):
 
 
 UNIT = 4
+# boss play-outs per (HP, potion set) cell on the live search: 96 would take ~12 min on run 5's worst screen on the 4070 (E150)
+LIVE_BOSS = 32
 _CACHE = {}
 
 
-def _signature(deck_json, act, ctx, attempts, seed):
+def _signature(deck_json, act, ctx, attempts, seed, live=False):
     deck = tuple(sorted((c["id"], c.get("upgrade", 0), json.dumps(c.get("enchantment"), sort_keys=True)) for c in deck_json["deck"]))
     relics = tuple((r["id"], json.dumps(r.get("props"), sort_keys=True), r.get("counter")) for r in deck_json.get("relics", []))
     pots = tuple(p["id"] for p in deck_json.get("potions", []))
-    return (deck, relics, pots, deck_json["max_hp"], act, tuple(ctx.get("seen", [])), tuple(ctx.get("bosses", [])), attempts, seed)
+    return (deck, relics, pots, deck_json["max_hp"], act, tuple(ctx.get("seen", [])), tuple(ctx.get("bosses", [])), attempts, seed, live)
 
 
 def kinds(act, ctx):
@@ -120,10 +122,10 @@ def need(nodes, boss_row, starts, w0, weak_fights, n_belt):
     return out
 
 
-def _batch(deck_json, act, ctx, attempts):
+def _batch(deck_json, act, ctx, attempts, live=False):
     maxhp = deck_json["max_hp"]
     belt = list(deck_json.get("potions", []))[:MAX_BELT]
-    per = dict(weak=max(8, attempts), regular=max(4, attempts // 3), elite=max(16, attempts * 2), boss=max(32, attempts * 4))
+    per = dict(weak=max(8, attempts), regular=max(4, attempts // 3), elite=max(16, attempts * 2), boss=LIVE_BOSS if live else max(32, attempts * 4))
     grid = sorted({max(6, int(round(x))) for x in np.linspace(6, maxhp, GRID)})
     scen, owners = [], []
     for k, encs in kinds(act, ctx).items():
@@ -144,23 +146,23 @@ def _batch(deck_json, act, ctx, attempts):
     return dict(scen=scen, owners=owners, grid=grid, belt=belt, mats={})
 
 
-def build_tables(engine, deck_json, act, ctx, attempts, want):
+def build_tables(engine, deck_json, act, ctx, attempts, want, live=False):
     """the outcome matrices in `want` (`need`), solved once per signature. Job i of the whole batch (attempt i // S of scenario i % S) has
     solver seed table_seed * 1_000_003 + i whichever subset is solved, so every table equals the one a solve of the whole batch gives."""
-    key = _signature(deck_json, act, ctx, attempts, engine.table_seed)
+    key = _signature(deck_json, act, ctx, attempts, engine.table_seed, live)
     b = _CACHE.get(key)
     if b is None:
-        b = _batch(deck_json, act, ctx, attempts)
+        b = _batch(deck_json, act, ctx, attempts, live)
         if len(_CACHE) >= 3:
             _CACHE.pop(next(iter(_CACHE)))
         _CACHE[key] = b
     scen, owners, n = b["scen"], b["owners"], len(b["scen"])
     sel = [s for s in range(n) if owners[s][:2] in want and owners[s][:2] not in b["mats"]]
     if sel and len(sel) == n:
-        res = [r["ends"] for r in engine.solve(scen, attempts=UNIT)]
+        res = [r["ends"] for r in engine.solve(scen, attempts=UNIT, live=live)]
     elif sel:
         jobs = [a * n + s for a in range(UNIT) for s in sel]
-        got = engine.solve([scen[s] for s in sel] * UNIT, attempts=[1] * len(jobs), groups=jobs)
+        got = engine.solve([scen[s] for s in sel] * UNIT, attempts=[1] * len(jobs), groups=jobs, live=live)
         res = [[x for a in range(UNIT) for x in got[a * len(sel) + j]["ends"]] for j in range(len(sel))]
     ends = {}
     for s, e in zip(sel, res if sel else ()):
@@ -403,7 +405,7 @@ def _fmt_plan(calc, plan):
     return "; ".join(parts) or "no potion thrown"
 
 
-def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, weights=None):
+def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, weights=None, live=False):
     nodes, boss_row = parse_map(map_text)
     if not nodes or boss_row is None:
         return "routes: no act map"
@@ -421,7 +423,7 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
     wf = pools.ACTS[act]["weak_fights"]
     not_monster = set(pools.pool(act, "elite")) | set(pools.pool(act, "boss"))
     w0 = min(sum(1 for e in ctx.get("seen", []) if e not in not_monster), wf)
-    tabs = build_tables(engine, deck_json, act, ctx, attempts, need(nodes, boss_row, starts, w0, wf, len(deck_json.get("potions", [])[:MAX_BELT])))
+    tabs = build_tables(engine, deck_json, act, ctx, attempts, need(nodes, boss_row, starts, w0, wf, len(deck_json.get("potions", [])[:MAX_BELT])), live=live)
     calc = Calc(nodes, boss_row, tabs, maxhp, wf, pf)
     calc.weights.update(weights or {})
     note = ""
@@ -437,7 +439,7 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
             break
     belt_txt = ", ".join(calc.belt) if calc.belt else "none"
     lines = [f"route survival (win the act boss) from {hp_now}/{maxhp} HP, {len(starts)} option(s) on offer, monsters met {w0}, unknown = regular fight {pf:.0%}; "
-             f"events / shops / treasure not modelled", f"potions in the belt: {belt_txt}; each is thrown at most once along a route, at the fight where it helps most (an elite or the boss), never counted twice", ""]
+             f"events / shops / treasure not modelled; {macro.player_tag([{'player': 'live' if live else 'weak'}])}", f"potions in the belt: {belt_txt}; each is thrown at most once along a route, at the fight where it helps most (an elite or the boss), never counted twice", ""]
     if note:
         lines.append(note)
         lines.append("")

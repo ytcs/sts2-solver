@@ -7,7 +7,7 @@ import time
 import numpy as np
 import torch
 
-from agent import potions, proposal
+from agent import pools, potions, proposal
 
 _RL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "rl")
 sys.path.insert(0, _RL)
@@ -40,6 +40,19 @@ POT_COST = 0.06
 POT_MARGIN_SE, POT_MARGIN_MIN = 2.0, 0.01
 # objective units: a card a Thieving Hopper escapes with (~16 HP), per gold stolen (100 gold ~8 HP), per max HP lost (= max_hp_value)
 STOLEN_COST, GOLD_COST, MAXHP_COST = 0.1, 0.0005, 0.008
+# live play-outs: jobs per fs.run call and roots at a time. On the 12 GB RTX 4070 SUPER the play-outs are GPU-bound (~7 jobs/s at 32 roots, no
+# faster at 64-256); above ~12 GB reserved the card pages and a chunk slows 5-10x (E150)
+LIVE_CHUNK, LIVE_ROOTS = 256, 32
+
+
+def _is_boss(sc):
+    return str(sc.get("encounter", "")).endswith("_BOSS")
+
+
+def _boss_act(sc):
+    """the act whose boss pool holds the encounter (an instrument scores far bosses from an earlier act's scenario), else the scenario's"""
+    enc = sc.get("encounter")
+    return next((d["act"] for n, d in pools.ACTS.items() if enc in pools.pool(n, "boss")), sc.get("act") or 0)
 
 
 class Engine:
@@ -49,6 +62,8 @@ class Engine:
         self._fs_kw = dict(amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn, hp_cap=hp_cap, pot_cost=pot_cost, stolen_cost=STOLEN_COST,
                            gold_cost=GOLD_COST, maxhp_cost=MAXHP_COST)
         self.fs = FastSearch(self.solver.net, M, K, roots=ROOTS, groups=1, **self._fs_kw)
+        # one CUDA graph pool with the solver's (replays are serial): two pools plus live play-outs page on a 12 GB card
+        self.fs._pool = self.solver.fs._pool
         self._live = None
         self.pot_cost, self.pot_margin_se = pot_cost, pot_margin_se
         self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
@@ -67,10 +82,15 @@ class Engine:
                 else self.pot_cost / 2 if worth is not None else self.pot_cost)
 
     def live_fs(self):
-        """the live search (self.fs's configuration) at play-out width: self.fs runs ROOTS jobs at a time"""
+        """the live search (self.fs's configuration) at play-out width (self.fs runs ROOTS jobs at a time), on self.fs's CUDA graphs: a second
+        set beside the solver's does not fit 12 GB, so batches above self.fs's largest warmed bucket run in chunks of it"""
         if self._live is None:
-            self._live = FastSearch(self.solver.net, self.fs.M, self.fs.K, roots=512 if self._fs_kw["amp"] else 256, **self._fs_kw)
-            self._live.warm()
+            self._live = FastSearch(self.solver.net, self.fs.M, self.fs.K, roots=LIVE_ROOTS if self._fs_kw["amp"] else 256, **self._fs_kw)
+            self._live._graphs, self._live._pool = self.fs._graphs, self.fs._pool
+            for g in self.fs._graphs.values():
+                for f in (g, g.full):
+                    if f is not None and f.graphs:
+                        f.buckets = tuple(sorted(f.graphs))
         return self._live
 
     def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, worth=None, rounds=None, pot_cost=None):
@@ -138,9 +158,48 @@ class Engine:
         return dict(action=a, json=sim.action_json(a), text=text.get(a, f"#{a}"), searched=first["searched"], rounds=rounds,
                     seconds=round(time.perf_counter() - t0, 2), rows=tuple(n_rows), options=opts, potion_gated=gated)
 
-    def solve(self, scenarios, attempts=64, seed=None, groups=None, worth=None):
-        return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,
-                                 worth=None if worth is None else [worth] * len(scenarios))
+    def solve(self, scenarios, attempts=64, seed=None, groups=None, worth=None, live=False):
+        """play-out stats per scenario by the solver's search (M=3 K=8); live=True plays the boss scenarios with the live search (`_live_run`),
+        the rest stay on the solver's search; each row's `player` says which. Job seeds do not depend on the split."""
+        scenarios = [scenarios] if isinstance(scenarios, dict) else list(scenarios)
+        res = self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,
+                                worth=None if worth is None else [worth] * len(scenarios), run=self._live_run if live else None)
+        for r, sc in zip(res, scenarios):
+            r["player"] = "live" if live and _is_boss(sc) else "weak"
+        return res
+
+    def _live_run(self, scenarios, js, jd, worth=None):
+        """fs.run with the boss jobs on the live search (live_fs), at most LIVE_CHUNK jobs per call, with the live player's objective and reserve
+        for the boss's act: act-1/2 bosses win-only with decide's reserve under that worth, final-act bosses linear (no pair table) with reserve 0
+        (E137), as E136 measured it"""
+        boss = np.array([_is_boss(s) for s in scenarios], bool)[js]
+        out = np.zeros((len(js), 9), np.float32)
+        weak = np.flatnonzero(~boss)
+        if len(weak):
+            out[weak] = self.solver.fs.run(scenarios, js[weak], jd[weak], worth=worth)
+        if not boss.any():
+            return out
+        wl, cost = [], []
+        for i, s in enumerate(scenarios):
+            w = None if worth is None else worth[i]
+            if w is None and _is_boss(s) and _boss_act(s) < proposal.LAST_ACT and self.worth_ok:
+                w = proposal.win_only_worth(s.get("max_hp"))
+            wl.append(w)
+            cost.append(0.0 if _boss_act(s) >= proposal.LAST_ACT else self.reserve(w))
+        cost = np.asarray(cost)[js]
+        fs = self.live_fs()
+        for c in sorted(set(cost[boss].tolist())):
+            idx = np.flatnonzero(boss & (cost == c))
+            for k in range(0, len(idx), LIVE_CHUNK):
+                j = idx[k:k + LIVE_CHUNK]
+                used, local = np.unique(js[j], return_inverse=True)
+                ws = [wl[u] for u in used]
+                fs.pot_cost = c
+                out[j] = fs.run([scenarios[u] for u in used], local.astype(np.uint32), jd[j], worth=ws if any(w is not None for w in ws) else None)
+                if fs.cuda:
+                    # live batches fragment the allocator's cache past the card's memory chunk by chunk (the GPU then pages)
+                    torch.cuda.empty_cache()
+        return out
 
     def play_on(self, scenario, starts, seeds, worth=None, record=False, live=False, pot_cost=None):
         """play-outs from starts: the solver's search (M=3 K=8), or with live=True the live search with decide's potion reserve for worth"""
