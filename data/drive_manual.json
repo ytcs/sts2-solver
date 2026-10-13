@@ -2,5 +2,6 @@
  "_doc": "Encounters I drive by hand (adv each decision, I pick; the solver's options and values are the input) instead of `combat`: fights where the solver has shown a gap or the game a mechanic it handles badly. Elites, bosses and fights the prediction calls dangerous are manual anyway (harness `_drive_mode`). Each entry: why, and the evidence. Remove an entry when a review shows the solver plays it well.",
  "LIVING_FOG_NORMAL": "Smoggy (one Skill per turn) and Gas Bomb minions: the solver left Inferno in hand for the whole fight and lost 23 HP net at 50/80, the 99th percentile of its own prediction (r20261005-160158)",
  "SCROLLS_OF_BITING_NORMAL": "Paper Cuts costs max HP per unblocked hit: run 4 F35 AUTO lost 21 HP and 8 max HP at 68/80 (user: technical fight, play manual).",
- "SCROLLS_OF_BITING_WEAK": "Same fight as SCROLLS_OF_BITING_NORMAL (Paper Cuts costs max HP per unblocked hit); run 6 F37 AUTO lost 11 HP and 8 max HP."
+ "SCROLLS_OF_BITING_WEAK": "Same fight as SCROLLS_OF_BITING_NORMAL (Paper Cuts costs max HP per unblocked hit); run 6 F37 AUTO lost 11 HP and 8 max HP.",
+ "SPINY_TOAD_NORMAL": "Thorns 5 while Spiked punishes multi-hits (Sword Boomerang, Twin Strike); run 6 F22 AUTO lost 27 HP at 39/80."
 }
