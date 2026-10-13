@@ -573,6 +573,11 @@ class Harness(Live):
         out = self._handle(line)
         if out.startswith("commands: s | a <i>") and line.split()[:1] not in (["help"], ["?"]):
             out = f"ERR unknown command `{line.split()[0]}`" + chr(10) + out
+        if self.gate and "-- combat over" in out and "GAME_OVER" not in out:
+            try:
+                out = out.rstrip("\n") + "\n-- brief\n" + self.brief()
+            except Exception:  # noqa: BLE001
+                pass
         if _code_stamp() != self.code_stamp:
             out = "WARNING: harness code changed since this daemon started; `quit` reloads it (the reply below came from the old code)\n" + out
         self._watch_run_end(out)
