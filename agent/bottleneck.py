@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deck bottleneck tracker: per card, plays vs turns left in hand at end of turn (run log `action` events), split by energy left vs its cost.
 Usage: python -m agent.bottleneck <events.jsonl> [--act N]"""
-import argparse, collections, json, re
+import argparse, collections, functools, json, os, re
 
 STARTER = {"STRIKE_IRONCLAD", "DEFEND_IRONCLAD", "BASH", "ASCENDERS_BANE"}
 
@@ -11,11 +11,11 @@ def analyze(path, act=None):
     played, left, left_poor, left_rich = collections.Counter(), collections.Counter(), collections.Counter(), collections.Counter()
     turns = stranded = starved = wasted = 0
     spent = basic_spent = 0
-    cur_act = None
+    cur_act = char = None
     for l in open(path, encoding="utf-8"):
         e = json.loads(l)
         if e["kind"] == "fight_start":
-            cur_act = (e.get("scenario") or {}).get("act")
+            cur_act, char = (e.get("scenario") or {}).get("act"), (e.get("scenario") or {}).get("character")
         if e["kind"] != "action" or (act is not None and cur_act != act):
             continue
         t = str(e.get("text", ""))
@@ -48,7 +48,7 @@ def analyze(path, act=None):
         rows.append(dict(card=cid, played=p, left=lf, left_no_energy=left_poor[cid], left_with_energy=left_rich[cid], ignore_rate=round(lf / max(1, p + lf), 2)))
     rows.sort(key=lambda r: -r["ignore_rate"])
     energy_bound = sum(left_poor.values()) / max(1, sum(left.values()))
-    return dict(turns=turns, energy_bound_share=round(energy_bound, 2), ignored_share=round(sum(left_rich.values()) / max(1, sum(left.values())), 2),
+    return dict(char=char, turns=turns, energy_bound_share=round(energy_bound, 2), ignored_share=round(sum(left_rich.values()) / max(1, sum(left.values())), 2),
                 stranded=round(stranded / max(1, turns), 2), draw_bound_share=round(starved / max(1, turns), 2),
                 wasted_energy=round(wasted / max(1, turns), 2), basic_energy_share=round(basic_spent / max(1, spent), 2), cards=rows)
 
@@ -56,9 +56,18 @@ def analyze(path, act=None):
 _CACHE = {}
 
 
+@functools.lru_cache(maxsize=None)
+def human(char, act):
+    """community per-(run, act) medians (data/bottleneck_baseline.json, tools/bottleneck_baseline.py) or {}"""
+    try:
+        ref = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "bottleneck_baseline.json"), encoding="utf-8"))["ref"]
+    except (OSError, ValueError, KeyError):
+        return {}
+    return {m: v[2] for m, v in ((ref.get(char) or {}).get(str(act)) or {}).items() if isinstance(v, list)}
+
+
 def term_vars(path, act):
     """macro terms DSL variables (agent/terms.py) for this act, cached by file size"""
-    import os
     try:
         key = (path, os.path.getsize(path), act)
     except OSError:
@@ -71,13 +80,17 @@ def term_vars(path, act):
 
 
 def line(path, act=None, top=4):
-    """one line for `brief`: energy-bound share and the most ignored cards (left at end of turn, no energy / with energy / played)"""
+    """one line for `brief`: energy-bound share and the most ignored cards (left at end of turn, no energy / with energy / played); with an act,
+    the human per-(run, act) medians beside each share"""
     r = analyze(path, act)
     if not r["turns"]:
         return ""
     ign = [f"{c['card']} {c['left_no_energy']}/{c['left_with_energy']}/{c['played']}" for c in r["cards"] if c["left"] >= 3 and c["ignore_rate"] >= 0.5][:top]
-    return (f"bottleneck ({r['turns']} turns{'' if act is None else f', act {act + 1}'}): cards left with no energy {r['energy_bound_share']:.0%}; "
-            f"turns ending with energy and nothing playable {r['draw_bound_share']:.0%} ({r['wasted_energy']:.1f} energy/turn wasted); energy on Strikes/Defends {r['basic_energy_share']:.0%}"
+    h = human(r["char"], act) if act is not None else {}
+    hm = lambda m: f" (human median {h[m]:.0%})" if m in h else ""
+    return (f"bottleneck ({r['turns']} turns{'' if act is None else f', act {act + 1}'}): cards left with no energy {r['energy_bound_share']:.0%}{hm('energy_bound')}; "
+            f"turns ending with energy and nothing playable {r['draw_bound_share']:.0%}{hm('draw_bound')} ({r['wasted_energy']:.1f} energy/turn wasted); "
+            f"energy on Strikes/Defends {r['basic_energy_share']:.0%}{hm('basic')}"
             + (f"; ignored (left@0E/left@>=1E/played): {', '.join(ign)}" if ign else ""))
 
 
