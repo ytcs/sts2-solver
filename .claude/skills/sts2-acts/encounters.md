@@ -20,5 +20,7 @@ What makes each fight hard. Reason out whether the deck answers each gimmick (`s
 - Bygone Effigy `[hyp]`: sleeps turn 1. Phrog Parasite `[hyp]`: spawns Wrigglers, area pressure.
 - Scrolls of Biting (Glory weak) `[hyp]`: Paper Cuts (each unblocked hit costs max HP).
 - Spiny Toad (hallway) `[code]`: Thorns 5 while Spiked, Explosion 25.
+- Mecha Knight (elite, 320 HP) `[hyp]`: Artifact 3; Charge 30, Flamethrower 12 + 4 Burns, Windup +5 Str / 15 block, Heavy Cleave 40.
+- Owl Magistrate (hallway, 247 HP) `[hyp]`: Verdict 54 + Vulnerable after a Soar buff; Peck Assault 6x6.
 - Thieving Hopper `[hyp]`: steals a card, flees after a few turns (Escape Artist).
 - Gremlin Merc `[hyp]`: Thievery (steals gold), splits into gremlins on death.
