@@ -151,7 +151,9 @@ def se(x):
 
 
 def playouts(eng, it, n):
-    """the item's state, solver play-out target (n attempts, hidden info re-sampled) and the value head at build, in place"""
+    """the item's state, play-out target (live search with the encounter's live objective sans pair table, no potion reserve at a final-act
+    boss as at the live pair; n attempts, hidden info re-sampled) and the value head at build, in place"""
+    from agent.proposal import LAST_ACT, fight_objective
     sim = build_state(it)
     assert sim.outcome() == 0, it["name"]
     starts = []
@@ -159,7 +161,9 @@ def playouts(eng, it, n):
         s = sim.copy()
         s.determinize(1000 + k)
         starts.append(s)
-    out = eng.play_on(it["scenario"], starts, list(range(5000, 5000 + n)))
+    sc = it["scenario"]
+    pair = sc.get("act") == LAST_ACT and str(sc.get("encounter", "")).endswith("_BOSS")
+    out = eng.play_on(sc, starts, list(range(5000, 5000 + n)), worth=fight_objective(sc)[0], live=True, pot_cost=0.0 if pair else None)
     res = np.array([o[0] for o in out])
     frac = np.array([o[1] for o in out])
     win = (res == 1).astype(np.float64)
@@ -184,8 +188,9 @@ def cmd_build(a):
     old = {it["name"]: it for it in json.load(open(a.out))["items"]} if os.path.exists(a.out) else {}
     for it in items:
         old[it["name"]] = playouts(eng, it, a.n)
-    doc = ("Value-head bench at states where an enemy's death hides HP (tools/leaf_bench.py, E102). target: solver play-outs (models/solver_r9.pt, "
-           "Solver M=3 K=8, hidden info re-sampled per attempt; lower bounds). check: the value head's P(win) within 2 se of target win (se floored at 1/n).")
+    doc = ("Value-head bench at states where an enemy's death hides HP (tools/leaf_bench.py, E102). target: live-search play-outs (Engine.play_on "
+           "live=True: M=5 K=32 cover, exact turn, HP cap; act-1/2 bosses win-only with reserve 0.03, final-act bosses linear with reserve 0 (no pair table); "
+           "hidden info re-sampled per attempt; lower bounds; E113). check: the value head's P(win) within 2 se of target win (se floored at 1/n).")
     model = json.load(open(os.path.join(ROOT, "models", "current.json")))["policy"]
     json.dump(dict(_doc=doc, model=model, items=list(old.values())), open(a.out, "w"))
 
