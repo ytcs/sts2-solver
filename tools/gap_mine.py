@@ -8,6 +8,7 @@ from the human's (same card instance up to identical copies, same target), both 
 determinized copy and one job seed per pair). V(s0): live play-outs from each fight's first decision (the E136 measurement on this sample).
 usage: tools/gap_mine.py prep --out target/gapmine/fights.json            (CPU; needs target/codex/replays + target/review/replay_fidelity.jsonl)
        tools/gap_mine.py run --fights F --out DIR [--rounds 8 --n 32 --fights-max 0]   (GPU; resumable per part)
+       tools/gap_mine.py rescore --fights F --out DIR --only top.jsonl [--n 128 --seed 1]   (GPU; fresh pairs at the costliest disagreements)
        tools/gap_mine.py report --fights F --out DIR --data target/gapmine/gapmine.jsonl.gz --summary evals/gapmine/summary.json"""
 import argparse, collections, glob, gzip, hashlib, json, os, re, sys, time
 
@@ -212,6 +213,60 @@ def rparts(pat):
     return [json.loads(l) for p in sorted(glob.glob(pat)) for l in gzip.open(p, "rt")]
 
 
+def playouts(fs, a, st, rows, F):
+    """paired play-outs at the disagreements in rows (one determinized copy and one job seed per pair) and V(s0) for the fights F
+    -> {(n, kind): [[h win, h hp, s win, s hp, human pick unmatched]...]}, [(win, hp)] per s0 play-out"""
+    scen, starts, seeds, slot = [], [], [], []
+    played = {n for n, kind, _sa, row in rows if kind == "play" and row["agree"]}
+    for n, kind, sa, row in rows:
+        # a selection is scored only after the search agreed on the play itself (else the play's pair already holds it)
+        if row["agree"] or (kind == "sel" and n not in played):
+            continue
+        f, r, s, i = st[n]
+        for j in range(a.n):
+            base = r.copy()
+            assert base.determinize(1_000_003 * (j + 1) + 31 * i["stop"] + 17 + 7_777_777 * a.seed)
+            base.step(i["act"])
+            h, ok = base.copy(), True
+            if kind == "play":
+                x = r.copy(); x.determinize(1_000_003 * (j + 1) + 31 * i["stop"] + 17 + 7_777_777 * a.seed); x.step(sa)
+            else:
+                x = base.copy()
+                m = match_pick(x, row["s_key"])
+                if m is None:
+                    ok = False
+                else:
+                    x.step(m)
+            hsel = 0
+            for pk in i["picks"]:
+                if h.stage() != "choice":
+                    break
+                m = match_pick(h, pk)
+                if m is None:
+                    hsel = 1
+                    break
+                h.step(m)
+            if not ok:
+                continue
+            sd = a.seed + 77_777 + 1_000_003 * j + n
+            scen += [f["pre"], f["pre"]]; starts += [h, x]; seeds += [sd, sd]; slot.append((n, kind, j, hsel))
+    for f in F:
+        fst = [x for x in st if x[0] is f]
+        if fst:
+            r = fst[0][1]
+            for j in range(a.n):
+                b = r.copy(); assert b.determinize(5_555 + 1_000_003 * j)
+                scen.append(f["pre"]); starts.append(b); seeds.append(a.seed + 99_991 + j)
+    res = []
+    for b0 in range(0, len(scen), a.batch):
+        res += run_batch(fs, scen[b0:b0 + a.batch], starts[b0:b0 + a.batch], seeds[b0:b0 + a.batch])
+    po = collections.defaultdict(list)
+    for q, (n, kind, j, hsel) in enumerate(slot):
+        po[(n, kind)].append([res[2 * q][0], res[2 * q][1], res[2 * q + 1][0], res[2 * q + 1][1], hsel])
+    tail = res[2 * len(slot):]
+    return po, tail
+
+
 def run(a):
     fights = json.load(open(a.fights))
     if a.fights_max:
@@ -257,55 +312,7 @@ def run(a):
             if kind == "play":
                 row["h_tags"], row["s_tags"] = tags(r, i["act"]), tags(r, d["action"])
             rows.append((n, kind, d["action"], row))
-        # paired play-outs at disagreements; V(s0) per fight
-        scen, starts, seeds, slot = [], [], [], []
-        played = {n for n, kind, _sa, row in rows if kind == "play" and row["agree"]}
-        for n, kind, sa, row in rows:
-            # a selection is scored only after the search agreed on the play itself (else the play's pair already holds it)
-            if row["agree"] or (kind == "sel" and n not in played):
-                continue
-            f, r, s, i = st[n]
-            for j in range(a.n):
-                base = r.copy()
-                assert base.determinize(1_000_003 * (j + 1) + 31 * i["stop"] + 17)
-                base.step(i["act"])
-                h, ok = base.copy(), True
-                if kind == "play":
-                    x = r.copy(); x.determinize(1_000_003 * (j + 1) + 31 * i["stop"] + 17); x.step(sa)
-                else:
-                    x = base.copy()
-                    m = match_pick(x, row["s_key"])
-                    if m is None:
-                        ok = False
-                    else:
-                        x.step(m)
-                hsel = 0
-                for pk in i["picks"]:
-                    if h.stage() != "choice":
-                        break
-                    m = match_pick(h, pk)
-                    if m is None:
-                        hsel = 1
-                        break
-                    h.step(m)
-                if not ok:
-                    continue
-                sd = a.seed + 77_777 + 1_000_003 * j + n
-                scen += [f["pre"], f["pre"]]; starts += [h, x]; seeds += [sd, sd]; slot.append((n, kind, j, hsel))
-        for f in F:
-            fst = [x for x in st if x[0] is f]
-            if fst:
-                r = fst[0][1]
-                for j in range(a.n):
-                    b = r.copy(); assert b.determinize(5_555 + 1_000_003 * j)
-                    scen.append(f["pre"]); starts.append(b); seeds.append(a.seed + 99_991 + j)
-        res = []
-        for b0 in range(0, len(scen), a.batch):
-            res += run_batch(fs, scen[b0:b0 + a.batch], starts[b0:b0 + a.batch], seeds[b0:b0 + a.batch])
-        po = collections.defaultdict(list)
-        for q, (n, kind, j, hsel) in enumerate(slot):
-            po[(n, kind)].append([res[2 * q][0], res[2 * q][1], res[2 * q + 1][0], res[2 * q + 1][1], hsel])
-        tail = res[2 * len(slot):]
+        po, tail = playouts(fs, a, st, rows, F)
         out = []
         for n, kind, sa, row in rows:
             if (n, kind) in po:
@@ -319,9 +326,34 @@ def run(a):
                 k += a.n
         wpart(part, out)
         nd = sum(1 for _n, _k, _s, r_ in rows if not r_["agree"])
-        print(f"part {c0 // a.chunk}: {len(F)} fights, {len(st)} states, {len(rows)} decisions, {nd} disagreements, {len(scen)} play-outs; "
+        print(f"part {c0 // a.chunk}: {len(F)} fights, {len(st)} states, {len(rows)} decisions, {nd} disagreements, {2 * sum(len(v) for v in po.values()) + len(tail)} play-outs; "
               f"{time.time() - tc:.0f}s (total {(time.time() - t0) / 60:.1f} min)", flush=True)
     print("done", flush=True)
+
+
+def rescore(a):
+    """fresh paired play-outs (seed offset a.seed, a.n pairs) at listed disagreements ({fight, stop, kind, s_key, s_action} per line):
+    the costliest patterns re-measured without the selection bias of ranking them on their first estimate"""
+    want = [json.loads(l) for l in open(a.only)]
+    fights = {f["id"]: f for f in json.load(open(a.fights))}
+    fs = make_fs(a)
+    out, t0 = [], time.time()
+    for fid in sorted({w["fight"] for w in want}):
+        f = fights[fid]
+        by = {i["stop"]: (r, s, i) for r, s, i in states(f)}
+        st, rows = [], []
+        for w in (w for w in want if w["fight"] == fid):
+            r, s, i = by[w["stop"]]
+            st.append((f, r, s, i))
+            rows.append((len(st) - 1, w["kind"], w["s_action"], dict(w, agree=False)))
+            if w["kind"] == "sel":  # the play agreed: mark it so the selection is scored
+                rows.append((len(st) - 1, "play", None, dict(agree=True)))
+        po, _ = playouts(fs, a, st, rows, [])
+        for n, kind, _sa, row in rows:
+            if (n, kind) in po:
+                out.append(dict(row, pairs=po[(n, kind)]))
+    wpart(os.path.join(a.out, f"rescore_{a.seed}.jsonl.gz"), out)
+    print(f"rescored {len(out)} of {len(want)} in {(time.time() - t0) / 60:.1f} min", flush=True)
 
 
 # ---- report ----
@@ -424,6 +456,8 @@ def report(a):
                           by_boss=table(dis, nf, lambda r: r["enc"]),
                           by_phase=table(dis, nf, lambda r: (f"TS{r['phase']} " if r["enc"] == "TEST_SUBJECT_BOSS" else "") +
                                          f"turn {'1-2' if (r['turn'] or 1) <= 2 else '3-5' if r['turn'] <= 5 else '6-9' if r['turn'] <= 9 else '10+'}"),
+                          by_kill=table(dis, nf, lambda r: "a move kills / ends a phase" if (r.get("h_tags") or {}).get("kill") or (r.get("s_tags") or {}).get("kill")
+                                        else "no kill"),
                           by_hp=table(dis, nf, lambda r: f"hp {min(int(4 * r['hp'] / max(r['max_hp'], 1)), 3)}/4"),
                           by_margin=table(dis, nf, lambda r: "near tie (search q margin < 0.02)" if (r["q_margin"] is not None and r["q_margin"] < 0.02)
                                           else "human move not proposed" if not r["h_in_opts"] else "clear (margin >= 0.02)"))
@@ -446,7 +480,7 @@ def report(a):
         s = summary[g]
         print(f"\n== {g}: {s['fights']} fights, {s['decisions']} decisions, {s['disagreements']} disagreements (agree {s['agree_rate']}), "
               f"human move not proposed {s['human_not_in_search_opts']}, explained per fight {s['explained_per_fight']:+.4f}")
-        for t in ("by_class", "by_boss", "by_phase", "by_margin"):
+        for t in ("by_class", "by_boss", "by_phase", "by_kill", "by_hp", "by_margin"):
             print(f"-- {t}")
             for x in s[t]:
                 print(f"  {str(x['key']):42s} n {x['n']:5d} scored {x['scored']:5d} dwin {x['mean_dwin'] if x['mean_dwin'] is not None else '-':>8} "
@@ -470,11 +504,15 @@ def main():
     p.add_argument("--fights-max", type=int, default=0); p.add_argument("--chunk", type=int, default=10)
     p.add_argument("--batch", type=int, default=2048); p.add_argument("--roots", type=int, default=2048)
     p.add_argument("--K", type=int, default=0); p.add_argument("--seed", type=int, default=0)
+    p = sp.add_parser("rescore")
+    p.add_argument("--fights", required=True); p.add_argument("--out", required=True); p.add_argument("--only", required=True)
+    p.add_argument("--n", type=int, default=128); p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--batch", type=int, default=2048); p.add_argument("--roots", type=int, default=2048); p.add_argument("--K", type=int, default=0)
     p = sp.add_parser("report")
     p.add_argument("--fights", required=True); p.add_argument("--out", required=True)
     p.add_argument("--data", required=True); p.add_argument("--summary", required=True)
     a = ap.parse_args()
-    dict(prep=prep, run=run, report=report)[a.cmd](a)
+    dict(prep=prep, run=run, rescore=rescore, report=report)[a.cmd](a)
 
 
 if __name__ == "__main__":
