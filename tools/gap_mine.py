@@ -9,6 +9,7 @@ determinized copy and one job seed per pair). V(s0): live play-outs from each fi
 usage: tools/gap_mine.py prep --out target/gapmine/fights.json            (CPU; needs target/codex/replays + target/review/replay_fidelity.jsonl)
        tools/gap_mine.py run --fights F --out DIR [--rounds 8 --n 32 --fights-max 0]   (GPU; resumable per part)
        tools/gap_mine.py rescore --fights F --out DIR --only top.jsonl [--n 128 --seed 1]   (GPU; fresh pairs at the costliest disagreements)
+       tools/gap_mine.py patch --fights F --out DIR   (CPU; arms whose start the move already ended, for parts run before that fix)
        tools/gap_mine.py report --fights F --out DIR --data target/gapmine/gapmine.jsonl.gz --summary evals/gapmine/summary.json"""
 import argparse, collections, glob, gzip, hashlib, json, os, re, sys, time
 
@@ -213,6 +214,82 @@ def rparts(pat):
     return [json.loads(l) for p in sorted(glob.glob(pat)) for l in gzip.open(p, "rt")]
 
 
+def over(sim):
+    return sim.outcome() != 0 or sim.stage() == "over"
+
+
+def ended(sim):
+    if not over(sim):
+        return None
+    won = sim.outcome() == 1
+    return (int(won), float(json.loads(sim.snapshot())["player"]["hp"]) if won else 0.0)
+
+
+def arm_starts(entry, kind, sa, row, j, seed):
+    """the pair's starts on determinized copy j: [human move, search move] (play / sel) or [human, free, search unless agreed] (free);
+    -> (sims, 1 if a human pick found no match on the copy), ([], None) when the search's pick has no match"""
+    f, r, s, i = entry
+    dseed = 1_000_003 * (j + 1) + 31 * i["stop"] + 17 + 7_777_777 * seed
+    base = r.copy()
+    assert base.determinize(dseed)
+    base.step(i["act"])
+    h = base.copy()
+    x = fr = None
+    if kind == "free":
+        fr = r.copy(); fr.determinize(dseed)
+        if not row["agree"]:
+            x = r.copy(); x.determinize(dseed); x.step(sa)
+    elif kind == "play":
+        x = r.copy(); x.determinize(dseed); x.step(sa)
+    else:
+        x = base.copy()
+        m = match_pick(x, row["s_key"])
+        if m is None:
+            return [], None
+        x.step(m)
+    hsel = 0
+    for pk in i["picks"]:
+        if h.stage() != "choice":
+            break
+        m = match_pick(h, pk)
+        if m is None:
+            hsel = 1
+            break
+        h.step(m)
+    if kind == "free":
+        return [h, fr] + ([] if x is None else [x]), hsel
+    return [h, x], hsel
+
+
+def patch(a):
+    """re-score the arms whose start the move already ended (runs before the terminal-start fix scored them as losses): CPU only"""
+    fights = {f["id"]: f for f in json.load(open(a.fights))}
+    for p in sorted(glob.glob(os.path.join(a.out, a.glob))):
+        rows = [json.loads(l) for l in gzip.open(p, "rt")]
+        cache, n_fix = {}, 0
+        for row in rows:
+            if not row.get("pairs") or row.get("patched"):
+                continue
+            if row["fight"] not in cache:
+                cache[row["fight"]] = {i["stop"]: (fights[row["fight"]], r, s, i) for r, s, i in states(fights[row["fight"]])}
+            entry = cache[row["fight"]][row["stop"]]
+            if entry[3].get("act") is None:
+                continue
+            for j, pr in enumerate(row["pairs"]):
+                sims, _ = arm_starts(entry, row["kind"], row["s_action"] if row["kind"] != "sel" else None, row, j, a.seed)
+                slots = [(0, 1), (2, 3)] if row["kind"] != "free" else [(0, 1), (5, 6)] + ([(2, 3)] if len(sims) == 3 else [])
+                for sim, (w, hp) in zip(sims, slots):
+                    e = ended(sim)
+                    if e is not None:
+                        pr[w], pr[hp] = e
+                        n_fix += 1
+                if row["kind"] == "free" and len(sims) == 2:
+                    pr[2], pr[3] = pr[0], pr[1]
+            row["patched"] = True
+        wpart(p, rows)
+        print(f"{os.path.basename(p)}: {n_fix} arm starts re-scored", flush=True)
+
+
 def playouts(fs, a, st, rows, F):
     """paired play-outs at the disagreements in rows (one determinized copy and one job seed per pair) and V(s0) for the fights F
     -> {(n, kind): [[h win, h hp, s win, s hp, human pick unmatched]...]}, [(win, hp)] per s0 play-out"""
@@ -230,38 +307,9 @@ def playouts(fs, a, st, rows, F):
             b = next(x for x in st if x[0] is row)[1].copy()
             assert b.determinize(5_555 + 1_000_003 * j)
             return [(row["pre"], b, a.seed + 99_991 + j)], None
-        f, r, s, i = st[n]
-        dseed = 1_000_003 * (j + 1) + 31 * i["stop"] + 17 + 7_777_777 * a.seed
-        base = r.copy()
-        assert base.determinize(dseed)
-        base.step(i["act"])
-        h = base.copy()
-        if kind == "free":
-            fr = r.copy(); fr.determinize(dseed)
-            x = None
-            if not row["agree"]:
-                x = r.copy(); x.determinize(dseed); x.step(sa)
-        elif kind == "play":
-            x = r.copy(); x.determinize(dseed); x.step(sa)
-        else:
-            x = base.copy()
-            m = match_pick(x, row["s_key"])
-            if m is None:
-                return [], None
-            x.step(m)
-        hsel = 0
-        for pk in i["picks"]:
-            if h.stage() != "choice":
-                break
-            m = match_pick(h, pk)
-            if m is None:
-                hsel = 1
-                break
-            h.step(m)
+        sims, hsel = arm_starts(st[n], kind, sa, row, j, a.seed)
         sd = a.seed + 77_777 + 1_000_003 * j + n
-        if kind == "free":
-            return [(f["pre"], h, sd), (f["pre"], fr, sd)] + ([] if x is None else [(f["pre"], x, sd)]), hsel
-        return [(f["pre"], h, sd), (f["pre"], x, sd)], hsel
+        return [(st[n][0]["pre"], x, sd) for x in sims], hsel
 
     po, tail, per = collections.defaultdict(list), [], max(1, a.batch // 2)
     for b0 in range(0, len(specs), per):
@@ -271,7 +319,13 @@ def playouts(fs, a, st, rows, F):
             if js:
                 owners.append((spec[0], spec[1], hsel, len(jobs), len(js)))
                 jobs += js
-        res = run_batch(fs, [x[0] for x in jobs], [x[1] for x in jobs], [x[2] for x in jobs]) if jobs else []
+        # a start the move already ended (the human's kill, an end turn whose damage wins or loses) is scored as it stands: the search
+        # engine would not record it as a win
+        live = [q for q, x in enumerate(jobs) if not over(x[1])]
+        got = run_batch(fs, [jobs[q][0] for q in live], [jobs[q][1] for q in live], [jobs[q][2] for q in live]) if live else []
+        res = [ended(x[1]) for x in jobs]
+        for q, g in zip(live, got):
+            res[q] = g
         for n, kind, hsel, o, k in owners:
             if kind == "s0":
                 tail.append(res[o])
@@ -558,12 +612,15 @@ def main():
     p.add_argument("--fights", required=True); p.add_argument("--out", required=True); p.add_argument("--only", required=True)
     p.add_argument("--n", type=int, default=128); p.add_argument("--seed", type=int, default=1)
     p.add_argument("--batch", type=int, default=2048); p.add_argument("--roots", type=int, default=2048); p.add_argument("--K", type=int, default=0)
+    p = sp.add_parser("patch")
+    p.add_argument("--fights", required=True); p.add_argument("--out", required=True)
+    p.add_argument("--glob", default="part_*.jsonl.gz"); p.add_argument("--seed", type=int, default=0)
     p = sp.add_parser("report")
     p.add_argument("--fights", required=True); p.add_argument("--out", required=True)
     p.add_argument("--data", required=True); p.add_argument("--summary", required=True)
     p.add_argument("--free", default=""); p.add_argument("--free-pool", default=""); p.add_argument("--top", default="")
     a = ap.parse_args()
-    dict(prep=prep, run=run, rescore=rescore, report=report)[a.cmd](a)
+    dict(prep=prep, run=run, rescore=rescore, patch=patch, report=report)[a.cmd](a)
 
 
 if __name__ == "__main__":
