@@ -169,7 +169,8 @@ def _smooth_parts(deck_json, spec):
 
 def _smooth_summary(spec, h0, parts):
     variants = spec["variants"]
-    summary, lines = {}, [f"smooth objective: win rate averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of {h0}  ({len(variants)} variants)"]
+    tag = parts[0][1][0].get("player", "") if parts else ""
+    summary, lines = {}, [f"smooth objective: win rate averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of {h0}  ({len(variants)} variants)" + (f"; {tag}" if tag else "")]
     for vi, v in enumerate(variants):
         wins = [p[1][vi]["win"] for p in parts]
         se = _pooled_se(p[1][vi]["se"] for p in parts)
@@ -212,7 +213,8 @@ def _summary(spec, base, encs, index, res):
     by = {}
     for (vi, e), r in zip(index, res):
         by.setdefault(vi, []).append((e, r))
-    lines = [f"{len(variants)} variants x {len(encs)} encounters x {spec.get('attempts', 64)} attempts, start HP {base['hp']}/{base['max_hp']}"]
+    tag = player_tag(r for (_vi, e), r in zip(index, res) if e.endswith("_BOSS"))
+    lines = [f"{len(variants)} variants x {len(encs)} encounters x {spec.get('attempts', 64)} attempts, start HP {base['hp']}/{base['max_hp']}" + (f"; {tag}" if tag else "")]
     summary = {}
     for vi, v in enumerate(variants):
         rows = by[vi]
@@ -224,7 +226,7 @@ def _summary(spec, base, encs, index, res):
         lq = [float(x) for x in np.percentile(lost, [10, 50, 90, 97.5])]
         diffs = _diffs(rows, by[0])
         summary[vi] = dict(win=win, se=se, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows},
-                           diffs=diffs, dse=_paired_se(diffs) if vi and diffs is not None else None)
+                           diffs=diffs, dse=_paired_se(diffs) if vi and diffs is not None else None, **({"player": tag} if tag else {}))
         lines.append(f"{v.get('name', vi):24s} win {win:.3f} ±{se:.3f}  HP lost {100 * hpl:4.1f}% (q10/50/90/97.5: {lq[0]:.0f}/{lq[1]:.0f}/{lq[2]:.0f}/{lq[3]:.0f} HP)  | " + " ".join(f"{e.split('_')[0][:8]}:{r['win']:.2f}" for e, r in rows))
     for vi in range(1, len(variants)):
         d, sd = _vs(summary, vi)
@@ -232,9 +234,15 @@ def _summary(spec, base, encs, index, res):
     return "\n".join(lines), summary
 
 
-def evaluate_many(engine, items):
+def player_tag(boss_rows):
+    """which player scored the boss factors (Engine.solve rows of boss scenarios), one short tag; '' without one"""
+    p = sorted({r.get("player", "weak") for r in boss_rows})
+    return f"boss factor: {'/'.join(p)} player" if p else ""
+
+
+def evaluate_many(engine, items, live=False):
     """[(deck_json, spec)] -> [(text, summary)], all in ONE batch search (smooth specs expand to their HP multiples); each scenario keeps the
-    attempts and the common-random-number group it has in a call of its own"""
+    attempts and the common-random-number group it has in a call of its own; live: the boss scenarios on the live search (Engine.solve)"""
     flat = []
     for deck_json, spec in items:
         if spec.get("smooth"):
@@ -262,11 +270,11 @@ def evaluate_many(engine, items):
         return out
     if not scen:
         return summarize([])
-    return summarize(engine.solve(scen, attempts=att, groups=grp))
+    return summarize(engine.solve(scen, attempts=att, groups=grp, live=live))
 
 
-def evaluate(engine, deck_json, spec):
-    return evaluate_many(engine, [(deck_json, spec)])[0]
+def evaluate(engine, deck_json, spec, live=False):
+    return evaluate_many(engine, [(deck_json, spec)], live=live)[0]
 
 
 _CARD_IDS = None

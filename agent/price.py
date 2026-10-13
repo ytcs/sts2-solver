@@ -486,7 +486,7 @@ def _rung_encounters(st, types, boss_in_range):
     return list(dict.fromkeys(out))
 
 
-def binding_fights(st, engine, seed, k=2, attempts=32):
+def binding_fights(st, engine, seed, k=2, attempts=32, live=False):
     """first RUNGS radius where the skip deck at its current HP has a reachable encounter under SAFE_WIN: its k most dangerous.
     -> (encounters, radius, {encounter: P}) or ([], None, {})"""
     for radius in RUNGS:
@@ -496,7 +496,7 @@ def binding_fights(st, engine, seed, k=2, attempts=32):
         encs = _rung_encounters(st, types, end)
         if not encs:
             continue
-        rows = engine.solve([st.scenario(e) for e in encs], attempts=attempts, seed=seed)
+        rows = engine.solve([st.scenario(e) for e in encs], attempts=attempts, seed=seed, live=live)
         p = {e: float(r["win"]) for e, r in zip(encs, rows)}
         worst = sorted(encs, key=lambda e: p[e])[:k]
         if p[worst[0]] < R.SAFE_WIN:
@@ -537,10 +537,10 @@ def operating_mults(st, engine, sets, seed, attempts=24):
     return out
 
 
-def _horizon_sets(st, engine, seed):
+def _horizon_sets(st, engine, seed, live=False):
     """[(factor key, encounters, hp)]: near binding fights at current HP, this act's known bosses not among them and future boss rungs at full HP"""
     out = []
-    near, radius, _p = binding_fights(st, engine, seed)
+    near, radius, _p = binding_fights(st, engine, seed, live=live)
     for e in near:
         out.append((f"near {e}", [e], "current"))
     for e in st.bosses or []:
@@ -552,13 +552,13 @@ def _horizon_sets(st, engine, seed):
     return out, radius
 
 
-def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=48, variants=4):
+def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=48, variants=4, live=False):
     """score = log ratio vs the reference summed over the factors of P(win run) ahead (progress instead of wins where P < INFORMATIVE), common seeds, paired se.
     -> ({label: (score, se, {factor: measure}, per-attempt scores, {factor: P(win)}, {factor: per-attempt contribution}, {factor: HP multiple})}, binding radius)"""
     import random
     if engine is None:
         return {}, None
-    sets, radius = _horizon_sets(st, engine, seed)
+    sets, radius = _horizon_sets(st, engine, seed, live)
     if not sets:
         return {}, radius
     main, _ = ladder(res)
@@ -570,6 +570,7 @@ def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=
     probe = st.copy()
     if first.get(ref) is not None:
         first[ref](probe, R.Draws(random.Random(0), st.base["character"], st.act))
+    # the weak player picks the HP multiple even under live: live >= weak at bosses (E136), so a multiple informative for weak is for live
     mult = operating_mults(probe, engine, sets, seed)
     slots = [(key, e, hp) for key, encs, hp in sets for e in encs]
     scen, owner, att, grp = [], [], [], []
@@ -589,7 +590,7 @@ def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=
                 owner.append((lb, si))
                 att.append(attempts if slots[si][0].startswith("near") else far_attempts)
                 grp.append(si)
-    rows = engine.solve(scen, attempts=att, groups=grp, seed=seed)
+    rows = engine.solve(scen, attempts=att, groups=grp, seed=seed, live=live)
     wins, prog = {}, {}
     for (lb, si), r in zip(owner, rows):
         wins.setdefault(lb, {}).setdefault(si, []).append(np.array([np.nan if x is None else x for x in r["wins"]], float))
@@ -649,13 +650,13 @@ def screen_seed(tag, state_text):
     return zlib.crc32(f"{tag}|{scr.floor_key(state_text)}".encode()) % 10_000
 
 
-def decide(st, state_text, pred, engine, opts, n=128, seed=0, hybrid=True):
+def decide(st, state_text, pred, engine, opts, n=128, seed=0, hybrid=True, live=False):
     """shared by the live `price` command and the scripted baseline. -> dict(res, adj, check, best, ranked_by, override, terms_skip, radius)"""
     kind = scr.kind(state_text)
     res = price(st, opts, pred, n=n, seed=seed)
     adj = event_adjust(st, state_text)
     top = len(opts) if POLICY_C and kind == "CARD_REWARD" else 3
-    check, radius = search_check(st, opts, res, engine, seed, top=top) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else ({}, None)
+    check, radius = search_check(st, opts, res, engine, seed, top=top, live=live) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else ({}, None)
     best_, ranked, override = hybrid_best(res, check, adj)
     terms_skip, policy = False, None
     if POLICY_C and kind == "CARD_REWARD" and "skip" in check and st.act >= 1:

@@ -21,7 +21,8 @@ class Solver:
         self.fs = FastSearch(self.net, M, K, max_steps=300, roots=roots or (2048 if cuda else 256), groups=groups, amp=cuda, cover=cover)
         self.fs.warm()
 
-    def solve(self, scenarios, attempts=32, seed=0, groups=None, worth=None):
+    def solve(self, scenarios, attempts=32, seed=0, groups=None, worth=None, run=None):
+        run = run or self.fs.run
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         S = len(scenarios)
@@ -33,7 +34,7 @@ class Solver:
             att = np.concatenate([np.arange(a, dtype=np.uint64) for a in A])
             g = np.asarray(groups if groups is not None else np.arange(S), dtype=np.uint64)[js]
             jd = np.uint64(seed) * np.uint64(1_000_003) + g * A[js].astype(np.uint64) + att
-            r = self.fs.run(scenarios, js, jd, worth=worth)
+            r = run(scenarios, js, jd, worth=worth)
             allrows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6], r[i, 8]) for i in range(len(js))]
             per = [[allrows[j] for j in np.flatnonzero(js == i)] for i in range(S)]
         else:
@@ -44,7 +45,7 @@ class Solver:
                 g = np.asarray(groups, dtype=np.uint64)[js]
                 att = (np.arange(len(js)) // S).astype(np.uint64)
                 jd = np.uint64(seed) * np.uint64(1_000_003) + g * np.uint64(attempts) + att
-            r = self.fs.run(scenarios, js, jd, worth=worth)
+            r = run(scenarios, js, jd, worth=worth)
             rows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6], r[i, 8]) for i in range(len(js))]
         res = []
         for i in range(S):
