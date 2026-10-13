@@ -410,7 +410,8 @@ class Harness(Live):
         ev, act = runlog.target(self.log.dir), self._context().horizon()["act"]
         out = [f"target missing: {macro.pieces(self._target_left(deck))}"] if ev else []
         if act >= 1 and (ev is None or ev.get("act", -1) < act):
-            out.append(f"no target deck for act {act + 1}: set one with `target` (sts2-plan)")
+            was = f" (the current one was set for act {ev['act'] + 1})" if ev and "act" in ev else ""
+            out.append(f"no target deck for act {act + 1}{was}: set one with `target` (sts2-plan)")
         return "".join(x + "\n" for x in out)
 
     def brief(self):
@@ -503,7 +504,8 @@ class Harness(Live):
             spec["_ctx"] = self._context().ctx
         deck = self._run()
         if spec.get("target"):
-            spec["target"] = macro.target_left(spec["target"]["variant"], deck, spec["target"].get("base"))
+            t = spec["target"]
+            spec["target"] = macro.target_left(t["variant"], deck, t.get("base")) if "variant" in t else t
             deck = macro.apply_variant(deck, spec["target"])
         text, summary = macro.evaluate(self.eng(), deck, spec)
         self.log.event("eval", spec=spec, result=macro.loggable(summary))
@@ -532,10 +534,12 @@ class Harness(Live):
 
     def prior(self, rest):
         """community prior (tools/community_lut.py): `prior KEY [ITEM ..]`, `prior pair [ITEM ..]` (the map's final pair); no run: `prior CHAR KEY ..`"""
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("community_lut", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "community_lut.py"))
-        lut = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(lut)
+        lut = getattr(self, "_lut", None)
+        if lut is None:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("community_lut", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "community_lut.py"))
+            lut = self._lut = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(lut)
         words = rest.split()
         try:
             char, bosses = self._run()["character"], self._context().bosses
