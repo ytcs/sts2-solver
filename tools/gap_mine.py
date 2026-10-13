@@ -216,54 +216,58 @@ def rparts(pat):
 def playouts(fs, a, st, rows, F):
     """paired play-outs at the disagreements in rows (one determinized copy and one job seed per pair) and V(s0) for the fights F
     -> {(n, kind): [[h win, h hp, s win, s hp, human pick unmatched]...]}, [(win, hp)] per s0 play-out"""
-    scen, starts, seeds, slot = [], [], [], []
+    # job specs only: a determinized Sim is large, so each batch's starts are built just before its run
     played = {n for n, kind, _sa, row in rows if kind == "play" and row["agree"]}
-    for n, kind, sa, row in rows:
-        # a selection is scored only after the search agreed on the play itself (else the play's pair already holds it)
-        if row["agree"] or (kind == "sel" and n not in played):
-            continue
+    # a selection is scored only after the search agreed on the play itself (else the play's pair already holds it)
+    specs = [(n, kind, sa, row, j) for n, kind, sa, row in rows if not (row["agree"] or (kind == "sel" and n not in played)) for j in range(a.n)]
+    specs += [(None, "s0", None, f, j) for f in F if any(x[0] is f for x in st) for j in range(a.n)]
+
+    def build(spec):
+        n, kind, sa, row, j = spec
+        if kind == "s0":
+            b = next(x for x in st if x[0] is row)[1].copy()
+            assert b.determinize(5_555 + 1_000_003 * j)
+            return [(row["pre"], b, a.seed + 99_991 + j)], None
         f, r, s, i = st[n]
-        for j in range(a.n):
-            base = r.copy()
-            assert base.determinize(1_000_003 * (j + 1) + 31 * i["stop"] + 17 + 7_777_777 * a.seed)
-            base.step(i["act"])
-            h, ok = base.copy(), True
-            if kind == "play":
-                x = r.copy(); x.determinize(1_000_003 * (j + 1) + 31 * i["stop"] + 17 + 7_777_777 * a.seed); x.step(sa)
+        dseed = 1_000_003 * (j + 1) + 31 * i["stop"] + 17 + 7_777_777 * a.seed
+        base = r.copy()
+        assert base.determinize(dseed)
+        base.step(i["act"])
+        h = base.copy()
+        if kind == "play":
+            x = r.copy(); x.determinize(dseed); x.step(sa)
+        else:
+            x = base.copy()
+            m = match_pick(x, row["s_key"])
+            if m is None:
+                return [], None
+            x.step(m)
+        hsel = 0
+        for pk in i["picks"]:
+            if h.stage() != "choice":
+                break
+            m = match_pick(h, pk)
+            if m is None:
+                hsel = 1
+                break
+            h.step(m)
+        sd = a.seed + 77_777 + 1_000_003 * j + n
+        return [(f["pre"], h, sd), (f["pre"], x, sd)], hsel
+
+    po, tail, per = collections.defaultdict(list), [], max(1, a.batch // 2)
+    for b0 in range(0, len(specs), per):
+        jobs, owners = [], []
+        for spec in specs[b0:b0 + per]:
+            js, hsel = build(spec)
+            if js:
+                owners.append((spec[0], spec[1], hsel, len(jobs)))
+                jobs += js
+        res = run_batch(fs, [x[0] for x in jobs], [x[1] for x in jobs], [x[2] for x in jobs]) if jobs else []
+        for n, kind, hsel, o in owners:
+            if kind == "s0":
+                tail.append(res[o])
             else:
-                x = base.copy()
-                m = match_pick(x, row["s_key"])
-                if m is None:
-                    ok = False
-                else:
-                    x.step(m)
-            hsel = 0
-            for pk in i["picks"]:
-                if h.stage() != "choice":
-                    break
-                m = match_pick(h, pk)
-                if m is None:
-                    hsel = 1
-                    break
-                h.step(m)
-            if not ok:
-                continue
-            sd = a.seed + 77_777 + 1_000_003 * j + n
-            scen += [f["pre"], f["pre"]]; starts += [h, x]; seeds += [sd, sd]; slot.append((n, kind, j, hsel))
-    for f in F:
-        fst = [x for x in st if x[0] is f]
-        if fst:
-            r = fst[0][1]
-            for j in range(a.n):
-                b = r.copy(); assert b.determinize(5_555 + 1_000_003 * j)
-                scen.append(f["pre"]); starts.append(b); seeds.append(a.seed + 99_991 + j)
-    res = []
-    for b0 in range(0, len(scen), a.batch):
-        res += run_batch(fs, scen[b0:b0 + a.batch], starts[b0:b0 + a.batch], seeds[b0:b0 + a.batch])
-    po = collections.defaultdict(list)
-    for q, (n, kind, j, hsel) in enumerate(slot):
-        po[(n, kind)].append([res[2 * q][0], res[2 * q][1], res[2 * q + 1][0], res[2 * q + 1][1], hsel])
-    tail = res[2 * len(slot):]
+                po[(n, kind)].append([res[o][0], res[o][1], res[o + 1][0], res[o + 1][1], hsel])
     return po, tail
 
 
