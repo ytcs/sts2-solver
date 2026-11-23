@@ -52,8 +52,7 @@ impl Combat {
     }
 
     pub fn stable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
-        let cards = &self.cards;
-        crate::sort::intro_sort(list, |a, b| Combat::card_cmp(cards, a, b));
+        crate::sort::intro_sort(list, |a, b| self.card_cmp(a, b));
         self.rng_stream_mut(stream).shuffle(list);
     }
 

@@ -100,10 +100,10 @@ impl Scenario {
     }
 }
 
-fn stream_hashes() -> &'static [u64; 9] {
-    static H: std::sync::LazyLock<[u64; 9]> = std::sync::LazyLock::new(|| {
+fn stream_hashes() -> &'static [u64; 10] {
+    static H: std::sync::LazyLock<[u64; 10]> = std::sync::LazyLock::new(|| {
         let h = crate::rng::deterministic_hash;
-        [h("shuffle"), h("combat_card_generation"), h("combat_potion_generation"), h("combat_card_selection"), h("combat_energy_costs"), h("combat_targets"), h("monster_ai"), h("niche"), h("combat_orbs")]
+        [h("shuffle"), h("combat_card_generation"), h("combat_potion_generation"), h("combat_card_selection"), h("combat_energy_costs"), h("combat_targets"), h("monster_ai"), h("niche"), h("combat_orbs"), h("non_combat_generation")]
     });
     &H
 }
@@ -122,6 +122,7 @@ impl RngSet {
             monster_ai: mk(6),
             niche: mk(7),
             combat_orbs: mk(8),
+            non_combat_generation: mk(9),
         }
     }
 }

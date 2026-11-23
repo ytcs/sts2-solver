@@ -265,7 +265,7 @@ impl Combat {
                 None => {
                     let opts = self.transform_options(o);
                     assert!(!opts.is_empty(), "All transformation options provided are invalid!");
-                    (opts[self.rng.combat_card_selection.next_int_range(0, opts.len() as i32) as usize], 0)
+                    (opts[self.rng.combat_card_generation.next_int_range(0, opts.len() as i32) as usize], 0)
                 }
             };
             self.pile_mut(pile).remove_value(o);

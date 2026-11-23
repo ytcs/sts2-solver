@@ -53,7 +53,7 @@ listener!(PaelsEye {
             cx.rel_mut(me).set_flag(1, true);
         }
     }
-    fn should_take_extra_turn(&self, cx: &Combat, me: Me) -> bool {
+    fn should_take_extra_turn_early(&self, cx: &Combat, me: Me) -> bool {
         paels_eye_ready(cx, me)
     }
     fn before_side_turn_end_early(&self, cx: &mut Combat, me: Me, side: Side) {
