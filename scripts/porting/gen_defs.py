@@ -42,8 +42,9 @@ TARGET = {"None": "None", "Self": "Self_", "AnyEnemy": "AnyEnemy", "AllEnemies":
 KW = {"Exhaust": "kw::EXHAUST", "Ethereal": "kw::ETHEREAL", "Innate": "kw::INNATE", "Unplayable": "kw::UNPLAYABLE",
       "Retain": "kw::RETAIN", "Sly": "kw::SLY", "Eternal": "kw::ETERNAL"}
 
-TAG = {"Strike": "tag::STRIKE", "Defend": "tag::DEFEND", "Minion": "tag::MINION", "OstyAttack": "tag::OSTY_ATTACK", "Shiv": "tag::SHIV"}
-PROP = {"Unblockable": 2, "Unpowered": 4, "Move": 8, "SkipHurtAnim": 0x10}
+TAG = {"Strike": "tag::STRIKE", "Defend": "tag::DEFEND", "Minion": "tag::MINION", "OstyAttack": "tag::OSTY_ATTACK", "Shiv": "tag::SHIV",
+       "Wah": "tag::WAH", "Cho": "tag::CHO", "Ki": "tag::KI", "Shoot": "tag::SHOOT"}
+PROP = {"Unblockable": 2, "Unpowered": 4, "Move": 8, "SkipHurtAnim": 0x10, "FromArrow": 0x20}
 VAR_KIND = {"DamageVar": "Damage", "BlockVar": "Block", "CardsVar": "Cards", "EnergyVar": "Energy", "StarsVar": "Stars",
             "RepeatVar": "Repeat", "HitCountVar": "Repeat", "HpLossVar": "HpLoss", "HealVar": "Heal", "SummonVar": "Summon", "ForgeVar": "Forge",
             "OstyDamageVar": "OstyDamage", "ExtraDamageVar": "ExtraDamage", "CalculationBaseVar": "CalcBase",
@@ -120,6 +121,7 @@ def main():
         max_up = int(mu.group(1)) if mu else 1
         turn_end = bool(re.search(r"HasTurnEndInHandEffect\s*=>\s*true", s))
         no_gen = bool(re.search(r"CanBeGeneratedInCombat\s*=>\s*false", s))
+        gains_block = bool(re.search(r"GainsBlock\s*=>\s*true", s))
         mp_only = bool(re.search(r"MultiplayerConstraint\s*=>\s*CardMultiplayerConstraint\.MultiplayerOnly", s))
         vars_ = []
         vm = re.search(r"CanonicalVars\s*=>(.*?);\s*\n", s, flags=re.S)
@@ -205,7 +207,7 @@ def main():
                 flags.append("custom OnUpgrade: " + " ".join(consumed.split())[:80])
         rows.append(dict(cls=cls, slug=slug, cost=cost, ctype=ctype, rarity=rarity, target=TARGET[target], x=x_cost,
                          star=star_cost, kws=kws, tags=tags, max_up=max_up, turn_end=turn_end, vars=vars_,
-                         up_cost=up_cost, up_add=up_add, up_rem=up_rem, up_star=up_star, custom=custom, flags=flags, no_gen=no_gen, mp_only=mp_only))
+                         up_cost=up_cost, up_add=up_add, up_rem=up_rem, up_star=up_star, custom=custom, flags=flags, no_gen=no_gen, mp_only=mp_only, gains_block=gains_block))
         for f in flags:
             report.append(f"{cls}: {f}")
     rows.sort(key=lambda r: r["slug"].encode("ascii"))
@@ -262,6 +264,8 @@ def main():
             cd += ".not_generated_in_combat()"
         if r["mp_only"]:
             cd += ".multiplayer_only()"
+        if r["gains_block"]:
+            cd += ".gains_block()"
         out.append(cd + ",")
     out.append("];\n")
     cards_out = out

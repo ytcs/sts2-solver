@@ -1,4 +1,5 @@
 mod action;
+mod arrows;
 mod autoplay;
 mod budget;
 mod cardcmds;
@@ -29,6 +30,7 @@ mod sync;
 mod turn;
 
 pub use creature::DamageResult;
+pub use arrows::{base_arrow_slots, DETACHED, IMPALED_HITS, TAROT_CARDS};
 pub use necro::{is_temporary_power, temporary_inner_power};
 pub use damage::{calc_extra_with, calc_with, Attack, Mods, Results, Targeting, DMG_HOOKS_ALL, DMG_HOOK_ADDITIVE, DMG_HOOK_CAP, DMG_HOOK_MULTIPLICATIVE};
 pub use dispatch::*;

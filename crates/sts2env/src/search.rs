@@ -1358,6 +1358,12 @@ impl Exact {
         for x in [t.cards_played_this_turn, t.attacks_played_this_turn, t.skills_played_this_turn, t.cards_exhausted_this_turn, t.cards_finished_this_turn, t.attacks_finished_this_turn, t.skills_finished_this_turn, t.shivs_finished_this_turn] {
             h.add(x as u16 as u64);
         }
+        if !cx.player.arrows.is_empty() || t.melody_finished_this_turn != 0 {
+            h.add(t.melody_finished_this_turn as u64 | (t.melody_cards_finished_this_turn as u16 as u64) << 16);
+            for a in cx.player.arrows.iter() {
+                h.add(a.status as u64 | (a.destroy_after_impaled as u64) << 8 | (a.impaled as u64) << 16 | (a.detached as u64) << 24 | (a.seq as u64) << 32);
+            }
+        }
         let mut fin = 0u64;
         for (w, &bits) in t.finished_cards.iter().enumerate() {
             let mut b = bits;

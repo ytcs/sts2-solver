@@ -695,7 +695,7 @@ listener!(Splash {
         match phase {
             0 => {
                 use crate::content::gen_pools as gp;
-                let pools: [(u8, &[u16]); 6] = [(0, &gp::IRONCLAD), (1, &gp::SILENT), (4, &gp::REGENT), (3, &gp::NECROBINDER), (2, &gp::DEFECT), (u8::MAX, &gp::FOOL)];
+                let pools: [(u8, &[u16]); 6] = [(0, &gp::IRONCLAD), (1, &gp::SILENT), (4, &gp::REGENT), (3, &gp::NECROBINDER), (2, &gp::DEFECT), (5, &gp::FOOL)];
                 let mut all: crate::util::ArrayVec<u16, 512> = crate::util::ArrayVec::new();
                 for (ch, pool) in pools {
                     if ch != cx.character {

@@ -43,6 +43,11 @@ impl Attack {
         self.hits = n;
         self
     }
+    /// `AttackCommand.FromArrow()`.
+    pub fn from_arrow(mut self) -> Attack {
+        self.props = self.props.or(ValueProp::FROM_ARROW);
+        self
+    }
     pub fn targeting(mut self, t: Targeting) -> Attack {
         self.targeting = t;
         self
@@ -295,7 +300,7 @@ impl Combat {
             let mut v = [0u8; 32];
             let n = killed.len();
             v[..n].copy_from_slice(killed.as_slice());
-            self.kill(&v[..n]);
+            self.kill_src(&v[..n], card, false);
         }
     }
 

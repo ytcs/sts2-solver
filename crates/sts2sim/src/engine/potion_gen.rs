@@ -13,12 +13,15 @@ fn character_potions(character: u8) -> &'static [u16] {
     static DEFECT: [u16; 3] = [p::FOCUS_POTION, p::ESSENCE_OF_DARKNESS, p::POTION_OF_CAPACITY];
     static NECROBINDER: [u16; 3] = [p::POTION_OF_DOOM, p::POT_OF_GHOULS, p::BONE_BREW];
     static REGENT: [u16; 3] = [p::STAR_POTION, p::COSMIC_CONCOCTION, p::KINGS_COURAGE];
+    static FOOL: [u16; 3] = [p::PRECISION_POTION, p::BOTTLED_SONG, p::CRYSTALLINE_EUPHORIA];
     match character {
         0 => &IRONCLAD,
         1 => &SILENT,
         2 => &DEFECT,
         3 => &NECROBINDER,
-        _ => &REGENT,
+        4 => &REGENT,
+        5 => &FOOL,
+        c => unreachable!("unknown character {c} (Scenario::validate rejects it)"),
     }
 }
 

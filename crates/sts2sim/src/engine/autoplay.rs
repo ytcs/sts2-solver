@@ -69,6 +69,7 @@ impl Combat {
         self.dispatch_g(hookbit::before_card_auto_played, |cx, me, l| l.before_card_auto_played(cx, me, c, target, kind));
         let energy_value = if d.x_cost { self.player.energy } else { self.card_cost(c, true).max(0) };
         let play = CardPlay {
+            serial: 0,
             card: c,
             target,
             is_auto: true,

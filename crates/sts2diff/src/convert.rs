@@ -102,6 +102,7 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
         "DEFECT" => 2,
         "NECROBINDER" => 3,
         "REGENT" => 4,
+        "FOOL" => 5,
         c => return Err(format!("unknown character {c}")),
     };
     let seed_str = v["seed"].as_str().map(str::to_string).or_else(|| v["seed"].as_i64().map(|i| i.to_string())).unwrap_or_else(|| "1".into());

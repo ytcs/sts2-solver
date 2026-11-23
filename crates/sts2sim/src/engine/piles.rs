@@ -272,6 +272,7 @@ impl Combat {
         };
         self.pile_mut(target).insert(index, c);
         self.cards[c as usize].pile = target as u8;
+        self.note_card_added_to_pile(c);
         if old == PileType::None {
             self.dispatch_g(hookbit::after_card_entered_combat, |cx, me, l| l.after_card_entered_combat(cx, me, c));
         }
@@ -401,6 +402,7 @@ impl Combat {
         for &c in list.iter() {
             self.player.draw.push(c);
             self.cards[c as usize].pile = PileType::Draw as u8;
+            self.note_card_added_to_pile(c);
         }
         for &c in from_discard.iter() {
             self.fire_card_changed_piles(c, PileType::Discard);
