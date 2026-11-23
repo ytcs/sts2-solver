@@ -12,7 +12,7 @@ UNREMOVABLE = ("ASCENDERS_BANE", "BAD_LUCK", "CURSE_OF_THE_BELL", "ENTHRALLED", 
 # RelicModel.IsTradable exclusions beyond Starter / Event / Ancient rarity: HasUponPickupEffect, SpawnsPets
 UNTRADABLE = ("CAULDRON", "DOLLYS_MIRROR", "GNARLED_HAMMER", "KIFUDA", "LEES_WAFFLE", "MANGO", "OLD_COIN", "ORRERY", "PEAR", "POTION_BELT",
               "PUNCH_DAGGER", "ROYAL_STAMP", "STRAWBERRY", "WAR_PAINT", "WHETSTONE", "BOUND_PHYLACTERY", "BYRDPIP", "PHYLACTERY_UNBOUND")
-PET_RELICS = ("BYRDPIP", "PAELS_LEGION")
+PET_RELICS = ("BYRDINE", "BYRDPIP", "PAELS_LEGION", "WUPPY")  # RelicModel.AddsPet
 _CAT = None
 _ANC = None
 
@@ -104,6 +104,7 @@ def allowed(event, st):
         "has_basic": lambda v: any(_basic(x) for x in deck) == v,
         "no_event_pet": lambda v: (not any(x["id"] == "BYRDONIS_EGG" for x in deck) and not set(PET_RELICS) & set(st.relic_ids())) == v,
         "deck_enchantable": lambda v: any(_enchantable(x, v) for x in deck),
+        "not_ancient": lambda v: getattr(st, "ancient", None) != v,
     }
     return all(checks[k](v) for k, v in c.items() if k in checks)
 
@@ -269,7 +270,7 @@ def _offer(st, draws, spec, pool):
         p = pool[i % len(pool)] if isinstance(pool, list) else pool
         rarity = spec.get("rarity")
         if rarity is None and spec.get("odds") != "uniform" and p != "COLORLESS":
-            rarity, _ = draws.card_rarity("hallway", st.offset)
+            rarity, _ = draws.card_rarity("hallway", 0.0)  # CardRarityOdds.RollWithBaseOdds: non-encounter offers ignore the rarity offset
         taken = [c for c, _ in out] + list(spec.get("exclude", ()))
         cands = _pool_cards(p, rarity, typ, spec.get("cost0", False), taken) or _pool_cards(p, None, typ, spec.get("cost0", False), taken)
         if cands:

@@ -1,7 +1,7 @@
 {
  "_conventions": {
   "acts": "act names from the act lists (Overgrowth / Underdocks = act index 0, Hive = 1, Glory = 2) or 'shared' (Models/ModelDb.cs AllSharedEvents)",
-  "condition": "IsAllowed in machine form; act keys use the game's 0-based CurrentActIndex (min_act, max_act, act), min_gold, min_hp (current HP), max_hp_frac (current/max), min_floor (TotalFloor), min_potions, min_tradable_relics, min_removable, min_transformable, min_basic_strikes, min_basic_defends, has_basic, no_event_pet, deck_enchantable (an enchantment id: some deck card can take it, agent/events.py _enchantable)",
+  "condition": "IsAllowed in machine form; act keys use the game's 0-based CurrentActIndex (min_act, max_act, act), min_gold, min_hp (current HP), max_hp_frac (current/max), min_floor (TotalFloor), min_potions, min_tradable_relics, min_removable, min_transformable, min_basic_strikes, min_basic_defends, has_basic, no_event_pet, deck_enchantable (an enchantment id: some deck card can take it, agent/events.py _enchantable), not_ancient (an ancient id: the act's ancient is not it; allowed when the state does not know the ancient)",
   "effects": "applied in order; see agent/events.py VOCAB. gold [lo, hi] is an inclusive uniform integer range. Event gold is not scaled by Poverty (A3 scales only encounter and treasure gold); no event reads the ascension level",
   "labels": "English option titles from localization/eng/events.json in SlayTheSpire2.pck; {Var} is filled at runtime (match as a wildcard)",
   "excluded": "the 8 ancients (Darv, Neow, Nonupeipe, Orobas, Pael, Tanx, Tezcatara, Vakuu), TheArchitect (the final-act story event, in no pool), Deprecated*"
@@ -234,7 +234,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:159"
+    "Models/ModelDb.cs:161"
    ],
    "allowed": true,
    "condition": {
@@ -342,7 +342,7 @@
        "card_add": "BYRDONIS_EGG"
       },
       {
-       "unmodelled": "Byrdonis Egg: a Hatch rest-site option gives the Byrdpip pet relic and removes the egg (Cards/ByrdonisEgg.cs, HatchRestSiteOption.cs:25-29)"
+       "unmodelled": "Byrdonis Egg: a Hatch rest-site option gives the Byrdpip pet relic and removes the egg (Cards/ByrdonisEgg.cs, HatchRestSiteOption.cs); after 6 Byrd Swoops played Byrdpip offers Evolve at a rest site: Byrdine replaces it and Byrd Swoops become God Byrd (EvolveRestSiteOption.cs, Relics/Byrdine.cs)"
       }
      ]
     }
@@ -360,9 +360,9 @@
    ],
    "allowed": true,
    "condition": {},
-   "condition_src": "ColorfulPhilosophers.cs:29-32: return runState.Players.All((Player p) => p.UnlockState.CharacterCardPools.Count() > 1);",
-   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/ColorfulPhilosophers.cs:16-67",
-   "note": "one option per other character's colour; 3 of them at random are shown (fewer if fewer pools are unlocked)",
+   "condition_src": "ColorfulPhilosophers.cs:30-33: return runState.Players.All((Player p) => p.UnlockState.CharacterCardPools.Count((CardPoolModel c) => !(c is FoolCardPool)) > 1);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/ColorfulPhilosophers.cs:16-68",
+   "note": "one option per other unlocked character's colour (CardPoolColorOrder, Yellow = The Fool); 3 of them at random are shown (fewer if fewer pools are unlocked)",
    "options": [
     {
      "key": "NECROBINDER",
@@ -460,6 +460,42 @@
         "rarity": "Rare",
         "odds": "uniform"
        }
+      }
+     ]
+    },
+    {
+     "key": "FOOL",
+     "label": "Yellow",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "FOOL",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Common",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "FOOL",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Uncommon",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "FOOL",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Rare",
+        "odds": "uniform"
+       }
+      },
+      {
+       "unmodelled": "The Fool's cards: no simulator behaviour (Fool not targeted)"
       }
      ]
     },
@@ -626,7 +662,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:160"
+    "Models/ModelDb.cs:162"
    ],
    "allowed": true,
    "condition": {
@@ -720,7 +756,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:161"
+    "Models/ModelDb.cs:163"
    ],
    "allowed": true,
    "condition": {
@@ -855,14 +891,14 @@
    ],
    "allowed": true,
    "condition": {},
-   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/DoorsOfLightAndDark.cs:13-44",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/DoorsOfLightAndDark.cs:10-37",
    "options": [
     {
      "key": "LIGHT",
      "label": "Light Door",
      "effects": [
       {
-       "card_upgrade_random": 2
+       "card_upgrade": 1
       }
      ]
     },
@@ -1209,15 +1245,15 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:162"
+    "Models/ModelDb.cs:164"
    ],
    "allowed": true,
    "condition": {
     "min_act": 1,
     "min_gold": 100
    },
-   "condition_src": "FakeMerchant.cs:101-112: if (runState.CurrentActIndex < 1) return false; if (runState.Players.Count > 1) return false; return runState.Players.All((Player player) => player.Gold >= 100 || player.Potions.Any((PotionModel potion) => potion is FoulPotion));",
-   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/FakeMerchant.cs:22-166",
+   "condition_src": "FakeMerchant.cs:100-111: if (runState.CurrentActIndex < 1) return false; if (runState.Players.Count > 1) return false; return runState.Players.All((Player player) => player.Gold >= 100 || player.Potions.Any((PotionModel potion) => potion is FoulPotion));",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/FakeMerchant.cs:21-171",
    "note": "also allowed below 100 gold with a Foul Potion; single player only; no event options (custom layout)",
    "options": [
     {
@@ -1592,6 +1628,82 @@
    ]
   },
   {
+   "id": "MuseumOfTorture",
+   "key": "MUSEUM_OF_TORTURE",
+   "title": "Museum of Torture",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:165"
+   ],
+   "allowed": true,
+   "condition": {
+    "act": 1
+   },
+   "condition_src": "MuseumOfTorture.cs:40-43: return runState.CurrentActIndex == 1;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/MuseumOfTorture.cs:21-122",
+   "note": "the relic is rolled when the event starts (shown on the Take It page); the curse is uniform over the curse pool's modifier-generatable cards (NonCombatGeneration stream)",
+   "options": [
+    {
+     "key": "CONTINUE",
+     "label": "Continue",
+     "effects": [
+      {
+       "choice": [
+        {
+         "key": "CONTINUE",
+         "label": "Continue",
+         "effects": [
+          {
+           "choice": [
+            {
+             "key": "TAKE",
+             "label": "Take It",
+             "effects": [
+              {
+               "relic_one_of": [
+                "OBSIDIAN_VICE",
+                "THUMBSCREW",
+                "TORMENTOUS_COLLAR"
+               ]
+              },
+              {
+               "card_add_one_of": [
+                "CLUMSY",
+                "DEBT",
+                "DECAY",
+                "DOUBT",
+                "GUILTY",
+                "INJURY",
+                "NORMALITY",
+                "REGRET",
+                "SHAME",
+                "WRITHE"
+               ]
+              }
+             ]
+            },
+            {
+             "key": "BREAK_OUT",
+             "label": "Break Out",
+             "effects": [
+              {
+               "max_hp": -10
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "PotionCourier",
    "key": "POTION_COURIER",
    "title": "Potion Courier",
@@ -1599,7 +1711,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:163"
+    "Models/ModelDb.cs:166"
    ],
    "allowed": true,
    "condition": {
@@ -1652,7 +1764,7 @@
     "min_floor": 6
    },
    "condition_src": "PunchOff.cs:42-45: return runState.TotalFloor >= 6;",
-   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/PunchOff.cs:27-147",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/PunchOff.cs:27-146",
    "note": "'I Can Take Them' leads to a single 'Fight!' option",
    "options": [
     {
@@ -1695,7 +1807,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:164"
+    "Models/ModelDb.cs:167"
    ],
    "allowed": true,
    "condition": {
@@ -1773,7 +1885,7 @@
    ],
    "allowed": true,
    "condition": {},
-   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/Reflections.cs:16-76",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/Reflections.cs:17-79",
    "options": [
     {
      "key": "TOUCH_A_MIRROR",
@@ -1809,7 +1921,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:165"
+    "Models/ModelDb.cs:168"
    ],
    "allowed": true,
    "condition": {
@@ -1866,7 +1978,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:166"
+    "Models/ModelDb.cs:169"
    ],
    "allowed": true,
    "condition": {
@@ -1997,7 +2109,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:167"
+    "Models/ModelDb.cs:170"
    ],
    "allowed": true,
    "condition": {},
@@ -2072,6 +2184,55 @@
    ]
   },
   {
+   "id": "ShrineOfTheWarlord",
+   "key": "SHRINE_OF_THE_WARLORD",
+   "title": "Shrine of the Warlord",
+   "acts": [
+    "Glory"
+   ],
+   "acts_src": [
+    "Models.Acts/Glory.cs:37"
+   ],
+   "allowed": true,
+   "condition": {
+    "not_ancient": "TANX"
+   },
+   "condition_src": "ShrineOfTheWarlord.cs:24-27: return !(runState.Act.Ancient is Tanx);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/ShrineOfTheWarlord.cs:15-65",
+   "options": [
+    {
+     "key": "TAKE_WEAPON",
+     "label": "Take the Weapon",
+     "effects": [
+      {
+       "card_add": "MIGHTY_WEAPON"
+      }
+     ]
+    },
+    {
+     "key": "TAKE_SHIELD",
+     "label": "Take the Shield",
+     "effects": [
+      {
+       "card_add": "MIGHTY_SHIELD"
+      }
+     ]
+    },
+    {
+     "key": "TAKE_WINGS",
+     "label": "Take the Wings",
+     "effects": [
+      {
+       "card_add": "CLUMSY"
+      },
+      {
+       "relic": "MIGHTY_WINGS"
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "SlipperyBridge",
    "key": "SLIPPERY_BRIDGE",
    "title": "Slippery Bridge",
@@ -2079,7 +2240,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:168"
+    "Models/ModelDb.cs:171"
    ],
    "allowed": true,
    "condition": {
@@ -2230,7 +2391,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:169"
+    "Models/ModelDb.cs:172"
    ],
    "allowed": true,
    "condition": {
@@ -2378,7 +2539,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:170"
+    "Models/ModelDb.cs:173"
    ],
    "allowed": true,
    "condition": {
@@ -2551,7 +2712,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:171"
+    "Models/ModelDb.cs:174"
    ],
    "allowed": true,
    "condition": {
@@ -2616,7 +2777,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:172"
+    "Models/ModelDb.cs:175"
    ],
    "allowed": true,
    "condition": {
@@ -2743,7 +2904,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:173"
+    "Models/ModelDb.cs:176"
    ],
    "allowed": true,
    "condition": {
@@ -2780,6 +2941,90 @@
    ]
   },
   {
+   "id": "ThermaeNonupeipe",
+   "key": "THERMAE_NONUPEIPE",
+   "title": "Thermae Nonupeipe",
+   "acts": [
+    "Glory"
+   ],
+   "acts_src": [
+    "Models.Acts/Glory.cs:38"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_gold": 176,
+    "max_hp_frac": 0.75,
+    "not_ancient": "NONUPEIPE"
+   },
+   "condition_src": "ThermaeNonupeipe.cs:57-64: Gold > 175 && CurrentHp <= MaxHp * 0.75 && !(runState.Act.Ancient is Nonupeipe)",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/ThermaeNonupeipe.cs:18-118",
+   "note": "the Drink relic is rolled when the event starts (named in the option) uniformly from Nonupeipe's options except Looming Fruit; duplicates of an owned relic are possible in the game",
+   "options": [
+    {
+     "key": "THERMAL_BATHS",
+     "label": "Thermal Baths",
+     "effects": [
+      {
+       "gold": -88
+      },
+      {
+       "relic": "BATH_TOWEL"
+      }
+     ]
+    },
+    {
+     "key": "PRIVATE_OASIS",
+     "label": "Private Oasis",
+     "effects": [
+      {
+       "gold_set": 0
+      },
+      {
+       "relic": "BATH_ROBES"
+      },
+      {
+       "unmodelled": "Bath Robes heals to full at the next Boss combat only (used up after); run-model fights rebuild relics, so it would repeat"
+      }
+     ]
+    },
+    {
+     "key": "DRINK_WATERS",
+     "label": "Drink Bath Water",
+     "effects": [
+      {
+       "hp": -31
+      },
+      {
+       "card_add": "GUILTY"
+      },
+      {
+       "card_add": "GUILTY"
+      },
+      {
+       "card_add": "GUILTY"
+      },
+      {
+       "relic_one_of": [
+        "BLESSED_ANTLER",
+        "BRILLIANT_SCARF",
+        "DELICATE_FROND",
+        "DIAMOND_DIADEM",
+        "FUR_COAT",
+        "GLITTER",
+        "JEWELRY_BOX",
+        "SIGNET_RING",
+        "BEAUTIFUL_BRACELET"
+       ],
+       "pickup": true
+      },
+      {
+       "unmodelled": "Guilty removes itself from the deck after 5 combats (Cards/Guilty.cs)"
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "ThisOrThat",
    "key": "THIS_OR_THAT",
    "title": "This or That?",
@@ -2787,7 +3032,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:174"
+    "Models/ModelDb.cs:177"
    ],
    "allowed": true,
    "condition": {},
@@ -2830,7 +3075,7 @@
     "Glory"
    ],
    "acts_src": [
-    "Models.Acts/Glory.cs:38"
+    "Models.Acts/Glory.cs:39"
    ],
    "allowed": true,
    "condition": {},
@@ -2921,7 +3166,7 @@
     "Glory"
    ],
    "acts_src": [
-    "Models.Acts/Glory.cs:37"
+    "Models.Acts/Glory.cs:40"
    ],
    "allowed": true,
    "condition": {},
@@ -3230,7 +3475,7 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:175"
+    "Models/ModelDb.cs:178"
    ],
    "allowed": false,
    "condition": {},
@@ -3277,6 +3522,84 @@
    ]
   },
   {
+   "id": "WaterfallOfObviousSecrets",
+   "key": "WATERFALL_OF_OBVIOUS_SECRETS",
+   "title": "Waterfall of Obvious Secrets",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:37"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/WaterfallOfObviousSecrets.cs:19-86",
+   "note": "Negotiate needs 70 gold (else Locked); Beat Up's relic comes from the front of the player's relic bag",
+   "options": [
+    {
+     "key": "ENTER",
+     "label": "Enter Waterfall",
+     "effects": [
+      {
+       "choice": [
+        {
+         "key": "BE_NICE",
+         "label": "Be Nice",
+         "effects": [
+          {
+           "card_add": "DINGY_DAGGER"
+          }
+         ]
+        },
+        {
+         "key": "BEAT_UP",
+         "label": "Beat Up",
+         "effects": [
+          {
+           "relic_random": {}
+          },
+          {
+           "card_add": "GUILTY"
+          },
+          {
+           "card_add": "GUILTY"
+          },
+          {
+           "unmodelled": "Guilty removes itself from the deck after 5 combats (Cards/Guilty.cs)"
+          }
+         ]
+        },
+        {
+         "key": "NEGOTIATE",
+         "label": "Negotiate",
+         "effects": [
+          {
+           "gold": -70
+          },
+          {
+           "card_add_random": {
+            "pool": "character",
+            "pick": 1,
+            "of": 1,
+            "rarity": "Rare",
+            "odds": "uniform"
+           }
+          }
+         ]
+        },
+        {
+         "key": "NEGOTIATE_LOCKED",
+         "label": "Locked",
+         "effects": [],
+         "locked": true
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "WaterloggedScriptorium",
    "key": "WATERLOGGED_SCRIPTORIUM",
    "title": "Waterlogged Scriptorium",
@@ -3284,7 +3607,7 @@
     "Underdocks"
    ],
    "acts_src": [
-    "Models.Acts/Underdocks.cs:37"
+    "Models.Acts/Underdocks.cs:38"
    ],
    "allowed": true,
    "condition": {
@@ -3329,7 +3652,7 @@
      "label": "Prickly Sponge",
      "effects": [
       {
-       "gold": -99
+       "gold": -120
       },
       {
        "card_enchant": {
@@ -3356,15 +3679,15 @@
     "shared"
    ],
    "acts_src": [
-    "Models/ModelDb.cs:176"
+    "Models/ModelDb.cs:179"
    ],
    "allowed": true,
    "condition": {
     "act": 1,
     "min_gold": 100
    },
-   "condition_src": "WelcomeToWongos.cs:68-75: if (runState.CurrentActIndex == 1) return runState.Players.All((Player p) => p.Gold >= 100); return false;",
-   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/WelcomeToWongos.cs:18-167",
+   "condition_src": "WelcomeToWongos.cs:79-86: if (runState.CurrentActIndex == 1) return runState.Players.All((Player p) => p.Gold >= 100); return false;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/WelcomeToWongos.cs:21-198",
    "note": "relics are shop-allowed ones; Wongo points toward the badge relic are profile progress (ignored)",
    "options": [
     {
@@ -3591,6 +3914,65 @@
    ]
   },
   {
+   "id": "WuppyInTrouble",
+   "key": "WUPPY_IN_TROUBLE",
+   "title": "Wuppy in Trouble",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:39"
+   ],
+   "allowed": true,
+   "condition": {
+    "no_event_pet": true
+   },
+   "condition_src": "WuppyInTrouble.cs:50-64: CurrentHp > 5% of CurrentHp and !player.HasEventPet()",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/WuppyInTrouble.cs:22-121",
+   "note": "Be Cautious deals 5% of current HP (unblockable); the data uses 5% of max HP. Ignore offers one potion uniformly from the character + shared pools",
+   "options": [
+    {
+     "key": "HELP_IMMEDIATELY",
+     "label": "Help Immediately",
+     "effects": [
+      {
+       "card_add": "INJURY"
+      },
+      {
+       "relic": "WUPPY"
+      },
+      {
+       "unmodelled": "Wuppy (60 HP pet absorbing all attack damage): its HP carries between fights and the rest-site Restore option refills it (Relics/Wuppy.cs, RestoreRestSiteOption.cs)"
+      }
+     ]
+    },
+    {
+     "key": "BE_CAUTIOUS",
+     "label": "Be Cautious",
+     "effects": [
+      {
+       "hp_frac": -0.05
+      },
+      {
+       "relic": "WUPPY"
+      },
+      {
+       "unmodelled": "Wuppy (30 HP pet absorbing all attack damage): its HP carries between fights and the rest-site Restore option refills it (Relics/Wuppy.cs, RestoreRestSiteOption.cs)"
+      }
+     ]
+    },
+    {
+     "key": "IGNORE",
+     "label": "Ignore",
+     "effects": [
+      {
+       "potion_random": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "ZenWeaver",
    "key": "ZEN_WEAVER",
    "title": "Zen Weaver",
@@ -3613,10 +3995,7 @@
      "label": "Breathing Techniques",
      "effects": [
       {
-       "gold": -50
-      },
-      {
-       "card_add": "ENLIGHTENMENT"
+       "gold": -25
       },
       {
        "card_add": "ENLIGHTENMENT"
