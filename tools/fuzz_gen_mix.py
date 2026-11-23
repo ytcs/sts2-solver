@@ -413,14 +413,15 @@ def main():
     ap.add_argument("--each-encounter", action="store_true", help="round-robin: scenario i fights encounter i mod #encounters")
     ap.add_argument("--keep-ok", action="store_true")
     ap.add_argument("--gen-only", action="store_true")
+    ap.add_argument("--run-existing", action="store_true", help="run every *.scenario.json already in --out (e.g. several --gen-only batches)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     cat = os.path.join(a.out, "catalog.json")
     if not os.path.exists(cat):
         subprocess.run(ORACLE + ["catalog", "--out", cat], capture_output=True, check=True)
     g = Gen(cat)
-    paths = []
-    for i in range(a.n):
+    paths = sorted(glob.glob(os.path.join(a.out, "*.scenario.json"))) if a.run_existing else []
+    for i in range(0 if a.run_existing else a.n):
         sc = g.scenario(i, a.seed, a)
         p = os.path.join(a.out, f"fm_{a.seed}_{i}.scenario.json")
         sc["name"] = f"fm_{a.seed}_{i}"

@@ -219,6 +219,9 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             }
         }
         compare("", &snap, rec, &mut diffs);
+        if let Ok(skip) = std::env::var("STS2DIFF_SKIP") {
+            diffs.retain(|d| !d.starts_with(skip.as_str()));
+        }
         if !diffs.is_empty() {
             if let Some((j, m)) = &first_missing {
                 if i > *j {
