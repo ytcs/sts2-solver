@@ -378,7 +378,7 @@ listener!(TearAsunder {
 
 listener!(Thrash {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let a = card_attack(cx, p, Targeting::Single(p.target)).hits(2);
+        let a = card_attack(cx, p, Targeting::Single(p.target)).hits(cx.card_var(p.card, VarKind::Repeat));
         cx.execute_attack(&a);
         let mut attacks: crate::util::ArrayVec<CardIdx, MAX_HAND> = crate::util::ArrayVec::new();
         for &c in cx.player.hand.iter() {

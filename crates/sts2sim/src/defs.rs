@@ -35,6 +35,18 @@ pub struct VarDef {
     pub props: u8,
 }
 
+impl VarDef {
+    /// The var's value after `upgrade` upgrades of card `card_id`: `base + up * upgrade`, except cards whose
+    /// `OnUpgrade` is not a fixed step (`custom_upgrade`).
+    #[inline]
+    pub fn value(&self, card_id: u16, upgrade: u8) -> i32 {
+        if card_id == crate::ids::card::DINGY_DAGGER && self.kind == VarKind::Damage {
+            return self.base as i32 + crate::content::cards::event_pool::dingy_dagger_bonus(upgrade);
+        }
+        self.base as i32 + self.up as i32 * upgrade as i32
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct CardDef {
     pub id: u16,

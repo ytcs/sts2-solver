@@ -243,14 +243,18 @@ listener!(PreciseCut {
 
 listener!(MementoMori {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.hist_count_this_turn(HKind::CardDiscarded, |_| true) as i32;
-        let dmg = calculated(cx, p.card, VarKind::ExtraDamage, n);
-        cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
+        let hittable = cx.hittable_enemies();
+        let mut target = NO;
+        for &e in hittable.iter() {
+            if target == NO || cx.cr(e).hp < cx.cr(target).hp {
+                target = e;
+            }
+        }
+        if target != NO {
+            let dmg = cx.card_var(p.card, VarKind::Damage);
+            cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(target)));
+        }
         Flow::Done
-    }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        Some(calc_with(cx, card, cx.hist_count_this_turn(HKind::CardDiscarded, |_| true) as i32))
     }
 });
 
@@ -467,6 +471,7 @@ listener!(Nightmare {
                 if let Some(clone) = cx.clone_card(sel) {
                     cx.cards[clone as usize].affliction = 0;
                     cx.cards[clone as usize].affliction_amount = 0;
+                    cx.card_end_of_turn_cleanup(clone);
                     if let Some(i) = cx.power_idx(PLAYER, uid) {
                         cx.cr_mut(PLAYER).powers[i].aux = clone as i32 + 1;
                     }

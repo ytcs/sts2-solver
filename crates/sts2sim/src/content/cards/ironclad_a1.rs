@@ -208,14 +208,15 @@ listener!(EvilEye {
 
 listener!(ExpectAFight {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let str = cx.power_amount(PLAYER, ids::power::STRENGTH_POWER).max(0);
-        let amt = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * str;
-        cx.gain_block(PLAYER, Dec::int(amt as i64), ValueProp::MOVE, p.card);
+        block(cx, p.card);
+        let e = cx.card_var(p.card, VarKind::Energy);
+        let hand = cx.player.hand;
+        for &c in hand.iter() {
+            if cx.card_def(c).ctype == CardType::Attack && !cx.card_def(c).x_cost {
+                cx.add_cost_until_played(c, -e, false);
+            }
+        }
         Flow::Done
-    }
-    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
-        let _ = target;
-        Some(crate::engine::calc_extra_with(cx, card, cx.power_amount(PLAYER, ids::power::STRENGTH_POWER).max(0)))
     }
 });
 
@@ -230,8 +231,10 @@ listener!(FlameBarrier {
 
 listener!(ForgottenRitual {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let e = cx.card_var(p.card, VarKind::Energy);
-        cx.gain_energy(e);
+        if cx.hist_count_this_turn(HKind::CardExhausted, |_| true) > 0 {
+            let e = cx.card_var(p.card, VarKind::Energy);
+            cx.gain_energy(e);
+        }
         Flow::Done
     }
 });
@@ -317,7 +320,7 @@ listener!(Conflagration {
 
 listener!(Dismantle {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let hits = if cx.has_power(p.target, ids::power::VULNERABLE_POWER) { 2 } else { 1 };
+        let hits = if cx.has_power(p.target, ids::power::VULNERABLE_POWER) { cx.card_var(p.card, VarKind::Repeat) } else { 1 };
         attack(cx, p, hits);
         Flow::Done
     }

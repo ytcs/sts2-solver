@@ -478,18 +478,24 @@ impl Combat {
             if card.pile == 0 || card.pile > 5 {
                 continue;
             }
-            card.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::SINGLE_TURN_RETAIN | cflag::SINGLE_TURN_SLY);
-            self.clear_star_mods(i as CardIdx, EXPIRE_END_OF_TURN);
-            let card = &mut self.cards[i];
-            if !card.mods.is_empty() {
-                let mut kept: crate::engine::CostMods = crate::util::SmallVec::new();
-                for m in card.mods.iter() {
-                    if m.expire() & EXPIRE_END_OF_TURN == 0 {
-                        kept.push(*m);
-                    }
+            self.card_end_of_turn_cleanup(i as CardIdx);
+        }
+    }
+
+    /// `CardModel.EndOfTurnCleanup` for one card.
+    pub fn card_end_of_turn_cleanup(&mut self, c: CardIdx) {
+        let card = &mut self.cards[c as usize];
+        card.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::SINGLE_TURN_RETAIN | cflag::SINGLE_TURN_SLY);
+        self.clear_star_mods(c, EXPIRE_END_OF_TURN);
+        let card = &mut self.cards[c as usize];
+        if !card.mods.is_empty() {
+            let mut kept: crate::engine::CostMods = crate::util::SmallVec::new();
+            for m in card.mods.iter() {
+                if m.expire() & EXPIRE_END_OF_TURN == 0 {
+                    kept.push(*m);
                 }
-                card.mods = kept;
             }
+            card.mods = kept;
         }
     }
 

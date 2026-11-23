@@ -106,3 +106,28 @@ listener!(Mayhem {
         Flow::Done
     }
 });
+
+fn my_shinies_hits(cx: &Combat, card: CardIdx) -> i32 {
+    let g = cx.card_var(card, VarKind::Gold);
+    let gold = if cx.in_progress { cx.gold } else { 0 };
+    let base = cx.card_var(card, VarKind::CalcBase);
+    let extra = cx.card_var(card, VarKind::CalcExtra);
+    if g <= 0 {
+        return base;
+    }
+    // (int)(base + extra * (gold / g)) in decimal
+    ((base as i64 * g as i64 + extra as i64 * gold as i64) / g as i64) as i32
+}
+
+listener!(MyShinies {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let hits = my_shinies_hits(cx, p.card);
+        let dmg = cx.card_var(p.card, VarKind::Damage);
+        cx.execute_attack(&crate::engine::Attack::from_card(PLAYER, p.card, dmg, crate::engine::Targeting::Single(p.target)).hits(hits));
+        Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        Some(Dec::int(my_shinies_hits(cx, card) as i64))
+    }
+});

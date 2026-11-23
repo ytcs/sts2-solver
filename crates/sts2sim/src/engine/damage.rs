@@ -59,6 +59,11 @@ pub fn calc_extra_with(cx: &Combat, card: CardIdx, mult: i32) -> Dec {
     Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::CalcExtra) as i64 * m as i64)
 }
 
+pub const DMG_HOOK_ADDITIVE: u8 = 2;
+pub const DMG_HOOK_MULTIPLICATIVE: u8 = 4;
+pub const DMG_HOOK_CAP: u8 = 8;
+pub const DMG_HOOKS_ALL: u8 = DMG_HOOK_ADDITIVE | DMG_HOOK_MULTIPLICATIVE | DMG_HOOK_CAP;
+
 impl Combat {
     pub fn modify_damage(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, Mods) {
         let mut mods = Mods::new();
@@ -73,6 +78,12 @@ impl Combat {
     }
 
     pub fn modify_damage_into(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut Mods) -> Dec {
+        self.modify_damage_into_kinds(target, dealer, amount, props, card, mods, DMG_HOOKS_ALL)
+    }
+
+    /// `Hook.ModifyDamage` with a `ModifyDamageHookType` subset (`DMG_HOOK_*`).
+    pub fn modify_damage_into_kinds(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut Mods, kinds: u8) -> Dec {
+        let (add, mul, cap) = (kinds & DMG_HOOK_ADDITIVE != 0, kinds & DMG_HOOK_MULTIPLICATIVE != 0, kinds & DMG_HOOK_CAP != 0);
         let m = (Mask::bit(hookbit::modify_damage_additive))
             | (Mask::bit(hookbit::modify_damage_multiplicative))
             | (Mask::bit(hookbit::modify_damage_cap));
@@ -82,11 +93,15 @@ impl Combat {
         if card != NO && self.cards[card as usize].enchant != 0 {
             let me = self.enchantment_me(card);
             let l = content::listener(&me);
-            v += l.enchant_damage_additive(self, me, v, props);
-            v *= l.enchant_damage_multiplicative(self, me, v, props);
+            if add {
+                v += l.enchant_damage_additive(self, me, v, props);
+            }
+            if mul {
+                v *= l.enchant_damage_multiplicative(self, me, v, props);
+            }
         }
         for e in snap.iter() {
-            if self.has_hook(&e.me, hookbit::modify_damage_additive) && self.still_live(&e.me) {
+            if add && self.has_hook(&e.me, hookbit::modify_damage_additive) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
                 let d = content::listener(&e.me).modify_damage_additive(self, e.me, &q);
                 v += d;
@@ -96,7 +111,7 @@ impl Combat {
             }
         }
         for e in snap.iter() {
-            if self.has_hook(&e.me, hookbit::modify_damage_multiplicative) && self.still_live(&e.me) {
+            if mul && self.has_hook(&e.me, hookbit::modify_damage_multiplicative) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
                 let f = content::listener(&e.me).modify_damage_multiplicative(self, e.me, &q);
                 v *= f;
@@ -107,7 +122,7 @@ impl Combat {
         }
         let mut best = Dec::MAX;
         for e in snap.iter() {
-            if self.has_hook(&e.me, hookbit::modify_damage_cap) && self.still_live(&e.me) {
+            if cap && self.has_hook(&e.me, hookbit::modify_damage_cap) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
                 let c = content::listener(&e.me).modify_damage_cap(self, e.me, &q);
                 if c < best {
@@ -182,6 +197,11 @@ impl Combat {
     }
 
     pub fn damage_into(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, results: &mut Results) {
+        self.damage_into_kinds(targets, amount, props, dealer, card, results, DMG_HOOKS_ALL);
+    }
+
+    /// `CreatureCmd.Damage` with a `ModifyDamageHookType` subset (Omnislice's splash: `Cap` only).
+    pub fn damage_into_kinds(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, results: &mut Results, kinds: u8) {
         if dealer != NO && self.cr(dealer).is_dead() {
             return;
         }
@@ -190,7 +210,7 @@ impl Combat {
                 continue;
             }
             let mut mods = Mods::new();
-            let modified = self.modify_damage_into(t, dealer, amount, props, card, &mut mods);
+            let modified = self.modify_damage_into_kinds(t, dealer, amount, props, card, &mut mods, kinds);
             self.dispatch_modifiers(false, hookbit::after_modifying_damage_amount, &mods, |cx, me, l| l.after_modifying_damage_amount(cx, me, card));
             self.dispatch_u(hookbit::before_damage_received, |cx, me, l| {
                 cx.dmg_card = card;

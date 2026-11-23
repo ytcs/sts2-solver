@@ -183,9 +183,13 @@ listener!(Rally {
     }
 });
 
-fn calc_gang_up(cx: &Combat, card: CardIdx, _target: Cid) -> Dec {
-    let base = cx.card_var(card, VarKind::CalcBase);
-    Dec::int(base as i64)
+/// Powered attack hits on `target` this turn by the owner's teammates (Osty in single player).
+fn calc_gang_up(cx: &Combat, card: CardIdx, target: Cid) -> Dec {
+    let side = cx.cr(PLAYER).side;
+    let n = cx.hist_count_this_turn(HKind::DamageReceived, |e| {
+        e.actor == target && ValueProp(e.props).is_powered() && e.other != NO && e.other != PLAYER && cx.cr(e.other).side == side
+    });
+    crate::engine::calc_with(cx, card, n as i32)
 }
 
 listener!(GangUp {
@@ -405,7 +409,8 @@ listener!(Omnislice {
             }
             if !others.is_empty() {
                 let total = r.blocked + r.unblocked + r.overkill;
-                let rest = cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
+                let mut rest = crate::engine::Results::new();
+                cx.damage_into_kinds(others.as_slice(), Dec::int(total as i64), ValueProp::MOVE, PLAYER, p.card, &mut rest, crate::engine::DMG_HOOK_CAP);
                 for r in rest.iter() {
                     if hit_results.len() < 16 {
                         hit_results.push(*r);
@@ -690,7 +695,7 @@ listener!(Splash {
         match phase {
             0 => {
                 use crate::content::gen_pools as gp;
-                let pools: [(u8, &[u16]); 5] = [(0, &gp::IRONCLAD), (1, &gp::SILENT), (4, &gp::REGENT), (3, &gp::NECROBINDER), (2, &gp::DEFECT)];
+                let pools: [(u8, &[u16]); 6] = [(0, &gp::IRONCLAD), (1, &gp::SILENT), (4, &gp::REGENT), (3, &gp::NECROBINDER), (2, &gp::DEFECT), (u8::MAX, &gp::FOOL)];
                 let mut all: crate::util::ArrayVec<u16, 512> = crate::util::ArrayVec::new();
                 for (ch, pool) in pools {
                     if ch != cx.character {

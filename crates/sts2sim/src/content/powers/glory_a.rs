@@ -51,7 +51,7 @@ listener!(PaperCutsPower {
     fn after_damage_given(&self, cx: &mut Combat, me: Me, dealer: Cid, target: Cid, unblocked: i32, props: ValueProp) {
         if dealer == me.owner && cx.cr(target).is_player && props.is_powered() && unblocked > 0 {
             let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
-            cx.lose_max_hp(target, Dec::int(amount as i64), false);
+            cx.lose_max_hp(target, Dec::int(amount as i64), NO);
         }
     }
 });

@@ -70,3 +70,16 @@ listener!(ImprovementPower {
         }
     }
 });
+
+listener!(GodByrdPower {
+    fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
+        let start = cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].amount_on_turn_start);
+        if me.owner != PLAYER || start == 0 {
+            return;
+        }
+        let amt = cx.power_amount(me.owner, me.id);
+        let h = cx.hittable_enemies();
+        cx.damage(h.as_slice(), Dec::int(amt as i64), ValueProp::UNPOWERED, me.owner, NO);
+        cx.remove_power(me.owner, me.idx);
+    }
+});

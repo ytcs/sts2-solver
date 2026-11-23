@@ -88,6 +88,10 @@ pub struct Card {
     pub flags: u8,
     pub kw_add: u8,
     pub kw_remove: u8,
+    /// Keywords added / removed by something other than the card's own upgrade (`_keywordsAddedFromOutside`,
+    /// `_keywordsRemovedFromOutside`): a downgrade replays them.
+    pub kw_out_add: u8,
+    pub kw_out_remove: u8,
     pub enchant: u8,
     pub enchant_amount: i16,
     pub enchant_status: u8,

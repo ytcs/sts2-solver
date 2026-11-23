@@ -15,9 +15,7 @@ fn is_owner_or_pet(cx: &Combat, me: Me, dealer: Cid) -> bool {
 }
 
 fn add_keyword(cx: &mut Combat, c: CardIdx, k: u8) {
-    let card = &mut cx.cards[c as usize];
-    card.kw_add |= k;
-    card.kw_remove &= !k;
+    cx.add_keyword(c, k);
 }
 
 listener!(InfiniteBladesPower {

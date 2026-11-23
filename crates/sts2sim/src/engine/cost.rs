@@ -61,12 +61,16 @@ impl Combat {
         let card = &mut self.cards[c as usize];
         card.kw_add |= k;
         card.kw_remove &= !k;
+        card.kw_out_add |= k;
+        card.kw_out_remove &= !k;
     }
 
     pub fn remove_keyword(&mut self, c: CardIdx, k: u8) {
         let card = &mut self.cards[c as usize];
         card.kw_remove |= k;
         card.kw_add &= !k;
+        card.kw_out_remove |= k;
+        card.kw_out_add &= !k;
     }
 
     pub fn upgrade_cost_by(&mut self, c: CardIdx, a: i32) {

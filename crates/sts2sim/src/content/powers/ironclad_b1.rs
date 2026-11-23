@@ -49,13 +49,26 @@ listener!(JugglingPower {
             return;
         }
         let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        cx.cr_mut(me.owner).powers[i].aux += 1;
-        if cx.cr(me.owner).powers[i].aux == 3 {
-            let amount = cx.cr(me.owner).powers[i].amount;
-            for _ in 0..amount {
-                if let Some(c) = cx.clone_card(play.card) {
-                    cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
-                }
+        // aux: attacks played this turn (low 16 bits) | card to clone + 1 (high bits)
+        let aux = cx.cr(me.owner).powers[i].aux;
+        let n = (aux & 0xFFFF) + 1;
+        let mut card = aux >> 16;
+        if n == 3 {
+            card = play.card as i32 + 1;
+        }
+        cx.cr_mut(me.owner).powers[i].aux = n | card << 16;
+    }
+    fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
+        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
+        let aux = cx.cr(me.owner).powers[i].aux;
+        if aux >> 16 != play.card as i32 + 1 {
+            return;
+        }
+        cx.cr_mut(me.owner).powers[i].aux = aux & 0xFFFF;
+        let amount = cx.cr(me.owner).powers[i].amount;
+        for _ in 0..amount {
+            if let Some(c) = cx.clone_card(play.card) {
+                cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
             }
         }
     }
@@ -64,7 +77,7 @@ listener!(JugglingPower {
             return;
         }
         if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux = 0;
+            cx.cr_mut(me.owner).powers[i].aux &= !0xFFFF;
         }
     }
 });

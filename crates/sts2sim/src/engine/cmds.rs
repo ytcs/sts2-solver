@@ -52,7 +52,8 @@ impl Combat {
     }
 
     pub fn stable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
-        crate::sort::intro_sort(list, |a, b| self.card_cmp(a, b));
+        let me = &*self;
+        crate::sort::intro_sort(list, |a, b| me.card_cmp(a, b));
         self.rng_stream_mut(stream).shuffle(list);
     }
 
@@ -203,7 +204,7 @@ impl Combat {
         let card = &self.cards[c as usize];
         for v in crate::content::card_def(card.id).vars {
             if v.kind == crate::defs::VarKind::Named && v.arg == name {
-                return v.base as i32 + v.up as i32 * card.upgrade as i32;
+                return v.value(card.id, card.upgrade);
             }
         }
         0
@@ -214,7 +215,7 @@ impl Combat {
         let mut v = Dec::int(0);
         for d in crate::content::card_def(card.id).vars {
             if d.kind == crate::defs::VarKind::Damage {
-                v = Dec::int(d.base as i64 + d.up as i64 * card.upgrade as i64);
+                v = Dec::int(d.value(card.id, card.upgrade) as i64);
             }
         }
         v + Dec::frac(card.dmg_bonus as i64, 4)
@@ -249,10 +250,11 @@ impl Combat {
         }
         let forced = min == max && cands.len() <= min as usize;
         if pile == PileType::Draw && !forced {
-            // orderby x.Rarity, x (stable; x = CardModel.CompareTo)
+            // `orderby x.Rarity, x` (stable; `CardModel.CompareTo`)
+            let me = &*self;
             let gt = |a: CardIdx, b: CardIdx| {
-                let (ra, rb) = (self.card_def(a).rarity, self.card_def(b).rarity);
-                ra > rb || (ra == rb && self.card_cmp(&a, &b) > 0)
+                let (ra, rb) = (me.card_def(a).rarity, me.card_def(b).rarity);
+                ra > rb || (ra == rb && me.card_cmp(&a, &b) > 0)
             };
             let sl = cands.as_mut_slice();
             for i in 1..sl.len() {

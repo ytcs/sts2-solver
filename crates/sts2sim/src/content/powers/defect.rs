@@ -294,6 +294,7 @@ listener!(OneForAllPower {
             return Dec::ZERO;
         }
         let spent = match cx.play_stack.iter().rev().find(|ctx| ctx.play.card == q.card) {
+            Some(ctx) if ctx.play.is_auto => ctx.play.energy_value,
             Some(ctx) => ctx.play.energy_spent,
             None => cx.card_cost(q.card, true),
         };
