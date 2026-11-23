@@ -474,7 +474,7 @@ pub static AEONGLASS_DEF: MonsterDef = MonsterDef {
                 }
                 cx.creatures[me as usize].monster.vars[1] += 1;
                 let n = wither_amount(cx);
-                status_to_discard(cx, ids::card::WITHER, n);
+                cx.add_status_cards(ids::card::WITHER, PileType::Discard, n, CardPilePosition::Random);
                 let s = a9(cx, 4, 3) + cx.cr(me).monster.vars[0];
                 power_self(cx, me, ids::power::STRENGTH_POWER, s);
                 cx.creatures[me as usize].monster.vars[0] += 1;
