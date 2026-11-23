@@ -379,7 +379,7 @@ fn tough_egg_hatch(cx: &mut Combat, me: Cid) {
     cx.remove_power_by_id(me, ids::power::HATCH_POWER);
     let mut uids: crate::util::ArrayVec<u16, MAX_POWERS> = crate::util::ArrayVec::new();
     for p in cx.cr(me).powers.iter() {
-        if p.id != ids::power::MINION_POWER {
+        if p.id != ids::power::MINION_POWER && p.id != ids::power::IMPALED_POWER {
             uids.push(p.uid);
         }
     }

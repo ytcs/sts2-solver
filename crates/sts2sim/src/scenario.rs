@@ -62,6 +62,7 @@ pub enum ScenarioError {
     TooManyPotions,
     BadStats,
     TooManyEnemies,
+    UnknownCharacter(u8),
 }
 
 impl Scenario {
@@ -80,6 +81,9 @@ impl Scenario {
             if !content::potion_implemented(p) {
                 return Err(ScenarioError::UnimplementedPotion(crate::ids::potion::NAMES[p as usize]));
             }
+        }
+        if self.character >= crate::types::character::COUNT {
+            return Err(ScenarioError::UnknownCharacter(self.character));
         }
         if !content::encounter_implemented(self.encounter) {
             return Err(ScenarioError::UnimplementedEncounter(crate::ids::encounter::NAMES[self.encounter as usize]));
@@ -346,6 +350,8 @@ impl Combat {
             orb_slots,
             next_orb_uid,
             effect_depth,
+            arrows,
+            arrow_seq,
         } = player;
         *energy = 0;
         *max_energy = sc.max_energy;
@@ -364,6 +370,11 @@ impl Combat {
         *orb_slots = sc.orb_slots;
         *next_orb_uid = 1;
         *effect_depth = 0;
+        arrows.clear();
+        for _ in 0..crate::engine::base_arrow_slots(sc.character) {
+            arrows.push(ArrowSlot::default());
+        }
+        *arrow_seq = 0;
 
         let cx = self;
         cx.creatures[PLAYER as usize] = Creature {
@@ -447,6 +458,8 @@ impl Combat {
             orb_slots: 0,
             next_orb_uid: 1,
             effect_depth: 0,
+            arrows: ArrayVec::new(),
+            arrow_seq: 0,
         };
         Combat {
             character: 0,

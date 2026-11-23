@@ -25,8 +25,9 @@ pub enum HKind {
     PowerReceived,
     StarsModified,
     Summoned,
+    ArrowShot,
 }
-pub const HKIND_COUNT: usize = 17;
+pub const HKIND_COUNT: usize = 18;
 
 impl HKind {
     #[inline(always)]
@@ -190,6 +191,6 @@ impl Combat {
 
     pub(crate) fn hist_card_play_started(&mut self, p: &CardPlay) {
         let id = self.cards[p.card as usize].id;
-        self.hist_push(HKind::CardPlayStarted, PLAYER, p.target, id, p.card, 0, p.is_auto as u8 | (((p.play_index == 0) as u8) << 1), 0, p.energy_value.clamp(0, 255) as u8);
+        self.hist_push(HKind::CardPlayStarted, PLAYER, p.target, id, p.card, p.serial as i16 as i32, p.is_auto as u8 | (((p.play_index == 0) as u8) << 1), 0, p.energy_value.clamp(0, 255) as u8);
     }
 }

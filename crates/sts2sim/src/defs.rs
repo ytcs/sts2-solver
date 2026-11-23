@@ -57,7 +57,7 @@ pub struct CardDef {
     pub rarity: CardRarity,
     pub target: TargetType,
     pub keywords: u8,
-    pub tags: u8,
+    pub tags: u16,
     pub vars: &'static [VarDef],
     pub max_upgrade: u8,
     pub up_cost: i8,
@@ -68,6 +68,8 @@ pub struct CardDef {
     pub custom_upgrade: bool,
     pub can_be_generated_in_combat: bool,
     pub multiplayer_only: bool,
+    /// `CardModel.GainsBlock => true` (dynamic overrides: `Combat::card_gains_block`).
+    pub gains_block: bool,
 }
 
 impl CardDef {
@@ -92,6 +94,7 @@ impl CardDef {
             custom_upgrade: false,
             can_be_generated_in_combat: true,
             multiplayer_only: false,
+            gains_block: false,
         }
     }
     pub const fn x_cost(mut self) -> CardDef {
@@ -134,6 +137,10 @@ impl CardDef {
         self.multiplayer_only = true;
         self
     }
+    pub const fn gains_block(mut self) -> CardDef {
+        self.gains_block = true;
+        self
+    }
     pub const fn custom_upgrade(mut self) -> CardDef {
         self.custom_upgrade = true;
         self
@@ -146,7 +153,7 @@ impl CardDef {
         self.keywords = k;
         self
     }
-    pub const fn tags(mut self, t: u8) -> CardDef {
+    pub const fn tags(mut self, t: u16) -> CardDef {
         self.tags = t;
         self
     }

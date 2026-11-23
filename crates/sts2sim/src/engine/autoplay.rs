@@ -69,6 +69,7 @@ impl Combat {
         self.dispatch_g(hookbit::before_card_auto_played, |cx, me, l| l.before_card_auto_played(cx, me, c, target, kind));
         let energy_value = if d.x_cost { self.player.energy } else { self.card_cost(c, true).max(0) };
         let play = CardPlay {
+            serial: 0,
             card: c,
             target,
             is_auto: true,
@@ -224,7 +225,7 @@ impl Combat {
 
     pub fn pool_of(card_id: u16) -> &'static [u16] {
         use crate::content::gen_pools as p;
-        for pool in [&p::IRONCLAD[..], &p::SILENT[..], &p::DEFECT[..], &p::NECROBINDER[..], &p::REGENT[..], &p::COLORLESS[..], &p::CURSE[..], &p::STATUS[..], &p::TOKEN[..], &p::EVENT[..], &p::QUEST[..]] {
+        for pool in [&p::IRONCLAD[..], &p::SILENT[..], &p::DEFECT[..], &p::NECROBINDER[..], &p::REGENT[..], &p::FOOL[..], &p::COLORLESS[..], &p::CURSE[..], &p::STATUS[..], &p::TOKEN[..], &p::EVENT[..], &p::QUEST[..]] {
             if pool.contains(&card_id) {
                 return pool;
             }

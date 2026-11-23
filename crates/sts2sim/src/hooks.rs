@@ -82,6 +82,8 @@ pub struct BlockQ {
 
 #[derive(Clone, Copy, Debug)]
 pub struct CardPlay {
+    /// `Combat::play_serial` of this play (set when it starts): `CardPlay` identity.
+    pub serial: u16,
     pub card: CardIdx,
     pub target: Cid,
     pub is_auto: bool,
@@ -273,6 +275,13 @@ pub trait Listener: Sync {
     fn after_forge(&self, cx: &mut Combat, me: Me, amount: Dec) {}
     fn after_summon(&self, cx: &mut Combat, me: Me, amount: Dec) {}
     fn after_osty_revived(&self, cx: &mut Combat, me: Me, osty: Cid) {}
+    /// `AfterArrowShot(owner, arrow, ..., source)`: `arrow` = slot index, NO when the player had no arrow to shoot.
+    fn after_arrow_shot(&self, cx: &mut Combat, me: Me, arrow: u8, source: CardIdx) {}
+    /// `AfterArrowImpaled(power, arrow, ..., source)`: `target` owns the Impaled instance `power_uid`
+    /// (`u16::MAX`: the instance never attached because the shot killed the target).
+    fn after_arrow_impaled(&self, cx: &mut Combat, me: Me, target: Cid, power_uid: u16, arrow: u8, source: CardIdx) {}
+    /// `AfterArrowDislodged(power, arrow, ..., source)`: the arrow already left the instance's list; it is retrieved after this.
+    fn after_arrow_dislodged(&self, cx: &mut Combat, me: Me, target: Cid, power_uid: u16, arrow: u8, source: CardIdx) {}
 
     fn modify_attack_hit_count(&self, cx: &Combat, me: Me, attack: &Attack, hits: i32) -> i32 {
         hits
@@ -615,6 +624,9 @@ pub mod hookbit {
         after_gold_gained,
         calculated_value,
         should_take_extra_turn_early,
+        after_arrow_shot,
+        after_arrow_impaled,
+        after_arrow_dislodged,
     );
     const _: () = assert!(COUNT <= 253, "too many hooks: the `meta_*` pseudo bits start at 253");
     pub const meta_initial: u32 = 253;

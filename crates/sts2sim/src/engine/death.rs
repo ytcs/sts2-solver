@@ -226,6 +226,7 @@ impl Combat {
         if self.cr(c).is_dead() || !self.cr(c).in_combat || !self.in_progress {
             return;
         }
+        self.dislodge_on_escape(c);
         let held = self.cr(c).power_amount(crate::ids::power::SWIPE_POWER).max(0);
         self.cards_escaped = self.cards_escaped.saturating_add(held as u8);
         self.cr_mut(c).powers.clear();
