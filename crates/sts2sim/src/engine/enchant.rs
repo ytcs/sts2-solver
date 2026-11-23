@@ -128,9 +128,10 @@ impl Combat {
         k.affliction_amount = amount;
         let cid = k.id;
         let n = self.hist_log.n as usize;
-        let stale = (n - n.min(crate::engine::HIST_CAP)..n).rev().map(|i| i % crate::engine::HIST_CAP).find(|&i| {
+        // This turn's entries are a suffix of the log (`hist_this_turn_iter`).
+        let stale = (n - n.min(crate::engine::HIST_CAP)..n).rev().map(|i| i % crate::engine::HIST_CAP).take_while(|&i| self.hist_this_turn(&self.hist_log.entries[i])).find(|&i| {
             let e = &self.hist_log.entries[i];
-            e.kind == HKind::CardAfflicted && e.val == id as i16 && self.hist_this_turn(e) && self.cards[e.card as usize].affliction != aff
+            e.kind == HKind::CardAfflicted && e.val == id as i16 && self.cards[e.card as usize].affliction != aff
         });
         match stale {
             Some(i) => {

@@ -256,9 +256,9 @@ impl Combat {
     /// `MelodyCmd.IsFirstPlayThisTurn(cardPlay, tag)`: `play` is this turn's first started play with the tag.
     pub fn melody_is_first_play_this_turn(&self, play: &CardPlay, t: u16) -> bool {
         debug_assert!(t == tag::WAH || t == tag::CHO || t == tag::KI, "not a song tag");
-        self.hist_log
-            .iter()
-            .find(|e| e.kind == HKind::CardPlayStarted && self.hist_this_turn(e) && self.card_def(e.card).tags & t != 0)
+        self.hist_this_turn_iter()
+            .filter(|e| e.kind == HKind::CardPlayStarted && self.card_def(e.card).tags & t != 0)
+            .last()
             .is_some_and(|e| e.val as u16 == play.serial)
     }
 

@@ -111,10 +111,8 @@ impl W<'_> {
     fn n(&mut self, v: i32) {
         self.f(v as f32)
     }
-    // Every slot is written exactly once, in order (`f` or `zeros`): no separate clearing pass over the row.
     #[inline(always)]
     fn zeros(&mut self, n: usize) {
-        self.out[self.i..self.i + n].fill(0.0);
         self.i += n;
     }
 }
@@ -340,13 +338,14 @@ impl Combat {
     // Sorted over the whole pile, then truncated: a big pile's order stays hidden.
     fn write_pile_list(&self, w: &mut W, pile: &[CardIdx]) {
         let n = pile.len().min(OBS_MAX_PILE);
-        let mut keys = crate::util::ArrayVec::<u32, MAX_CARDS>::new();
-        for &c in pile.iter().take(MAX_CARDS) {
+        let m = pile.len().min(MAX_CARDS);
+        let mut keys = [0u32; MAX_CARDS];
+        for (k, &c) in pile.iter().take(m).enumerate() {
             let card = &self.cards[c as usize];
-            keys.push((content::card_def(card.id).rarity as u32) << 24 | (card.id as u32) << 8 | card.upgrade as u32);
+            keys[k] = (content::card_def(card.id).rarity as u32) << 24 | (card.id as u32) << 8 | card.upgrade as u32;
         }
-        keys.as_mut_slice().sort_unstable();
-        for &key in &keys.as_slice()[..n] {
+        keys[..m].sort_unstable();
+        for &key in &keys[..n] {
             w.n(((key >> 8) & 0xFFFF) as i32 + 1);
             w.n((key & 0xFF) as i32);
         }
@@ -383,6 +382,8 @@ impl Combat {
     fn observe_impl(&self, out: &mut [f32], hand_playable: Option<u16>, tail: bool) -> usize {
         let size = if tail { OBS_SIZE } else { OBS_SIZE_V2 };
         let out = &mut out[..size];
+        // SAFETY: `out` has exactly `size` f32s; all-zero bytes are +0.0.
+        unsafe { core::ptr::write_bytes(out.as_mut_ptr(), 0, size) };
         let mut w = W { out, i: 0 };
         let hand_ok = self.stage == Stage::AwaitAction && self.player.phase == Phase::Play;
         let me = self.cr(PLAYER);
