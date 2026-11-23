@@ -351,3 +351,52 @@ listener!(Wish {
         }
     }
 });
+
+/// Damage gained over `up` upgrades: `OnUpgrade` adds `3 + CurrentUpgradeLevel`, the level already incremented.
+pub const fn dingy_dagger_bonus(up: u8) -> i32 {
+    let l = up as i32;
+    3 * l + l * (l + 1) / 2
+}
+
+listener!(DingyDagger {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let a = card_attack(cx, p, Targeting::Single(p.target));
+        cx.execute_attack(&a);
+        Flow::Done
+    }
+});
+
+fn dazed_into_draw(cx: &mut Combat, p: &CardPlay) {
+    let n = cx.card_var(p.card, VarKind::Cards);
+    for _ in 0..n {
+        if let Some(c) = cx.new_card(ids::card::DAZED, 0) {
+            cx.add_generated_card(c, PileType::Draw, CardPilePosition::Random);
+        }
+    }
+}
+
+listener!(MightyWeapon {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let a = card_attack(cx, p, Targeting::AllOpponents);
+        cx.execute_attack(&a);
+        dazed_into_draw(cx, p);
+        Flow::Done
+    }
+});
+
+listener!(MightyShield {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let b = cx.card_var(p.card, VarKind::Block);
+        cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::MOVE, p.card);
+        dazed_into_draw(cx, p);
+        Flow::Done
+    }
+});
+
+listener!(GodByrd {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let n = cx.card_var(p.card, VarKind::Damage);
+        apply_self(cx, ids::power::GOD_BYRD_POWER, n, p);
+        Flow::Done
+    }
+});

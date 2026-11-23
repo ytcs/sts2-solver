@@ -151,9 +151,9 @@ impl Combat {
             return true;
         }
         let b = &self.cards[y as usize];
-        let Card { id, pile, upgrade, flags, kw_add, kw_remove, enchant, enchant_amount, enchant_status, enchant_aux, affliction, affliction_amount, base_replay, cost_base, x_value, mods, star_mods, counter, dmg_bonus, deck_idx, dupe_of, dampen_saved } =
+        let Card { id, pile, upgrade, flags, kw_add, kw_remove, kw_out_add, kw_out_remove, enchant, enchant_amount, enchant_status, enchant_aux, affliction, affliction_amount, base_replay, cost_base, x_value, mods, star_mods, counter, dmg_bonus, deck_idx, dupe_of, dampen_saved } =
             &self.cards[x as usize];
-        (*id, *pile, *upgrade, *flags, *kw_add, *kw_remove, *enchant, *enchant_amount, *enchant_status, *enchant_aux) == (b.id, b.pile, b.upgrade, b.flags, b.kw_add, b.kw_remove, b.enchant, b.enchant_amount, b.enchant_status, b.enchant_aux)
+        (*id, *pile, *upgrade, *flags, *kw_add, *kw_remove, *kw_out_add, *kw_out_remove, *enchant, *enchant_amount, *enchant_status, *enchant_aux) == (b.id, b.pile, b.upgrade, b.flags, b.kw_add, b.kw_remove, b.kw_out_add, b.kw_out_remove, b.enchant, b.enchant_amount, b.enchant_status, b.enchant_aux)
             && (*affliction, *affliction_amount, *base_replay, *cost_base, *x_value, *counter, *dmg_bonus, *dupe_of, *dampen_saved) == (b.affliction, b.affliction_amount, b.base_replay, b.cost_base, b.x_value, b.counter, b.dmg_bonus, b.dupe_of, b.dampen_saved)
             && mods.as_slice() == b.mods.as_slice()
             && star_mods.as_slice() == b.star_mods.as_slice()

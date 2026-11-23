@@ -218,8 +218,7 @@ impl Combat {
         let card = &mut self.cards[n as usize];
         card.flags |= cflag::IS_DUPE;
         card.dupe_of = c;
-        card.kw_add &= !kw::EXHAUST;
-        card.kw_remove |= kw::EXHAUST;
+        self.remove_keyword(n, kw::EXHAUST);
         Some(n)
     }
 

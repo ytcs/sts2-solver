@@ -405,10 +405,8 @@ listener!(EscapePlan {
 listener!(Expertise {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
-        let drawn = cx.draw_cards_list_nosuspend(n, false);
-        for &c in drawn.iter() {
-            cx.apply_single_turn_retain(c);
-        }
+        cx.draw_cards(n, false);
+        cx.apply_power(ids::power::RETAIN_HAND_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
         Flow::Done
     }
 });

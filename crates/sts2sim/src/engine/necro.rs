@@ -90,9 +90,7 @@ impl Combat {
     }
 
     pub fn apply_keyword(&mut self, c: CardIdx, kw: u8) {
-        let card = &mut self.cards[c as usize];
-        card.kw_add |= kw;
-        card.kw_remove &= !kw;
+        self.add_keyword(c, kw);
     }
 
     pub fn new_soul(&mut self, upgraded: bool) -> Option<CardIdx> {

@@ -87,8 +87,8 @@ impl Combat {
         let card = &mut self.cards[c as usize];
         card.upgrade = 0;
         card.cost_base = if d.x_cost { 0 } else { d.cost };
-        card.kw_add = 0;
-        card.kw_remove = 0;
+        card.kw_add = card.kw_out_add;
+        card.kw_remove = card.kw_out_remove;
         if self.cards[c as usize].enchant != 0 {
             let me = self.enchantment_me(c);
             content::listener(&me).on_enchant(self, me, c);
@@ -99,7 +99,7 @@ impl Combat {
         let card = &self.cards[c as usize];
         for v in content::card_def(card.id).vars {
             if v.kind == kind && v.kind != VarKind::Power {
-                let mut x = v.base as i32 + v.up as i32 * card.upgrade as i32;
+                let mut x = v.value(card.id, card.upgrade);
                 if kind == VarKind::Damage {
                     x += card.dmg_bonus / 10_000;
                 }
@@ -113,7 +113,7 @@ impl Combat {
         let card = &self.cards[c as usize];
         for v in content::card_def(card.id).vars {
             if v.kind == VarKind::Power && v.arg == power {
-                return v.base as i32 + v.up as i32 * card.upgrade as i32;
+                return v.value(card.id, card.upgrade);
             }
         }
         0
@@ -307,13 +307,56 @@ impl Combat {
         self.cards[c as usize].flags |= cflag::REMOVED;
     }
 
-    #[inline]
-    pub(crate) fn card_cmp(cards: &[Card; MAX_CARDS], a: &CardIdx, b: &CardIdx) -> i32 {
-        let (ca, cb) = (&cards[*a as usize], &cards[*b as usize]);
+    /// `CardModel.CompareTo`: id, upgrade level, enchantment id, affliction id, resolved energy cost, base replay
+    /// count, then the dynamic vars' base values in ordinal key order (only Block and Damage change in combat).
+    /// Numeric enchantment / affliction ids are in `ModelId` entry order; none (0) sorts first.
+    pub(crate) fn card_cmp(&self, a: &CardIdx, b: &CardIdx) -> i32 {
+        let (ca, cb) = (&self.cards[*a as usize], &self.cards[*b as usize]);
         if ca.id != cb.id {
             return if ca.id < cb.id { -1 } else { 1 };
         }
-        (ca.upgrade as i32 - cb.upgrade as i32).signum()
+        if ca.upgrade != cb.upgrade {
+            return (ca.upgrade as i32 - cb.upgrade as i32).signum();
+        }
+        if ca.enchant != cb.enchant {
+            return (ca.enchant as i32 - cb.enchant as i32).signum();
+        }
+        if ca.affliction != cb.affliction {
+            return (ca.affliction as i32 - cb.affliction as i32).signum();
+        }
+        let (ra, rb) = (self.card_cost_resolved(*a), self.card_cost_resolved(*b));
+        if ra != rb {
+            return (ra - rb).signum();
+        }
+        if ca.base_replay != cb.base_replay {
+            return (ca.base_replay as i32 - cb.base_replay as i32).signum();
+        }
+        if ca.dmg_bonus == cb.dmg_bonus && ca.counter == cb.counter {
+            return 0;
+        }
+        let d = self.card_def(*a);
+        if d.vars.iter().any(|v| v.kind == crate::defs::VarKind::Block) {
+            let (x, y) = (self.card_var(*a, crate::defs::VarKind::Block), self.card_var(*b, crate::defs::VarKind::Block));
+            if x != y {
+                return (x - y).signum();
+            }
+        }
+        if d.vars.iter().any(|v| v.kind == crate::defs::VarKind::Damage) {
+            let x = self.card_damage_dec(*a) + crate::dec::Dec::int(self.card_var_extra(*a, crate::defs::VarKind::Damage) as i64);
+            let y = self.card_damage_dec(*b) + crate::dec::Dec::int(self.card_var_extra(*b, crate::defs::VarKind::Damage) as i64);
+            if x != y {
+                return if x < y { -1 } else { 1 };
+            }
+        }
+        0
+    }
+
+    /// `CardEnergyCost.GetResolved`: the captured X for X costs, else the modified cost floored at 0.
+    pub fn card_cost_resolved(&self, c: CardIdx) -> i32 {
+        if self.card_def(c).x_cost {
+            return self.cards[c as usize].x_value as i32;
+        }
+        self.card_cost(c, true).max(0)
     }
 
     pub fn initial_shuffle(&mut self) {
@@ -348,8 +391,8 @@ impl Combat {
         for &c in self.player.draw.iter() {
             list.push(c);
         }
-        let cards = &self.cards;
-        intro_sort(list.as_mut_slice(), |a, b| Self::card_cmp(cards, a, b));
+        let me = &*self;
+        intro_sort(list.as_mut_slice(), |a, b| me.card_cmp(a, b));
         self.rng.shuffle.shuffle(list.as_mut_slice());
         self.modify_shuffle_order(list.as_mut_slice(), false);
         let from_discard = self.player.discard;
