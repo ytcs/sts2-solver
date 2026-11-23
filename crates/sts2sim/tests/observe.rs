@@ -326,7 +326,7 @@ mod v3 {
         assert_eq!(d[7], hits, "player intangible: incoming = one per hit");
         let bomb_hand = {
             let h = sec("hand_tgt");
-            base[h..h + observe::OBS_MAX_ENEMIES].to_vec()
+            base[h..h + sts2sim::state::MAX_HAND * observe::OBS_MAX_ENEMIES].to_vec()
         };
         let mut q = cx.clone();
         q.apply_power(ids::power::INTANGIBLE_POWER, e, Dec::int(1), e, NO);
@@ -493,9 +493,10 @@ mod v4 {
 
     #[test]
     fn spawn_hp_is_the_range_midpoint() {
+        // Axebot: fixed 80 at A8+ since v0.113 (a range of one)
         let cx = fight(ids::encounter::AXEBOTS_NORMAL, 1);
         let x = cx.death_x(cx.enemies[0]);
-        assert_eq!(&x[..4], &[death_kind::SPAWN, 81.0 + 10.0, 81.0 + 10.0 + 81.0 + 20.0, 2.0], "{x:?}");
+        assert_eq!(&x[..4], &[death_kind::SPAWN, 80.0 + 10.0, 80.0 + 10.0 + 80.0 + 20.0, 2.0], "{x:?}");
         let cx = fight(ids::encounter::PHROG_PARASITE_ELITE, 1);
         let x = cx.death_x(of(&cx, ids::monster::PHROG_PARASITE));
         assert_eq!(&x[..5], &[death_kind::SPAWN, 80.0, 80.0, 4.0, 14.0], "{x:?}");

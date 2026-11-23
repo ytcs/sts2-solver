@@ -224,7 +224,7 @@ impl Combat {
 
     pub fn pool_of(card_id: u16) -> &'static [u16] {
         use crate::content::gen_pools as p;
-        for pool in [&p::IRONCLAD[..], &p::SILENT[..], &p::DEFECT[..], &p::NECROBINDER[..], &p::REGENT[..], &p::COLORLESS[..], &p::CURSE[..], &p::STATUS[..], &p::TOKEN[..], &p::EVENT[..], &p::QUEST[..]] {
+        for pool in [&p::IRONCLAD[..], &p::SILENT[..], &p::DEFECT[..], &p::NECROBINDER[..], &p::REGENT[..], &p::FOOL[..], &p::COLORLESS[..], &p::CURSE[..], &p::STATUS[..], &p::TOKEN[..], &p::EVENT[..], &p::QUEST[..]] {
             if pool.contains(&card_id) {
                 return pool;
             }
@@ -263,7 +263,7 @@ impl Combat {
                 Some(r) => r,
                 None => {
                     let opts = self.transform_options(o);
-                    assert!(!opts.is_empty(), "All transformation options provided are invalid!");
+                    assert!(!opts.is_empty(), "All transformation options provided are invalid! ({})", crate::ids::card::NAMES[self.cards[o as usize].id as usize]);
                     (opts[self.rng.combat_card_generation.next_int_range(0, opts.len() as i32) as usize], 0)
                 }
             };
