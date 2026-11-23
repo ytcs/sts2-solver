@@ -152,12 +152,12 @@ pub static TUNNELER_DEF: MonsterDef = MonsterDef {
             2,
         ),
         mv(
-            "BELOW_MOVE",
+            "FROM_BELOW_MOVE",
             |cx, me| {
-                let d = a9(cx, 26, 23);
+                let d = a9(cx, 28, 24);
                 atk(cx, me, d)
             },
-            &[attack(|cx, _| a9(cx, 26, 23))],
+            &[attack(|cx, _| a9(cx, 28, 24))],
             2,
         ),
         mv("DIZZY_MOVE", tunneler_still_dizzy, &[Intent::Stun], 0),
@@ -573,7 +573,7 @@ fn steal_tier_matches(cx: &Combat, tier: usize, c: CardIdx) -> bool {
     match tier {
         0 => !imbued && rarity == CardRarity::Uncommon,
         1 => !imbued && matches!(rarity, CardRarity::Common | CardRarity::Rare | CardRarity::Event),
-        2 => !imbued && matches!(rarity, CardRarity::Basic | CardRarity::Quest),
+        2 => !imbued && rarity == CardRarity::Basic,
         _ => rarity == CardRarity::Ancient || imbued,
     }
 }
@@ -583,7 +583,7 @@ fn hopper_thievery(cx: &mut Combat, me: Cid) {
     if !cx.cr(PLAYER).is_dead() {
         let mut list: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
         for &c in cx.player.draw.iter().chain(cx.player.discard.iter()) {
-            if cx.cards[c as usize].deck_idx != NO {
+            if cx.cards[c as usize].deck_idx != NO && cx.card_def(c).rarity != CardRarity::Quest {
                 list.push(c);
             }
         }
@@ -602,7 +602,7 @@ fn hopper_thievery(cx: &mut Combat, me: Cid) {
             chosen = list;
         }
         if !chosen.is_empty() {
-            let k = cx.rng.combat_card_generation.next_int(chosen.len() as i32) as usize;
+            let k = cx.rng.combat_card_selection.next_int(chosen.len() as i32) as usize;
             let card = chosen[k];
             cx.remove_card_from_combat(card);
             stolen.push(card);
