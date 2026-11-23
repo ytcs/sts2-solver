@@ -421,7 +421,7 @@ pub static CARD_DEFS: [CardDef; 717] = [
     CardDef::new(ids::card::KI_HOP, 1, CardType::Attack, CardRarity::Common, TargetType::AnyEnemy).tags(tag::KI).vars(&[var_p(VarKind::Damage, 7, 1, 8), var_p(VarKind::Cards, 2, 1, 0)]),
     CardDef::new(ids::card::KI_REST, 2, CardType::Skill, CardRarity::Uncommon, TargetType::Self_).tags(tag::KI).vars(&[var_p(VarKind::Energy, 5, 1, 0)]),
     CardDef::new(ids::card::KI_VERSE, 1, CardType::Skill, CardRarity::Rare, TargetType::Self_).tags(tag::KI).vars(&[power_var(ids::power::KI_VERSE_POWER, 1, 1)]),
-    CardDef::new(ids::card::KI_WHIP, 1, CardType::Attack, CardRarity::Common, TargetType::AnyEnemy).vars(&[var_p(VarKind::Damage, 5, 1, 8), var_p(VarKind::Energy, 2, 1, 0)]),
+    CardDef::new(ids::card::KI_WHIP, 1, CardType::Attack, CardRarity::Common, TargetType::AnyEnemy).tags(tag::KI).vars(&[var_p(VarKind::Damage, 5, 1, 8), var_p(VarKind::Energy, 2, 1, 0)]),
     CardDef::new(ids::card::KNIFE_TRAP, 2, CardType::Skill, CardRarity::Rare, TargetType::AnyEnemy).vars(&[var_p(VarKind::CalcBase, 0, 0, 0), var_p(VarKind::CalcExtra, 1, 0, 0)]),
     CardDef::new(ids::card::KNOCKDOWN, 3, CardType::Attack, CardRarity::Rare, TargetType::AnyEnemy).vars(&[var_p(VarKind::Damage, 10, 4, 8), power_var(ids::power::KNOCKDOWN_POWER, 2, 1)]).multiplayer_only(),
     CardDef::new(ids::card::KNOCKOUT_BLOW, 3, CardType::Attack, CardRarity::Uncommon, TargetType::AnyEnemy).vars(&[var_p(VarKind::Damage, 30, 8, 8), var_p(VarKind::Stars, 5, 0, 0)]),

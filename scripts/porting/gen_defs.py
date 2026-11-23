@@ -114,7 +114,7 @@ def main():
         if km:
             kws = [KW[k] for k in re.findall(r"CardKeyword\.(\w+)", km.group(1)) if k in KW]
         tags = []
-        tm = re.search(r"CanonicalTags\s*=>(.*?);", s, flags=re.S)
+        tm = re.search(r"(?:CanonicalTags|IEnumerable<CardTag> Tags)\s*=>(.*?);", s, flags=re.S)
         if tm:
             tags = [TAG[t] for t in re.findall(r"CardTag\.(\w+)", tm.group(1)) if t in TAG]
         mu = re.search(r"MaxUpgradeLevel\s*=>\s*(\d+)", s)

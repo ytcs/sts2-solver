@@ -443,6 +443,8 @@ pub enum PlayStep {
     Before,
     OnPlay(u8),
     After,
+    /// `AfterCardPlayed` listeners; resumes after the one whose nested play (Lost Lute's autoplay) suspended.
+    AfterHooks,
 }
 
 pub const AUTOPLAY_MAX: usize = 24;
@@ -469,6 +471,8 @@ pub struct PlayCtx {
     pub step: PlayStep,
     pub count: u8,
     pub result: CardLocation,
+    /// `PlayStep::AfterHooks` resume point: the listeners of the original snapshot still to run (`bit` unused).
+    pub hook_resume: Option<SuspPass>,
 }
 
 #[derive(Clone, Copy, Default)]
