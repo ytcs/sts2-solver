@@ -46,6 +46,7 @@ CARD_PRICE = {"Common": 50, "Uncommon": 75, "Rare": 150}
 POTION_PRICE = {"Common": 50, "Uncommon": 75, "Rare": 100}
 POTION_RARITY = ((0.10, "Rare"), (0.35, "Uncommon"), (1.0, "Common"))
 HEAL_REST, HEAL_ANCIENT = 0.30, 0.80
+DOWSING_ROOMS = 4
 
 
 @functools.cache
@@ -133,14 +134,17 @@ class Draws:
         items.append(("remove", None, T.REMOVAL_BASE + T.REMOVAL_STEP * removals))
         return items
 
-    def unknown(self, odds):
+    def unknown(self, odds, exclude=()):
+        """UnknownMapPointOdds.Roll: an excluded type is skipped and its odds do not grow"""
         u, acc, rolled = self.rng.random(), 0.0, "event"
         for t, p in odds.items():
+            if t in exclude:
+                continue
             acc += p
             if u < acc:
                 rolled = t
                 break
-        return rolled, {t: (T.UNKNOWN_BASE[t] if t == rolled else p + T.UNKNOWN_BASE[t]) for t, p in odds.items()}
+        return rolled, {t: (T.UNKNOWN_BASE[t] if t == rolled else p if t in exclude else p + T.UNKNOWN_BASE[t]) for t, p in odds.items()}
 
 
 ACT_NAMES = {0: ("Overgrowth", "Underdocks"), 1: ("Hive",), 2: ("Glory",)}
@@ -502,8 +506,15 @@ def play(st, rng, pol, first=None, stop_at_next=False, pot_use=None):
     def room(t):
         st.floors += 1
         if t == "?":
-            u, st.unknown = dr.unknown(st.unknown)
+            # Dowsing (Neow's Dowsing Rod): the 4th unknown room cannot be a fight, then the card becomes Abundance (Cards/Dowsing.cs)
+            dowsing = next((c for c in st.deck if c["id"] == "DOWSING"), None)
+            n = st.__dict__.get("dowsing_rooms", 0)
+            u, st.unknown = dr.unknown(st.unknown, ("monster",) if dowsing is not None and n >= DOWSING_ROOMS - 1 else ())
             t = {"monster": "M", "treasure": "T", "shop": "$"}.get(u, "event")
+            if dowsing is not None:
+                st.dowsing_rooms = n + 1
+                if st.dowsing_rooms >= DOWSING_ROOMS:
+                    st.deck[st.deck.index(dowsing)] = {"id": "ABUNDANCE", "upgrade": 0}
         if t == "event":
             seen = st.__dict__.setdefault("events_seen", set())
             cands = [e for e in EV.catalog().values() if (st.act_name in e["acts"] or "shared" in e["acts"]) and e["id"] not in seen and EV.allowed(e["id"], st)]

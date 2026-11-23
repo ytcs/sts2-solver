@@ -192,6 +192,28 @@ public static class Patches
         }
     }
 
+    // Waterfall of Obvious Secrets' Enter sets NEventRoom.Instance's portrait behind IsMe without a null check: the same options and page without it
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Events.WaterfallOfObviousSecrets), "EnterWaterfall")]
+    static class P_WaterfallEnter
+    {
+        static bool Prefix(MegaCrit.Sts2.Core.Models.Events.WaterfallOfObviousSecrets __instance, ref Task __result)
+        {
+            var ev = __instance;
+            Func<Task> M(string name) => (Func<Task>)AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.WaterfallOfObviousSecrets), name).CreateDelegate(typeof(Func<Task>), ev);
+            const string P = "WATERFALL_OF_OBVIOUS_SECRETS.pages.ENTER.";
+            var nice = new MegaCrit.Sts2.Core.Events.EventOption(ev, M("BeNice"), P + "options.BE_NICE",
+                MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.FromCardWithCardHoverTips<MegaCrit.Sts2.Core.Models.Cards.DingyDagger>());
+            var beat = new MegaCrit.Sts2.Core.Events.EventOption(ev, M("BeatUp"), P + "options.BEAT_UP",
+                MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.FromCardWithCardHoverTips<MegaCrit.Sts2.Core.Models.Cards.Guilty>());
+            var deal = (decimal)ev.Owner.Gold >= ev.DynamicVars["NegotiateCostKey"].BaseValue
+                ? new MegaCrit.Sts2.Core.Events.EventOption(ev, M("Negotiate"), P + "options.NEGOTIATE")
+                : new MegaCrit.Sts2.Core.Events.EventOption(ev, null, P + "options.NEGOTIATE_LOCKED");
+            ev.SetEventState(ev.L10NLookup(P + "description"), new[] { nice, beat, deal });
+            __result = Task.CompletedTask;
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Events.PunchOff), "Nab")]
     static class P_PunchOffNab
     {

@@ -82,6 +82,21 @@
    ],
    "note": "BagOfPreparation.cs: ModifyHandDraw; sim shared_start.rs"
   },
+  "BATH_ROBES": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered",
+    "BeforeCombatStart"
+   ],
+   "note": "BeforeCombatStart(Boss): heal to full once (WasUsed); AfterRoomEntered: status only"
+  },
+  "BATH_TOWEL": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStartLate"
+   ],
+   "note": "AfterPlayerTurnStartLate turn 1: heal 8"
+  },
   "BEATING_REMNANT": {
    "class": "combat",
    "hooks": [
@@ -300,6 +315,17 @@
     "AfterRoomEntered"
    ],
    "note": "BurningSticks.cs: AfterCardExhausted, AfterCombatEnd, AfterRoomEntered; sim shared_play.rs"
+  },
+  "BYRDINE": {
+   "class": "card_linked",
+   "also": [
+    "combat"
+   ],
+   "hooks": [
+    "AfterObtained",
+    "BeforeCombatStart"
+   ],
+   "note": "AfterObtained: Byrd Swoop -> God Byrd (Byrdpip's Evolve rest option); BeforeCombatStart pet ByrdineMonster"
   },
   "BYRDPIP": {
    "class": "card_linked",
@@ -1169,6 +1195,13 @@
    ],
    "note": "Metronome.cs: AfterCombatEnd, AfterOrbChanneled, AfterRoomEntered; sim defect.rs"
   },
+  "MIGHTY_WINGS": {
+   "class": "combat",
+   "hooks": [
+    "AfterDamageGiven"
+   ],
+   "note": "AfterDamageGiven: powered attack hit >= 30 -> 2 Strength"
+  },
   "MINIATURE_CANNON": {
    "class": "combat",
    "hooks": [
@@ -1297,6 +1330,13 @@
     "AfterObtained"
    ],
    "note": "AfterObtained: Tezcatara's Ember on every basic Strike"
+  },
+  "OBSIDIAN_VICE": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnEnd"
+   ],
+   "note": "BeforeSideTurnEnd: 1 damage per card in hand to a random enemy"
   },
   "ODDLY_SMOOTH_STONE": {
    "class": "combat",
@@ -2053,6 +2093,13 @@
    ],
    "note": "ThrowingAxe.cs: AfterCombatEnd, AfterModifyingCardPlayCount, AfterRoomEntered, ModifyCardPlayCount; sim shared_play.rs"
   },
+  "THUMBSCREW": {
+   "class": "combat",
+   "hooks": [
+    "ModifyAttackHitCount"
+   ],
+   "note": "ModifyAttackHitCount: multi-hit attack cards +1 hit"
+  },
   "TINGSHA": {
    "class": "combat",
    "hooks": [
@@ -2081,6 +2128,13 @@
     "BeforeHandDraw"
    ],
    "note": "Toolbox.cs: BeforeHandDraw; sim shared_choice.rs"
+  },
+  "TORMENTOUS_COLLAR": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnStart"
+   ],
+   "note": "BeforeSideTurnStart turn 1 in Elite rooms: 2 Weak to all enemies"
   },
   "TOUCH_OF_OROBAS": {
    "class": "macro_only",
@@ -2303,6 +2357,16 @@
    "class": "macro_only",
    "hooks": [],
    "note": "no hooks"
+  },
+  "WUPPY": {
+   "class": "combat",
+   "hooks": [
+    "AfterCurrentHpChanged",
+    "AfterObtained",
+    "BeforeCombatStart",
+    "TryModifyRestSiteOptions"
+   ],
+   "note": "BeforeCombatStart pet Wuppy absorbing attack damage (HP 30/60 from the event, carried between fights); TryModifyRestSiteOptions: Restore"
   },
   "YUMMY_COOKIE": {
    "class": "macro_only",

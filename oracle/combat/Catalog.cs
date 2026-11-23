@@ -20,7 +20,8 @@ public static class Catalog
         {
             ["IRONCLAD"] = Cards(ModelDb.CardPool<IroncladCardPool>()), ["SILENT"] = Cards(ModelDb.CardPool<SilentCardPool>()),
             ["DEFECT"] = Cards(ModelDb.CardPool<DefectCardPool>()), ["NECROBINDER"] = Cards(ModelDb.CardPool<NecrobinderCardPool>()),
-            ["REGENT"] = Cards(ModelDb.CardPool<RegentCardPool>()), ["COLORLESS"] = Cards(ModelDb.CardPool<ColorlessCardPool>()),
+            ["REGENT"] = Cards(ModelDb.CardPool<RegentCardPool>()), ["FOOL"] = Cards(ModelDb.CardPool<FoolCardPool>()),
+            ["COLORLESS"] = Cards(ModelDb.CardPool<ColorlessCardPool>()),
             ["CURSE"] = Cards(ModelDb.CardPool<CurseCardPool>()), ["STATUS"] = Cards(ModelDb.CardPool<StatusCardPool>()),
             ["EVENT"] = Cards(ModelDb.CardPool<EventCardPool>()), ["TOKEN"] = Cards(ModelDb.CardPool<TokenCardPool>()),
             ["QUEST"] = Cards(ModelDb.CardPool<QuestCardPool>()),
@@ -31,7 +32,8 @@ public static class Catalog
         {
             ["IRONCLAD"] = Relics(ModelDb.RelicPool<IroncladRelicPool>()), ["SILENT"] = Relics(ModelDb.RelicPool<SilentRelicPool>()),
             ["DEFECT"] = Relics(ModelDb.RelicPool<DefectRelicPool>()), ["NECROBINDER"] = Relics(ModelDb.RelicPool<NecrobinderRelicPool>()),
-            ["REGENT"] = Relics(ModelDb.RelicPool<RegentRelicPool>()), ["SHARED"] = Relics(ModelDb.RelicPool<SharedRelicPool>()),
+            ["REGENT"] = Relics(ModelDb.RelicPool<RegentRelicPool>()), ["FOOL"] = Relics(ModelDb.RelicPool<FoolRelicPool>()),
+            ["SHARED"] = Relics(ModelDb.RelicPool<SharedRelicPool>()),
             ["EVENT"] = Relics(ModelDb.RelicPool<EventRelicPool>()),
         };
         JsonArray Potions(PotionPoolModel p) => new JsonArray(p.AllPotions.Select(x => (JsonNode)new JsonObject { ["id"] = x.Id.Entry, ["rarity"] = x.Rarity.ToString(), ["usage"] = x.Usage.ToString(), ["target"] = x.TargetType.ToString() }).ToArray());
@@ -39,7 +41,8 @@ public static class Catalog
         {
             ["IRONCLAD"] = Potions(ModelDb.PotionPool<IroncladPotionPool>()), ["SILENT"] = Potions(ModelDb.PotionPool<SilentPotionPool>()),
             ["DEFECT"] = Potions(ModelDb.PotionPool<DefectPotionPool>()), ["NECROBINDER"] = Potions(ModelDb.PotionPool<NecrobinderPotionPool>()),
-            ["REGENT"] = Potions(ModelDb.PotionPool<RegentPotionPool>()), ["SHARED"] = Potions(ModelDb.PotionPool<SharedPotionPool>()),
+            ["REGENT"] = Potions(ModelDb.PotionPool<RegentPotionPool>()), ["FOOL"] = Potions(ModelDb.PotionPool<FoolPotionPool>()),
+            ["SHARED"] = Potions(ModelDb.PotionPool<SharedPotionPool>()),
             ["EVENT"] = Potions(ModelDb.PotionPool<EventPotionPool>()),
         };
         var enc = new JsonArray();

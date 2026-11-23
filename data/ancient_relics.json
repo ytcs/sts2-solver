@@ -162,7 +162,7 @@
    ],
    "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/BrilliantScarf.cs:57-142",
    "effects": [],
-   "note": "combat only (the simulator's)"
+   "note": "combat only (the simulator's): the 6th card each turn is free"
   },
   "CALLING_BELL": {
    "title": "Calling Bell",
@@ -309,15 +309,13 @@
    "ancients": [
     "NEOW"
    ],
-   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/DowsingRod.cs:19-22",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/DowsingRod.cs:19-23",
    "effects": [
     {
      "card_add": "DOWSING"
-    },
-    {
-     "unmodelled": "Dowsing becomes Abundance after entering 5 unknown rooms (Cards/Dowsing.cs:49-63)"
     }
-   ]
+   ],
+   "note": "Dowsing becomes Abundance on entering the 4th unknown room, and that room cannot roll a fight (Cards/Dowsing.cs:50-82); modelled in agent/runmodel.py play() (count from pickup: a live mid-count is not read)"
   },
   "DRIFTWOOD": {
    "title": "Driftwood",
