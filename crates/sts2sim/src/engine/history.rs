@@ -75,18 +75,20 @@ pub struct HistLog {
     pub player_hits_taken: u16,
     pub generated_by_player: u16,
     pub lightning_channeled: u16,
+    /// `CardGeneratedEntry`s with `Creator` = the player and `Card is Sadness` (Anguish).
+    pub sadness_generated_by_player: u16,
 }
 
 impl Default for HistLog {
     fn default() -> Self {
-        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT], ethereal_finished: 0, player_hits_taken: 0, generated_by_player: 0, lightning_channeled: 0 }
+        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT], ethereal_finished: 0, player_hits_taken: 0, generated_by_player: 0, lightning_channeled: 0, sadness_generated_by_player: 0 }
     }
 }
 
 impl HistLog {
     #[inline]
     pub fn copy_from(&mut self, src: &HistLog) {
-        let HistLog { entries, n, total, ethereal_finished, player_hits_taken, generated_by_player, lightning_channeled } = self;
+        let HistLog { entries, n, total, ethereal_finished, player_hits_taken, generated_by_player, lightning_channeled, sadness_generated_by_player } = self;
         let m = (src.n as usize).min(HIST_CAP);
         entries[..m].copy_from_slice(&src.entries[..m]);
         *n = src.n;
@@ -95,6 +97,7 @@ impl HistLog {
         *player_hits_taken = src.player_hits_taken;
         *generated_by_player = src.generated_by_player;
         *lightning_channeled = src.lightning_channeled;
+        *sadness_generated_by_player = src.sadness_generated_by_player;
     }
 
     #[inline]
@@ -105,6 +108,7 @@ impl HistLog {
         self.player_hits_taken = 0;
         self.generated_by_player = 0;
         self.lightning_channeled = 0;
+        self.sadness_generated_by_player = 0;
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &HistEntry> {
@@ -185,6 +189,9 @@ impl Combat {
         let id = self.cards[c as usize].id;
         if by_player && self.in_progress {
             bump(&mut self.hist_log.generated_by_player);
+        }
+        if by_player && id == crate::ids::card::SADNESS && (self.in_progress || self.is_starting) {
+            bump(&mut self.hist_log.sadness_generated_by_player);
         }
         self.hist_push(HKind::CardGenerated, PLAYER, NO, id, c, 0, by_player as u8, 0, 0);
     }

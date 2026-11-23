@@ -439,6 +439,9 @@ pub trait Listener: Sync {
     fn get_result_location_for_card_play(&self, cx: &Combat, me: Me, card: CardIdx, base: CardLocation) -> CardLocation {
         base
     }
+    fn transform_into_after_play(&self) -> (u16, u8) {
+        unreachable!("TRANSFORM_AFTER_PLAY set by a card without a target")
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -631,6 +634,7 @@ pub mod hookbit {
         after_arrow_impaled,
         after_arrow_dislodged,
         modify_pre_block_damage_target,
+        transform_into_after_play,
     );
     const _: () = assert!(COUNT <= 253, "too many hooks: the `meta_*` pseudo bits start at 253");
     pub const meta_initial: u32 = 253;
