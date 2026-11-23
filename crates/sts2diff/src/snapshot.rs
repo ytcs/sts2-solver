@@ -27,6 +27,10 @@ fn powers(cx: &Combat, c: Cid) -> Value {
                 if p.amount_on_turn_start != p.amount {
                     m.insert("amount_on_turn_start".into(), json!(p.amount_on_turn_start));
                 }
+                if p.id == ids::power::IMPALED_POWER {
+                    m.insert("hit_counter".into(), json!(p.aux));
+                    m.insert("arrows".into(), json!(cx.impaled_arrows(c)));
+                }
                 Value::Object(m)
             })
             .collect(),
@@ -199,6 +203,31 @@ pub fn snapshot(cx: &Combat) -> Value {
             ),
         );
         o.insert("orb_capacity".into(), json!(cx.player.orb_slots));
+        if !cx.player.arrows.is_empty() {
+            o.insert(
+                "arrows".into(),
+                Value::Array(
+                    cx.player
+                        .arrows
+                        .iter()
+                        .map(|a| {
+                            json!(match a.status {
+                                ArrowStatus::Retrieved => "Retrieved",
+                                ArrowStatus::Away => "Away",
+                                ArrowStatus::Destroyed => "Destroyed",
+                            })
+                        })
+                        .collect(),
+                ),
+            );
+        }
+        if cx.character == character::FOOL {
+            o.insert(
+                "melody".into(),
+                json!({"wah": cx.melody_played_this_turn(tag::WAH), "cho": cx.melody_played_this_turn(tag::CHO), "ki": cx.melody_played_this_turn(tag::KI),
+                       "cards": cx.melody_cards_played_this_turn()}),
+            );
+        }
         o.insert("hand".into(), pile(cx, &cx.player.hand, true));
         o.insert("draw".into(), pile(cx, &cx.player.draw, false));
         o.insert("discard".into(), pile(cx, &cx.player.discard, false));

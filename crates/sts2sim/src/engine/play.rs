@@ -131,6 +131,7 @@ impl Combat {
         }
         let (energy_to_spend, stars_to_spend) = self.spend_resources(c);
         let play = CardPlay {
+            serial: 0,
             card: c,
             target,
             is_auto: false,
@@ -217,6 +218,7 @@ impl Combat {
             self.player.hand.remove_value(c);
             self.player.play.push(c);
             self.cards[c as usize].pile = PileType::Play as u8;
+            self.note_card_added_to_pile(c);
             self.fire_card_changed_piles(c, PileType::Hand);
         } else {
             self.move_card(c, PileType::Play, CardPilePosition::Bottom);
@@ -263,12 +265,14 @@ impl Combat {
                     if self.is_over_or_ending() || !self.tick() {
                         return self.finish_play(idx);
                     }
-                    let p = ctx.play;
                     let (next, wrapped) = self.play_serial.overflowing_add(1);
                     if wrapped {
                         crate::util::raise_overflow(ov::COUNTER as u32);
                     }
                     self.play_serial = next;
+                    ctx.play.serial = next;
+                    self.play_stack[idx].play.serial = next;
+                    let p = ctx.play;
                     self.dispatch_g(hookbit::before_card_played, |cx, me, l| l.before_card_played(cx, me, &p));
                     self.hist_card_play_started(&p);
                     self.hist.cards_played_this_turn += 1;
@@ -327,8 +331,13 @@ impl Combat {
                         CardType::Skill => self.hist.skills_finished_this_turn += 1,
                         _ => {}
                     }
-                    if self.card_def(c).tags & tag::SHIV != 0 {
+                    let tags = self.card_def(c).tags;
+                    if tags & tag::SHIV != 0 {
                         self.hist.shivs_finished_this_turn += 1;
+                    }
+                    if tags & tag::MELODY != 0 {
+                        self.hist.melody_finished_this_turn |= tags & tag::MELODY;
+                        self.hist.melody_cards_finished_this_turn += 1;
                     }
                     if ethereal != 0 {
                         crate::engine::history::bump(&mut self.hist_log.ethereal_finished);

@@ -99,6 +99,7 @@ public static class Dump
         {
             var o = new JsonObject { ["id"] = p.Id.Entry, ["amount"] = p.Amount };
             if (p.AmountOnTurnStart != p.Amount) o["amount_on_turn_start"] = p.AmountOnTurnStart;
+            if (p is MegaCrit.Sts2.Core.Models.Powers.ImpaledPower ip) { o["hit_counter"] = ip.HitCounter; o["arrows"] = ip.Arrows.Count; }
             a.Add(o);
         }
         return a;
@@ -197,6 +198,22 @@ public static class Dump
         if (pcs != null) foreach (var ob in pcs.OrbQueue.Orbs) orbs.Add(new JsonObject { ["id"] = ob.Id.Entry, ["passive"] = (double)ob.PassiveVal, ["evoke"] = (double)ob.EvokeVal });
         o["orbs"] = orbs;
         o["orb_capacity"] = pcs?.OrbQueue.Capacity;
+        if (pcs != null && pcs.Arrows.Count > 0)
+            o["arrows"] = new JsonArray(pcs.Arrows.Select(a => (JsonNode)a.Status.ToString()).ToArray());
+        if (pcs != null && player.Character is MegaCrit.Sts2.Core.Models.Characters.Fool)
+        {
+            try
+            {
+                o["melody"] = new JsonObject
+                {
+                    ["wah"] = MegaCrit.Sts2.Core.Commands.MelodyCmd.PlayedWahThisTurn(player),
+                    ["cho"] = MegaCrit.Sts2.Core.Commands.MelodyCmd.PlayedChoThisTurn(player),
+                    ["ki"] = MegaCrit.Sts2.Core.Commands.MelodyCmd.PlayedKiThisTurn(player),
+                    ["cards"] = MegaCrit.Sts2.Core.Commands.MelodyCmd.MelodyCardsPlayedThisTurn(player),
+                };
+            }
+            catch { }
+        }
         var relics = new JsonArray();
         foreach (var r in player.Relics)
         {

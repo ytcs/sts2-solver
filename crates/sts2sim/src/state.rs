@@ -12,6 +12,7 @@ pub const MAX_POTIONS: usize = if cfg!(feature = "obs_v4") { 9 } else { 8 };
 pub const MAX_HAND: usize = 10;
 pub const MAX_ORBS: usize = 10;
 pub const MAX_DECK: usize = 80;
+pub const MAX_ARROWS: usize = 8;
 
 pub mod ov {
     pub const CONTAINER: u16 = crate::util::OV_CONTAINER as u16;
@@ -110,6 +111,33 @@ pub struct Card {
     pub dampen_saved: u8,
 }
 pub type PileTypeBits = u8;
+
+/// `ArrowStatus` (Entities/FoolArrows).
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+pub enum ArrowStatus {
+    #[default]
+    Retrieved,
+    Away,
+    Destroyed,
+}
+
+/// `ArrowSlot`. The `ImpaledPower` arrow lists live here: an arrow is in the list of the Impaled instance on
+/// `impaled` (NO = in no list); `seq` orders a list (`RemoveFirstArrow` = lowest); `detached` = the list of an
+/// instance that never attached (`PowerCmd.Apply` refused: the target died to the shot).
+#[derive(Clone, Copy, Debug)]
+pub struct ArrowSlot {
+    pub status: ArrowStatus,
+    pub destroy_after_impaled: bool,
+    pub impaled: Cid,
+    pub detached: bool,
+    pub seq: u16,
+}
+
+impl Default for ArrowSlot {
+    fn default() -> Self {
+        ArrowSlot { status: ArrowStatus::Retrieved, destroy_after_impaled: false, impaled: NO, detached: false, seq: 0 }
+    }
+}
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Orb {
@@ -337,6 +365,8 @@ pub struct PlayerState {
     pub orb_slots: u8,
     pub next_orb_uid: u16,
     pub effect_depth: u8,
+    pub arrows: ArrayVec<ArrowSlot, MAX_ARROWS>,
+    pub arrow_seq: u16,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -451,6 +481,9 @@ pub struct History {
     pub attacks_finished_this_turn: i16,
     pub skills_finished_this_turn: i16,
     pub shivs_finished_this_turn: i16,
+    /// `MelodyCmd`: song tags (`tag::WAH | CHO | KI`) among this turn's finished plays, and the count of finished plays with any.
+    pub melody_finished_this_turn: u16,
+    pub melody_cards_finished_this_turn: i16,
     pub finished_cards: [u64; 3],
     pub play_amounts: ArrayVec<PlayAmount, 32>,
 }
@@ -588,7 +621,7 @@ impl Creature {
 impl PlayerState {
     #[inline]
     pub fn copy_from(&mut self, src: &PlayerState) {
-        let PlayerState { energy, max_energy, stars, turn_number, phase, hand, draw, discard, exhaust, play, relics, potions, potion_slots, orbs, orb_slots, next_orb_uid, effect_depth } = self;
+        let PlayerState { energy, max_energy, stars, turn_number, phase, hand, draw, discard, exhaust, play, relics, potions, potion_slots, orbs, orb_slots, next_orb_uid, effect_depth, arrows, arrow_seq } = self;
         *energy = src.energy;
         *max_energy = src.max_energy;
         *stars = src.stars;
@@ -606,6 +639,8 @@ impl PlayerState {
         *orb_slots = src.orb_slots;
         *next_orb_uid = src.next_orb_uid;
         *effect_depth = src.effect_depth;
+        arrows.copy_from(&src.arrows);
+        *arrow_seq = src.arrow_seq;
     }
 }
 

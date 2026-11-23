@@ -97,12 +97,28 @@ pub mod kw {
     pub const ETERNAL: u8 = 1 << 6;
 }
 
+/// `Combat::character` / `Scenario::character` (sts2diff `convert.rs` maps the game's ids).
+pub mod character {
+    pub const IRONCLAD: u8 = 0;
+    pub const SILENT: u8 = 1;
+    pub const DEFECT: u8 = 2;
+    pub const NECROBINDER: u8 = 3;
+    pub const REGENT: u8 = 4;
+    pub const FOOL: u8 = 5;
+    pub const COUNT: u8 = 6;
+}
+
 pub mod tag {
-    pub const STRIKE: u8 = 1 << 0;
-    pub const DEFEND: u8 = 1 << 1;
-    pub const MINION: u8 = 1 << 2;
-    pub const OSTY_ATTACK: u8 = 1 << 3;
-    pub const SHIV: u8 = 1 << 4;
+    pub const STRIKE: u16 = 1 << 0;
+    pub const DEFEND: u16 = 1 << 1;
+    pub const MINION: u16 = 1 << 2;
+    pub const OSTY_ATTACK: u16 = 1 << 3;
+    pub const SHIV: u16 = 1 << 4;
+    pub const WAH: u16 = 1 << 5;
+    pub const CHO: u16 = 1 << 6;
+    pub const KI: u16 = 1 << 7;
+    pub const SHOOT: u16 = 1 << 8;
+    pub const MELODY: u16 = WAH | CHO | KI;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -114,6 +130,7 @@ impl ValueProp {
     pub const UNPOWERED: ValueProp = ValueProp(4);
     pub const MOVE: ValueProp = ValueProp(8);
     pub const SKIP_HURT_ANIM: ValueProp = ValueProp(0x10);
+    pub const FROM_ARROW: ValueProp = ValueProp(0x20);
 
     #[inline(always)]
     pub const fn or(self, o: ValueProp) -> ValueProp {
