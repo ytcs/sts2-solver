@@ -594,6 +594,8 @@ pub struct Combat {
     pub cur_power_card: CardIdx,
     pub auto_select: bool,
     pub held_deaths: u16,
+    /// `RunState.TotalFloor` (The Tower).
+    pub total_floor: i32,
 }
 
 impl Creature {
@@ -727,6 +729,7 @@ impl Clone for Combat {
             cur_power_card,
             auto_select,
             held_deaths,
+            total_floor,
         } = self;
         *character = src.character;
         *ascension = src.ascension;
@@ -814,6 +817,7 @@ impl Clone for Combat {
         *cur_power_card = src.cur_power_card;
         *auto_select = src.auto_select;
         *held_deaths = src.held_deaths;
+        *total_floor = src.total_floor;
     }
 }
 

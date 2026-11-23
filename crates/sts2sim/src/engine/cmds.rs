@@ -30,7 +30,7 @@ impl Combat {
     }
 
     pub fn get_distinct_for_combat(&mut self, pool: &[u16], count: usize, extra: impl Fn(&crate::defs::CardDef) -> bool) -> ArrayVec<CardIdx, 16> {
-        let mut list: ArrayVec<u16, 256> = ArrayVec::new();
+        let mut list: ArrayVec<u16, 512> = ArrayVec::new();
         for &id in pool {
             let d = crate::content::card_def(id);
             if !d.multiplayer_only && extra(d) && d.can_be_generated_in_combat
@@ -64,7 +64,7 @@ impl Combat {
     }
 
     pub fn get_for_combat_where(&mut self, pool: &[u16], count: usize, extra: impl Fn(&crate::defs::CardDef) -> bool) -> ArrayVec<CardIdx, 16> {
-        let mut list: ArrayVec<u16, 256> = ArrayVec::new();
+        let mut list: ArrayVec<u16, 512> = ArrayVec::new();
         for &id in pool {
             let d = crate::content::card_def(id);
             if !d.multiplayer_only && extra(d) && d.can_be_generated_in_combat && !matches!(d.rarity, CardRarity::Basic | CardRarity::Ancient | CardRarity::Event) {
