@@ -27,7 +27,8 @@ listener!(SlipperyPower {
 listener!(ConstrictPower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_side(cx, me, side) {
-            let amount = cx.power_amount(me.owner, me.id);
+            // still called (with its last Amount) when its applier's death removed it earlier in this hook pass
+            let amount = cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount);
             cx.damage(&[me.owner], Dec::int(amount as i64), ValueProp::UNPOWERED, me.owner, NO);
         }
     }
