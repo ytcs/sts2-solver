@@ -12,7 +12,7 @@ pub const MAX_POTIONS: usize = if cfg!(feature = "obs_v4") { 9 } else { 8 };
 pub const MAX_HAND: usize = 10;
 pub const MAX_ORBS: usize = 10;
 pub const MAX_DECK: usize = 80;
-pub const MAX_ARROWS: usize = 8;
+pub const MAX_ARROWS: usize = 24; // the game has no cap; only Quiver plays (and their copies) add slots
 
 pub mod ov {
     pub const CONTAINER: u16 = crate::util::OV_CONTAINER as u16;
