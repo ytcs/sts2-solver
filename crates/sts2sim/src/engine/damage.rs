@@ -174,6 +174,22 @@ impl Combat {
         }
     }
 
+    // Hook.ModifyPreBlockDamageTarget: no IterateCombatHookListeners guard; NO = no redirect (null).
+    fn modify_pre_block_damage_target(&self, original: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
+        if !self.listen.has(hookbit::modify_pre_block_damage_target) {
+            return NO;
+        }
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::modify_pre_block_damage_target), &mut snap);
+        let mut t = NO;
+        for e in snap.iter() {
+            if self.still_live(&e.me) {
+                t = content::listener(&e.me).modify_pre_block_damage_target(self, e.me, original, t, amount, props, dealer);
+            }
+        }
+        t
+    }
+
     fn modify_unblocked_damage_target(&self, target: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
         if !self.listen.has(hookbit::modify_unblocked_damage_target) {
             return target;
@@ -217,6 +233,14 @@ impl Combat {
                 l.before_damage_received(cx, me, t, modified, props, dealer)
             });
             let block_owner = if self.cr(t).is_pet && self.cr(t).owner != NO { self.cr(t).owner } else { t };
+            let pre_block = self.modify_pre_block_damage_target(t, amount, props, dealer);
+            let mut modified = modified;
+            if pre_block != NO {
+                let res = self.lose_hp_internal(pre_block, modified);
+                results.push(res);
+                self.hist_damage_received(res, dealer, card, props);
+                modified = Dec::int(res.overkill as i64);
+            }
             let blocked = self.damage_block_internal(block_owner, modified, props);
             mods.clear();
             let unblocked = self.modify_hp_lost(t, (modified - blocked).max(Dec::ZERO), props, dealer, card, false, &mut mods);

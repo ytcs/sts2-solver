@@ -316,6 +316,9 @@ pub trait Listener: Sync {
     fn modify_unblocked_damage_target(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
         target
     }
+    fn modify_pre_block_damage_target(&self, cx: &Combat, me: Me, original_target: Cid, target: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
+        target
+    }
     fn modify_x_value(&self, cx: &Combat, me: Me, card: CardIdx, value: i32) -> i32 {
         value
     }
@@ -615,6 +618,7 @@ pub mod hookbit {
         after_gold_gained,
         calculated_value,
         should_take_extra_turn_early,
+        modify_pre_block_damage_target,
     );
     const _: () = assert!(COUNT <= 253, "too many hooks: the `meta_*` pseudo bits start at 253");
     pub const meta_initial: u32 = 253;

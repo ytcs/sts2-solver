@@ -18,6 +18,14 @@ pub fn compare(path: &str, rust: &Value, oracle: &Value, out: &mut Vec<String>) 
             if let (Some(ov), None) = (o.get("affliction"), r.get("affliction")) {
                 out.push(format!("{path}.affliction: missing in rust (oracle = {ov})"));
             }
+            // relic saved state and counters are part of the fight state: every key the oracle shows must be modelled
+            if path.contains(".relics[") {
+                for (k, ov) in o {
+                    if !r.contains_key(k) {
+                        out.push(format!("{path}.{k}: missing in rust (oracle = {ov})"));
+                    }
+                }
+            }
         }
         (Value::Array(r), Value::Array(o)) => {
             if r.len() != o.len() {
