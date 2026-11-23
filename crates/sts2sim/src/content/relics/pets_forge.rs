@@ -87,6 +87,10 @@ listener!(PaelsLegion {
         if !q.props.has(ValueProp::MOVE) || q.card == NO || cx.rel(me).counter > 0 {
             return Dec::ONE;
         }
+        let aux = cx.rel(me).aux;
+        if aux != 0 && cx.play_stack.iter().rev().find(|c| c.play.card == q.card).map(|c| play_ident(q.card, c.play.play_index)) != Some(aux) {
+            return Dec::ONE;
+        }
         Dec::int(2)
     }
     fn after_modifying_block_amount(&self, cx: &mut Combat, me: Me, modified: Dec, card: CardIdx) {

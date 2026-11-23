@@ -157,6 +157,8 @@ impl Combat {
         if self.n_cards as usize >= MAX_CARDS {
             return None;
         }
+        // CardModel.CreateClone clones a dupe's original
+        let c = if self.cards[c as usize].flags & cflag::IS_DUPE != 0 && self.cards[c as usize].dupe_of != NO { self.cards[c as usize].dupe_of } else { c };
         let idx = self.n_cards as CardIdx;
         self.n_cards += 1;
         let mut copy = self.cards[c as usize];
@@ -247,17 +249,16 @@ impl Combat {
         }
         let forced = min == max && cands.len() <= min as usize;
         if pile == PileType::Draw && !forced {
-            let cards = &self.cards;
-            let key = |c: &CardIdx| {
-                let id = cards[*c as usize].id;
-                (crate::content::card_def(id).rarity, id)
+            // orderby x.Rarity, x (stable; x = CardModel.CompareTo)
+            let gt = |a: CardIdx, b: CardIdx| {
+                let (ra, rb) = (self.card_def(a).rarity, self.card_def(b).rarity);
+                ra > rb || (ra == rb && self.card_cmp(&a, &b) > 0)
             };
             let sl = cands.as_mut_slice();
             for i in 1..sl.len() {
                 let x = sl[i];
-                let kx = key(&x);
                 let mut j = i;
-                while j > 0 && key(&sl[j - 1]) > kx {
+                while j > 0 && gt(sl[j - 1], x) {
                     sl[j] = sl[j - 1];
                     j -= 1;
                 }

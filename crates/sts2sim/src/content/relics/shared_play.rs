@@ -329,25 +329,11 @@ listener!(VelvetChoker {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount + Dec::int(g::velvet_choker::ENERGY as i64)
     }
-    fn should_play(&self, cx: &Combat, me: Me, _card: CardIdx) -> bool {
-        cx.rel(me).counter < g::velvet_choker::CARDS
+    fn should_play(&self, cx: &Combat, _me: Me, _card: CardIdx) -> bool {
+        (cx.plays_this_turn(|_| true) as i32) < g::velvet_choker::CARDS
     }
-    fn after_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
-        cx.rel_mut(me).counter += 1;
-    }
-    fn after_room_entered(&self, cx: &mut Combat, me: Me) {
-        cx.rel_mut(me).counter = 0;
-    }
-    fn after_combat_end(&self, cx: &mut Combat, me: Me) {
-        cx.rel_mut(me).counter = 0;
-    }
-    fn before_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
-        if side == Side::Player {
-            cx.rel_mut(me).counter = 0;
-        }
-    }
-    fn meta_display(&self, cx: &Combat, r: &Relic) -> Option<i32> {
-        cx.in_progress.then(|| r.counter)
+    fn meta_display(&self, cx: &Combat, _r: &Relic) -> Option<i32> {
+        cx.in_progress.then(|| cx.plays_this_turn(|_| true) as i32)
     }
 });
 
