@@ -99,23 +99,27 @@ listener!(GunkUp {
     }
 });
 
+/// Energy spent this turn, minus what the card's own unfinished play spent.
+fn helix_spent(cx: &Combat, card: CardIdx) -> i32 {
+    if cx.card_pile_type(card) == PileType::None {
+        return 0;
+    }
+    let mut spent: i32 = cx.hist_log.iter().filter(|e| e.kind == HKind::EnergySpent && cx.hist_this_turn(e)).map(|e| e.val as i32).sum();
+    if let Some(ctx) = cx.play_stack.iter().rev().find(|ctx| ctx.play.card == card) {
+        spent -= ctx.play.energy_spent;
+    }
+    spent
+}
+
 listener!(HelixDrill {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let mut spent: i32 = cx.hist_log.iter().filter(|e| e.kind == HKind::EnergySpent && cx.hist_this_turn(e)).map(|e| e.val as i32).sum();
-        if cx.card_pile_type(p.card) == PileType::Play {
-            spent -= cx.card_cost(p.card, true);
-        }
-        let hits = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * spent;
+        let hits = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * helix_spent(cx, p.card);
         attack_hits(cx, p, hits);
         Flow::Done
     }
     fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
         let _ = target;
-        let mut spent: i32 = cx.hist_log.iter().filter(|e| e.kind == HKind::EnergySpent && cx.hist_this_turn(e)).map(|e| e.val as i32).sum();
-        if cx.card_pile_type(card) == PileType::Play {
-        spent -= cx.card_cost(card, true);
-        }
-        Some(crate::engine::calc_extra_with(cx, card, spent))
+        Some(crate::engine::calc_extra_with(cx, card, helix_spent(cx, card)))
     }
 });
 

@@ -77,7 +77,7 @@ listener!(BrightestFlame {
         let n = cx.card_var(p.card, VarKind::Cards);
         cx.draw_cards_nosuspend(n, false);
         let m = cx.card_var(p.card, VarKind::MaxHp);
-        cx.lose_max_hp(PLAYER, Dec::int(m as i64), true);
+        cx.lose_max_hp(PLAYER, Dec::int(m as i64), p.card);
         Flow::Done
     }
 });

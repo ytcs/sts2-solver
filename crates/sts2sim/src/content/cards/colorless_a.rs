@@ -405,7 +405,8 @@ listener!(Omnislice {
             }
             if !others.is_empty() {
                 let total = r.blocked + r.unblocked + r.overkill;
-                let rest = cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
+                let mut rest = crate::engine::Results::new();
+                cx.damage_into_kinds(others.as_slice(), Dec::int(total as i64), ValueProp::MOVE, PLAYER, p.card, &mut rest, crate::engine::DMG_HOOK_CAP);
                 for r in rest.iter() {
                     if hit_results.len() < 16 {
                         hit_results.push(*r);

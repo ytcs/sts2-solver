@@ -181,15 +181,18 @@ impl Combat {
         self.heal(c, Dec::int(delta as i64));
     }
 
-    pub fn lose_max_hp(&mut self, c: Cid, amount: Dec, is_from_card: bool) {
+    /// `CreatureCmd.LoseMaxHp`; `card` is the card source (NO = none), whose owner deals the HP loss.
+    pub fn lose_max_hp(&mut self, c: Cid, amount: Dec, card: CardIdx) {
         let new_max = Dec::int(self.cr(c).max_hp as i64) - amount;
         let hp = Dec::int(self.cr(c).hp() as i64);
         if new_max < hp {
             let mut props = ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED);
-            if is_from_card {
+            let mut dealer = NO;
+            if card != NO {
                 props = props.or(ValueProp::MOVE);
+                dealer = PLAYER;
             }
-            self.damage(&[c], hp - new_max, props, NO, NO);
+            self.damage(&[c], hp - new_max, props, dealer, card);
         }
         self.set_max_hp(c, new_max.max(Dec::ONE));
     }

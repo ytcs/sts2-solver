@@ -41,8 +41,8 @@ listener!(IntangiblePower {
 });
 
 listener!(BufferPower {
-    fn modify_hp_lost_after_osty_late(&self, _cx: &Combat, me: Me, target: Cid, amount: Dec, _props: ValueProp, _dealer: Cid, _card: CardIdx) -> Dec {
-        if target != me.owner {
+    fn modify_hp_lost_after_osty_late(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, _props: ValueProp, _dealer: Cid, card: CardIdx) -> Dec {
+        if target != me.owner || (card != NO && cx.cards[card as usize].id == ids::card::BRIGHTEST_FLAME) {
             return amount;
         }
         Dec::ZERO

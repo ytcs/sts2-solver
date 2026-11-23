@@ -471,6 +471,7 @@ listener!(Nightmare {
                 if let Some(clone) = cx.clone_card(sel) {
                     cx.cards[clone as usize].affliction = 0;
                     cx.cards[clone as usize].affliction_amount = 0;
+                    cx.card_end_of_turn_cleanup(clone);
                     if let Some(i) = cx.power_idx(PLAYER, uid) {
                         cx.cr_mut(PLAYER).powers[i].aux = clone as i32 + 1;
                     }

@@ -661,8 +661,9 @@ impl Combat {
         use crate::ids::power as pw;
         let a = p.aux;
         match p.id {
-            pw::THE_BOMB_POWER | pw::CRIMSON_MANTLE_POWER | pw::INFERNO_POWER | pw::THIEVERY_POWER | pw::DARK_EMBRACE_POWER | pw::JUGGLING_POWER
+            pw::THE_BOMB_POWER | pw::CRIMSON_MANTLE_POWER | pw::INFERNO_POWER | pw::THIEVERY_POWER | pw::DARK_EMBRACE_POWER
             | pw::STAMPEDE_POWER => (a as f32, (0, 0)),
+            pw::JUGGLING_POWER => ((a & 0xFFFF) as f32, (0, 0)),
             pw::TORIC_TOUGHNESS_POWER => (a as f32 / 4.0, (0, 0)),
             pw::POSSESS_STRENGTH_POWER | pw::POSSESS_SPEED_POWER => (-(a as f32), (0, 0)),
             pw::VOID_FORM_POWER => ((p.amount as i64 - a as i64).max(0) as f32, (0, 0)),
