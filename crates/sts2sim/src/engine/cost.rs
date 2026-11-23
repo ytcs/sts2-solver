@@ -20,9 +20,23 @@ impl Combat {
             }
         }
         if card.mods.len() >= 4 {
-            card.mods.remove(0);
+            // adjacent plain relative mods with one expiry are a single sum (an expired absolute between them left them apart)
+            let mut i = 0;
+            while i + 1 < card.mods.len() {
+                let (a, b) = (card.mods[i], card.mods[i + 1]);
+                if a.relative() && b.relative() && !a.reduce_only() && !b.reduce_only() && a.expire() == b.expire() && (a.amount as i32 + b.amount as i32).abs() < 100 {
+                    card.mods[i].amount += b.amount;
+                    card.mods.remove(i + 1);
+                } else {
+                    i += 1;
+                }
+            }
         }
-        card.mods.push(m);
+        if card.mods.len() >= 4 {
+            self.overflow |= crate::state::ov::CONTAINER;
+            return;
+        }
+        self.cards[c as usize].mods.push(m);
     }
 
     fn cost_guard_set(&self, c: CardIdx, amount: i32) -> bool {
