@@ -27,13 +27,19 @@ impl Combat {
                 if a.relative() && b.relative() && !a.reduce_only() && !b.reduce_only() && a.expire() == b.expire() && (a.amount as i32 + b.amount as i32).abs() < 100 {
                     card.mods[i].amount += b.amount;
                     card.mods.remove(i + 1);
+                } else if !a.relative() && !b.relative() && a.reduce_only() == b.reduce_only() && a.expire() == b.expire() {
+                    // two sets that lapse together: the later wins; reduce-only sets compose to the lower one
+                    if !b.reduce_only() || b.amount < a.amount {
+                        card.mods[i].amount = b.amount;
+                    }
+                    card.mods.remove(i + 1);
                 } else {
                     i += 1;
                 }
             }
         }
         if card.mods.len() >= 4 {
-            self.overflow |= crate::state::ov::CONTAINER;
+            crate::util::raise_overflow(crate::util::OV_CONTAINER);
             return;
         }
         self.cards[c as usize].mods.push(m);
