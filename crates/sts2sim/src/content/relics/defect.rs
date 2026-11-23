@@ -1,3 +1,4 @@
+use crate::content::gen_relics as g;
 use crate::dec::Dec;
 use crate::engine::HKind;
 use crate::hooks::*;
@@ -60,10 +61,13 @@ listener!(Metronome {
     fn after_orb_channeled(&self, cx: &mut Combat, me: Me, _orb: &Orb) {
         let i = me.idx as usize;
         cx.player.relics[i].counter += 1;
-        if cx.player.relics[i].counter == 7 {
+        if cx.player.relics[i].counter == g::metronome::ORB_COUNT {
             let targets = cx.hittable_enemies();
-            cx.damage(targets.as_slice(), Dec::int(30), ValueProp::UNPOWERED, PLAYER, NO);
+            cx.damage(targets.as_slice(), Dec::int(g::metronome::DAMAGE as i64), ValueProp::UNPOWERED, PLAYER, NO);
         }
+    }
+    fn meta_display(&self, cx: &Combat, r: &Relic) -> Option<i32> {
+        (cx.in_progress && r.counter < g::metronome::ORB_COUNT).then_some(r.counter)
     }
 });
 

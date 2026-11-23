@@ -532,7 +532,8 @@ pub struct Combat {
     pub outcome: Outcome,
 
     pub creatures: [Creature; MAX_CREATURES],
-    pub allies: ArrayVec<Cid, 4>,
+    // player, Osty, Byrdpip/Byrdine, Wuppy, Pael's Legion
+    pub allies: ArrayVec<Cid, 6>,
     pub enemies: ArrayVec<Cid, MAX_CREATURES>,
     pub next_power_uid: u16,
     pub listen: Mask,

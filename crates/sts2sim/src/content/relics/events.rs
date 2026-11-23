@@ -57,6 +57,18 @@ listener!(Thumbscrew {
     }
 });
 
+// Touch of Orobas upgrade of Song Bow.
+listener!(Storyteller {
+    fn after_room_entered(&self, cx: &mut Combat, _me: Me) {
+        cx.apply_power(ids::power::AIM_POWER, PLAYER, Dec::int(g::storyteller::AIM_POWER as i64), PLAYER, NO);
+    }
+    fn before_side_turn_end(&self, cx: &mut Combat, _me: Me, side: Side) {
+        if side == Side::Player {
+            cx.apply_power(ids::power::AIM_POWER, PLAYER, Dec::int(g::storyteller::END_OF_TURN_AIM as i64), PLAYER, NO);
+        }
+    }
+});
+
 listener!(TormentousCollar {
     fn before_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
         if cx.room_type == 1 && side == Side::Player && cx.turn_number() <= 1 {

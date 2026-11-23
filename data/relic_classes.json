@@ -332,7 +332,7 @@
     "AfterObtained",
     "BeforeCombatStart"
    ],
-   "note": "AfterObtained: Byrd Swoop -> God Byrd (Byrdpip's Evolve rest option); BeforeCombatStart pet ByrdineMonster"
+   "note": "AfterObtained: Byrd Swoop -> God Byrd (Byrdpip's Evolve rest option); BeforeCombatStart pet ByrdineMonster (God Byrd's attack animation only); sim pets_forge.rs"
   },
   "BYRDPIP": {
    "class": "card_linked",
@@ -340,10 +340,12 @@
     "combat"
    ],
    "hooks": [
+    "AfterCardPlayed",
     "AfterObtained",
-    "BeforeCombatStart"
+    "BeforeCombatStart",
+    "TryModifyRestSiteOptions"
    ],
-   "note": "AfterObtained: Byrdonis Egg -> Byrd Swoop (always, hatched from egg); BeforeCombatStart pet (sim pets_forge)"
+   "note": "AfterObtained: Byrdonis Egg -> Byrd Swoop (always, hatched from egg); BeforeCombatStart pet; AfterCardPlayed counts Byrd Swoops (saved SwoopsPlayed, 6 unlock Evolve); sim pets_forge.rs"
   },
   "CALLING_BELL": {
    "class": "card_linked",
@@ -2052,7 +2054,7 @@
     "AfterRoomEntered",
     "BeforeSideTurnEnd"
    ],
-   "note": "Storyteller.cs: Fool starter (Aim); not ported"
+   "note": "Storyteller.cs: Touch of Orobas upgrade of Song Bow (Fool only); Aim at combat start and turn end; sim events.rs (needs AimPower, Fool port)"
   },
   "STRAWBERRY": {
    "class": "macro_only",
@@ -2431,7 +2433,7 @@
     "BeforeCombatStart",
     "TryModifyRestSiteOptions"
    ],
-   "note": "BeforeCombatStart pet Wuppy absorbing attack damage (HP 30/60 from the event, carried between fights); TryModifyRestSiteOptions: Restore"
+   "note": "BeforeCombatStart pet Wuppy (WuppysLoyaltyPower: ModifyPreBlockDamageTarget takes powered attacks on the player before block); saved CurrentHp/MaxHp (30/60 from Wuppy in Trouble) carried between fights; TryModifyRestSiteOptions: Restore; sim pets_forge.rs"
   },
   "YUMMY_COOKIE": {
    "class": "macro_only",

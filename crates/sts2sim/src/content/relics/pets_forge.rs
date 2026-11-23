@@ -24,8 +24,52 @@ listener!(Byrdpip {
     fn before_combat_start(&self, cx: &mut Combat, _me: Me) {
         cx.add_pet(ids::monster::BYRDPIP, 9999);
     }
+    fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
+        if cx.cards[play.card as usize].id == ids::card::BYRD_SWOOP && cx.rel(me).counter < g::byrdpip::REPEAT {
+            cx.rel_mut(me).counter += 1;
+        }
+    }
     fn meta_props(&self) -> &'static [PropDef] {
-        relic_props![PropDef::constant("Skin", "\"version1\"")]
+        relic_props![PropDef::int("SwoopsPlayed", Slot::Counter), PropDef::constant("Skin", "\"version1\"")]
+    }
+    fn meta_display(&self, _cx: &Combat, r: &Relic) -> Option<i32> {
+        Some(r.counter.min(g::byrdpip::REPEAT))
+    }
+});
+
+listener!(Byrdine {
+    fn before_combat_start(&self, cx: &mut Combat, _me: Me) {
+        cx.add_pet(ids::monster::BYRDINE_MONSTER, 9999);
+    }
+    fn meta_props(&self) -> &'static [PropDef] {
+        relic_props![PropDef::constant("Hair", "\"hair/v1\"")]
+    }
+});
+
+fn combat_wuppy(cx: &Combat) -> Option<Cid> {
+    cx.allies.iter().copied().find(|&c| cx.cr(c).is_pet && cx.cr(c).monster.id == ids::monster::WUPPY)
+}
+// CurrentHp = counter, MaxHp = aux. The pet takes powered attacks aimed at the player before block (WuppysLoyaltyPower).
+listener!(Wuppy {
+    fn before_combat_start(&self, cx: &mut Combat, me: Me) {
+        let (lo, _) = (crate::content::monster_def(ids::monster::WUPPY).hp)(cx.ascension);
+        let Some(w) = cx.add_pet(ids::monster::WUPPY, lo) else { return };
+        cx.apply_power(ids::power::WUPPYS_LOYALTY_POWER, w, Dec::ONE, NO, NO);
+        let (cur, max) = (cx.rel(me).counter, cx.rel(me).aux);
+        cx.set_max_hp(w, Dec::int(max as i64));
+        cx.set_current_hp(w, Dec::int(cur as i64));
+    }
+    fn after_current_hp_changed(&self, cx: &mut Combat, me: Me, creature: Cid, _delta: i32) {
+        if combat_wuppy(cx) == Some(creature) {
+            let hp = cx.cr(creature).hp();
+            cx.rel_mut(me).counter = hp;
+        }
+    }
+    fn meta_props(&self) -> &'static [PropDef] {
+        relic_props![PropDef::int("CurrentHp", Slot::Counter), PropDef::int("MaxHp", Slot::Aux)]
+    }
+    fn meta_display(&self, _cx: &Combat, r: &Relic) -> Option<i32> {
+        Some(r.counter)
     }
 });
 

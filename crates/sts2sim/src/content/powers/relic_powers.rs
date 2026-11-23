@@ -5,6 +5,27 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
+listener!(WuppysLoyaltyPower {
+    fn modify_pre_block_damage_target(&self, cx: &Combat, me: Me, original_target: Cid, target: Cid, _amount: Dec, props: ValueProp, _dealer: Cid) -> Cid {
+        if !cx.cr(me.owner).is_pet || original_target != cx.cr(me.owner).owner {
+            return target;
+        }
+        if cx.cr(me.owner).is_dead() || !props.is_powered() {
+            return target;
+        }
+        me.owner
+    }
+    fn should_allow_hitting(&self, cx: &Combat, _me: Me, creature: Cid) -> bool {
+        cx.cr(creature).is_alive()
+    }
+    fn should_creature_be_removed_from_combat_after_death(&self, _cx: &Combat, me: Me, creature: Cid) -> bool {
+        creature != me.owner
+    }
+    fn should_power_be_removed_after_owner_death(&self, _cx: &Combat, _me: Me) -> bool {
+        false
+    }
+});
+
 listener!(SelfFormingClayPower {
     fn after_block_cleared(&self, cx: &mut Combat, me: Me, creature: Cid) {
         if creature == me.owner {

@@ -222,7 +222,7 @@ listener!(FishingRod {
         if cx.rel(me).counter % g::fishing_rod::COMBATS == 0 {
             let n = cx.deck_upgradable_count() as i32;
             if n > 0 {
-                cx.rng.niche.next_int_range(0, n);
+                cx.rng.non_combat_generation.next_int_range(0, n);
             }
         }
     }
@@ -241,7 +241,7 @@ listener!(WarHammer {
         }
         let n = cx.deck_upgradable_count();
         let mut dummy = [0u8; 128];
-        cx.rng.niche.shuffle(&mut dummy[..n]);
+        cx.rng.non_combat_generation.shuffle(&mut dummy[..n]);
     }
 });
 
