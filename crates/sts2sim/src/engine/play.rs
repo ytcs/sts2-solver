@@ -239,6 +239,7 @@ impl Combat {
             return RunResult::Finished;
         }
         self.player.effect_depth += 1;
+        self.cards[c as usize].flags &= !cflag::TRANSFORM_AFTER_PLAY;
         self.play_stack.push(PlayCtx { play, step: PlayStep::Before, count: count.clamp(0, 255) as u8, result: loc, hook_resume: None });
         let idx = self.play_stack.len() - 1;
         self.run_play_at(idx)
@@ -352,6 +353,15 @@ impl Combat {
                         }
                         self.dispatch_u(hookbit::after_card_played_late, |cx, me, l| l.after_card_played_late(cx, me, &p));
                         if self.cr(PLAYER).is_dead() {
+                            return self.finish_play(idx);
+                        }
+                    }
+                    if self.cards[c as usize].flags & cflag::TRANSFORM_AFTER_PLAY != 0 {
+                        let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
+                        let into = content::listener(&me).transform_into_after_play();
+                        if let Some(&n) = self.transform_cards(&[c], &[Some(into)]).as_slice().first() {
+                            self.cards[c as usize].flags &= !cflag::TRANSFORM_AFTER_PLAY;
+                            self.play_stack[idx].play.card = n;
                             return self.finish_play(idx);
                         }
                     }

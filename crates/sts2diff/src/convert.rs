@@ -155,6 +155,7 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
             let named: &[&str] = match id {
                 ids::card::GENETIC_ALGORITHM => &["IncreasedBlock"],
                 ids::card::THE_SCYTHE => &["IncreasedDamage"],
+                ids::card::SHOW_OFF => &["IncreasedAim"],
                 _ => &[],
             };
             let vals: Vec<&Value> = if named.is_empty() { p.values().collect() } else { named.iter().filter_map(|k| p.get(*k)).collect() };

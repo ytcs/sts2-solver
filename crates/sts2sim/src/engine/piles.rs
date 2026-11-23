@@ -336,6 +336,10 @@ impl Combat {
             return 0;
         }
         let d = self.card_def(*a);
+        // Show Off: "AimPower" (BaseAim + IncreasedAim) is its first var key in ordinal order.
+        if d.id == crate::ids::card::SHOW_OFF && ca.counter[0] != cb.counter[0] {
+            return (ca.counter[0] as i32 - cb.counter[0] as i32).signum();
+        }
         if d.vars.iter().any(|v| v.kind == crate::defs::VarKind::Block) {
             let (x, y) = (self.card_var(*a, crate::defs::VarKind::Block), self.card_var(*b, crate::defs::VarKind::Block));
             if x != y {
