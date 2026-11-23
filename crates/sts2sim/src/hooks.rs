@@ -627,10 +627,10 @@ pub mod hookbit {
         after_gold_gained,
         calculated_value,
         should_take_extra_turn_early,
-        modify_pre_block_damage_target,
         after_arrow_shot,
         after_arrow_impaled,
         after_arrow_dislodged,
+        modify_pre_block_damage_target,
     );
     const _: () = assert!(COUNT <= 253, "too many hooks: the `meta_*` pseudo bits start at 253");
     pub const meta_initial: u32 = 253;
