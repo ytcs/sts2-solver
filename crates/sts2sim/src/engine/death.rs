@@ -17,6 +17,11 @@ impl Combat {
     }
 
     pub fn kill_ex(&mut self, victims: &[Cid], force: bool) {
+        self.kill_src(victims, NO, force);
+    }
+
+    /// `CreatureCmd.Kill(creatures, cardSource, force)`: `AfterDeath` listeners read `cardSource` from `cx.dmg_card`.
+    pub fn kill_src(&mut self, victims: &[Cid], card: CardIdx, force: bool) {
         if victims.is_empty() {
             return;
         }
@@ -25,14 +30,14 @@ impl Combat {
             list.push(v);
         }
         for &v in list.iter() {
-            self.kill_without_check(v, force, 0);
+            self.kill_without_check(v, card, force, 0);
         }
         if self.cr(PLAYER).is_dead() && self.in_progress {
             self.lose_combat();
         }
     }
 
-    fn kill_without_check(&mut self, c: Cid, force: bool, recursion: u8) {
+    fn kill_without_check(&mut self, c: Cid, card: CardIdx, force: bool, recursion: u8) {
         if !self.cr(c).in_combat && c != PLAYER {
             return;
         }
@@ -54,7 +59,10 @@ impl Combat {
             {
                 self.held_deaths = self.held_deaths.saturating_add(1);
             }
-            self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c, false));
+            self.dispatch_u(hookbit::after_death, |cx, me, l| {
+                cx.dmg_card = card;
+                l.after_death(cx, me, c, false)
+            });
             let side = self.cr(c).side;
             let mut teammates: ArrayVec<Cid, MAX_CREATURES> = ArrayVec::new();
             let pool: ArrayVec<Cid, MAX_CREATURES> = {
@@ -81,7 +89,7 @@ impl Combat {
             }
             if side == Side::Enemy {
                 if is_primary && !teammates.is_empty() && teammates.iter().all(|&t| !self.is_primary_enemy(t)) {
-                    self.kill(teammates.as_slice());
+                    self.kill_src(teammates.as_slice(), card, false);
                 }
             } else if c == PLAYER {
                 self.player.orbs.clear();
@@ -95,14 +103,17 @@ impl Combat {
             }
         } else {
             assert!(recursion < 10, "Combat is ending, but something is continually preventing the last creature from being killed!");
-            self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c, true));
+            self.dispatch_u(hookbit::after_death, |cx, me, l| {
+                cx.dmg_card = card;
+                l.after_death(cx, me, c, true)
+            });
             if let Some(p) = preventer {
                 if self.still_live(&p) {
                     content::listener(&p).after_preventing_death(self, p, c);
                 }
             }
             if self.cr(c).is_dead() {
-                self.kill_without_check(c, force, recursion + 1);
+                self.kill_without_check(c, card, force, recursion + 1);
             }
         }
     }

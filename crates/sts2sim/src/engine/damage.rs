@@ -300,7 +300,7 @@ impl Combat {
             let mut v = [0u8; 32];
             let n = killed.len();
             v[..n].copy_from_slice(killed.as_slice());
-            self.kill(&v[..n]);
+            self.kill_src(&v[..n], card, false);
         }
     }
 

@@ -40,7 +40,8 @@ listener!(ImpaledPower {
         if creature != me.owner || a == NO || cx.cr(a).is_dead() {
             return;
         }
-        cx.dislodge_all_arrows(me.owner, me.idx, NO);
+        let source = cx.dmg_card;
+        cx.dislodge_all_arrows(me.owner, me.idx, source);
         cx.remove_power(me.owner, me.idx);
     }
 });
