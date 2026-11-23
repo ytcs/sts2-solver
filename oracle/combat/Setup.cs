@@ -86,7 +86,7 @@ public static class Setup
         var player = Player.FromSerializable(sp);
 
         var acts = ActModel.GetDefaultList();
-        var run = RunState.CreateForTest(new List<Player> { player }, acts, null, GameMode.Standard, sc.Ascension, sc.Seed);
+        var run = RunState.CreateForTest(new List<Player> { player }, acts, null, GameMode.Standard, false, sc.Ascension, sc.Seed);
         if (sc.Act != 0) run.CurrentActIndex = sc.Act;
         run.Map = new MockSinglePointActMap();
 

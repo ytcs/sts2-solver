@@ -162,7 +162,7 @@ public static class Patches
             Func<Task> M(string name) => (Func<Task>)AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.Trial), name).CreateDelegate(typeof(Func<Task>), ev);
             MegaCrit.Sts2.Core.Events.EventOption O(string m, string key, IEnumerable<MegaCrit.Sts2.Core.HoverTips.IHoverTip> tips) => new(ev, M(m), key, tips);
             var none = Array.Empty<MegaCrit.Sts2.Core.HoverTips.IHoverTip>();
-            var tip = MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.FromCardWithCardHoverTips<MegaCrit.Sts2.Core.Models.Cards.Regret>;
+            IEnumerable<MegaCrit.Sts2.Core.HoverTips.IHoverTip> tip() => MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.FromCardWithCardHoverTips<MegaCrit.Sts2.Core.Models.Cards.Regret>();
             string entry;
             MegaCrit.Sts2.Core.Events.EventOption[] opts;
             switch (ev.Rng.NextInt(3))
@@ -178,7 +178,7 @@ public static class Patches
                     break;
                 default:
                     entry = "TRIAL.pages.NONDESCRIPT.description";
-                    var doubt = MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.FromCardWithCardHoverTips<MegaCrit.Sts2.Core.Models.Cards.Doubt>;
+                    IEnumerable<MegaCrit.Sts2.Core.HoverTips.IHoverTip> doubt() => MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.FromCardWithCardHoverTips<MegaCrit.Sts2.Core.Models.Cards.Doubt>();
                     opts = new[] { O("NondescriptGuilty", "TRIAL.pages.NONDESCRIPT.options.GUILTY", doubt()),
                         O("NondescriptInnocent", "TRIAL.pages.NONDESCRIPT.options.INNOCENT",
                             doubt().Concat(new[] { MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.Static(MegaCrit.Sts2.Core.HoverTips.StaticHoverTip.Transform) })) };

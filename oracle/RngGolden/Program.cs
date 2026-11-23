@@ -34,8 +34,6 @@ foreach (var n in new[] { 0, 1, 2, 5, 10, 17, 30 })
     list.UnstableShuffle(r);
     var after = r.NextInt(1000);
     shuffles.Add(new { seed = seed.ToString(), n, order = list, next_after = after });
-    var r2 = new Rng(seed, "shuffle"); var l2 = Enumerable.Range(0, n).ToList(); r2.Shuffle(l2);
-    if (!l2.SequenceEqual(list)) throw new Exception("Shuffle != UnstableShuffle");
 }
 
 var weighted = new List<object>();

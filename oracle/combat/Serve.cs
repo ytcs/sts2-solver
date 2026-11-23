@@ -68,7 +68,7 @@ public static class Serve
         var h = new Harmony("oracle.serve");
         h.CreateClassProcessor(typeof(Snap.SetUpPatch)).Patch();
         h.CreateClassProcessor(typeof(PromptPatch)).Patch();
-        CardSelectCmd.PushSelector(new ServeSelector());
+        MegaCrit.Sts2.Core.CardSelection.CardSelectorStack.SetTestSelector(new ServeSelector());
         RewardsSet.testSelector = Ui.OnRewards;
         CombatManager.Instance.CombatWon += room => SynchronizationContext.Current.Post(_ => Fire(Ui.AfterCombatWon(room), "combat won"), null);
     }

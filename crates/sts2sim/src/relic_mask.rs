@@ -12,6 +12,8 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     false, // ASTROLABE
     true, // BAG_OF_MARBLES
     true, // BAG_OF_PREPARATION
+    false, // BATH_ROBES
+    false, // BATH_TOWEL
     true, // BEATING_REMNANT
     false, // BEAUTIFUL_BRACELET
     true, // BELLOWS
@@ -20,6 +22,7 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     true, // BIG_MUSHROOM
     true, // BIIIG_HUG
     false, // BING_BONG
+    false, // BIZARRE_LAMP
     true, // BLACK_BLOOD
     false, // BLACK_STAR
     true, // BLESSED_ANTLER
@@ -39,6 +42,7 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     true, // BRONZE_SCALES
     true, // BURNING_BLOOD
     true, // BURNING_STICKS
+    false, // BYRDINE
     true, // BYRDPIP
     false, // CALLING_BELL
     true, // CANDELABRA
@@ -53,6 +57,7 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     false, // CIRCLET
     false, // CLAWS
     true, // CLOAK_CLASP
+    false, // CONDUCTORS_BATON
     true, // CRACKED_CORE
     true, // CROSSBOW
     false, // CURSED_PEARL
@@ -79,6 +84,7 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     true, // EMOTION_CHIP
     false, // EMPTY_CAGE
     false, // ETERNAL_FEATHER
+    false, // EXERCISE_MAT
     true, // FAKE_ANCHOR
     true, // FAKE_BLOOD_VIAL
     true, // FAKE_HAPPY_FLOWER
@@ -90,6 +96,7 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     true, // FAKE_STRIKE_DUMMY
     true, // FAKE_VENERABLE_TEA_SET
     true, // FENCING_MANUAL
+    false, // FERTILIZER
     true, // FESTIVE_POPPER
     true, // FIDDLE
     false, // FISHING_ROD
@@ -156,6 +163,7 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     false, // MEMBERSHIP_CARD
     true, // MERCURY_HOURGLASS
     true, // METRONOME
+    false, // MIGHTY_WINGS
     true, // MINIATURE_CANNON
     false, // MINIATURE_TENT
     true, // MINI_REGENT
@@ -173,6 +181,8 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     true, // NUNCHAKU
     false, // NUTRITIOUS_OYSTER
     false, // NUTRITIOUS_SOUP
+    false, // OBSIDIAN_VICE
+    false, // OCARINA
     true, // ODDLY_SMOOTH_STONE
     false, // OLD_COIN
     true, // ORANGE_DOUGH
@@ -249,6 +259,7 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     false, // SMALL_CAPSULE
     true, // SNECKO_EYE
     true, // SNECKO_SKULL
+    false, // SONG_BOW
     true, // SOZU
     true, // SPARKLING_ROUGE
     true, // SPIKED_GAUNTLETS
@@ -256,6 +267,7 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     true, // STONE_CRACKER
     false, // STONE_HUMIDIFIER
     false, // STORYBOOK
+    false, // STORYTELLER
     false, // STRAWBERRY
     true, // STRIKE_DUMMY
     true, // STURDY_CLAMP
@@ -268,10 +280,12 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     true, // THE_BOOT
     false, // THE_COURIER
     true, // THROWING_AXE
+    false, // THUMBSCREW
     true, // TINGSHA
     false, // TINY_MAILBOX
     true, // TOASTY_MITTENS
     true, // TOOLBOX
+    false, // TORMENTOUS_COLLAR
     false, // TOUCH_OF_OROBAS
     true, // TOUGH_BANDAGES
     false, // TOXIC_EGG
@@ -279,6 +293,7 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     false, // TRI_BOOMERANG
     true, // TUNGSTEN_ROD
     true, // TUNING_FORK
+    false, // TWINE
     true, // TWISTED_FUNNEL
     true, // UNCEASING_TOP
     true, // UNDYING_SIGIL
@@ -297,9 +312,11 @@ pub static OBSERVED: [bool; crate::ids::relic::COUNT] = [
     true, // WHISPERING_EARRING
     false, // WHITE_BEAST_STATUE
     false, // WHITE_STAR
+    false, // WHITTLING_KNIFE
     false, // WINGED_BOOTS
     false, // WING_CHARM
     false, // WONGOS_MYSTERY_TICKET
     false, // WONGO_CUSTOMER_APPRECIATION_BADGE
+    false, // WUPPY
     false, // YUMMY_COOKIE
 ];

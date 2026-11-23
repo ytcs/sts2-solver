@@ -15,7 +15,8 @@ slugify = ns["slugify"]
 
 def strip_comments(s):
     s = re.sub(r"/\*.*?\*/", "", s, flags=re.S)
-    return re.sub(r"//[^\n]*", "", s)
+    s = re.sub(r"//[^\n]*", "", s)
+    return re.sub(r"\bbase\.(?=[A-Z])", "", s)  # ILSpy 9 qualifies inherited members with base.
 
 
 def read_dir(sub, include_abstract=False):
@@ -44,12 +45,12 @@ KW = {"Exhaust": "kw::EXHAUST", "Ethereal": "kw::ETHEREAL", "Innate": "kw::INNAT
 TAG = {"Strike": "tag::STRIKE", "Defend": "tag::DEFEND", "Minion": "tag::MINION", "OstyAttack": "tag::OSTY_ATTACK", "Shiv": "tag::SHIV"}
 PROP = {"Unblockable": 2, "Unpowered": 4, "Move": 8, "SkipHurtAnim": 0x10}
 VAR_KIND = {"DamageVar": "Damage", "BlockVar": "Block", "CardsVar": "Cards", "EnergyVar": "Energy", "StarsVar": "Stars",
-            "RepeatVar": "Repeat", "HpLossVar": "HpLoss", "HealVar": "Heal", "SummonVar": "Summon", "ForgeVar": "Forge",
+            "RepeatVar": "Repeat", "HitCountVar": "Repeat", "HpLossVar": "HpLoss", "HealVar": "Heal", "SummonVar": "Summon", "ForgeVar": "Forge",
             "OstyDamageVar": "OstyDamage", "ExtraDamageVar": "ExtraDamage", "CalculationBaseVar": "CalcBase",
             "CalculationExtraVar": "CalcExtra", "GoldVar": "Gold", "MaxHpVar": "MaxHp", "CalculatedDamageVar": "CalcDamage",
             "CalculatedBlockVar": "CalcBlock"}
 
-PROP_NAME = {"Damage": "Damage", "Block": "Block", "Cards": "Cards", "Energy": "Energy", "Stars": "Stars", "Repeat": "Repeat",
+PROP_NAME = {"Damage": "Damage", "Block": "Block", "Cards": "Cards", "Energy": "Energy", "Stars": "Stars", "Repeat": "Repeat", "HitCount": "Repeat",
              "HpLoss": "HpLoss", "Heal": "Heal", "Summon": "Summon", "Forge": "Forge", "OstyDamage": "OstyDamage",
              "ExtraDamage": "ExtraDamage", "CalculationBase": "CalcBase", "CalculationExtra": "CalcExtra", "Gold": "Gold", "MaxHp": "MaxHp"}
 
@@ -244,7 +245,7 @@ def main():
         if vs:
             cd += ".vars(&[" + ", ".join(vs) + "])"
         if r["max_up"] != 1:
-            cd += f".max_upgrade({r['max_up']})"
+            cd += f".max_upgrade({min(r['max_up'], 255)})"  # u8: DingyDagger has 999999999
         if r["up_cost"]:
             cd += f".up_cost({r['up_cost']})"
         if r["up_star"]:

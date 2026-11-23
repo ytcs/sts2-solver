@@ -440,7 +440,7 @@ public static class Ui
     {
         var rs = Rs;
         bool resume = rs.CurrentRoomCount > 1 && rs.CurrentRoom is CombatRoom { ShouldResumeParentEventAfterCombat: not false };
-        Serve.Fire(RunManager.Instance.ProceedFromTerminalRewardsScreen(), "proceed");
+        Serve.Fire(RunManager.Instance.ProceedFromTerminalRewardsScreenAsync(), "proceed");
         if (!resume) _mapOpen = true;
     }
 
@@ -590,7 +590,7 @@ public static class Ui
         {
             case RoomType.Event: Event(d, rs, me); break;
             case RoomType.RestSite: Rest(d); break;
-            case RoomType.Shop: Shop(d, me, ((MerchantRoom)room).GetLocalInventory(), "leave shop"); break;
+            case RoomType.Shop: Shop(d, me, RunManager.Instance.MerchantSynchronizer.GetLocalInventory(), "leave shop"); break;
             case RoomType.Treasure: Treasure(d, (TreasureRoom)room); break;
             case RoomType.Monster or RoomType.Elite or RoomType.Boss:
                 if (_rewards.Count == 0) d.Add("proceed", _ => { ProceedTerminal(); return null; });
@@ -694,7 +694,7 @@ public static class Ui
 
     static async Task Purchase(MerchantEntry e, MerchantInventory inv)
     {
-        if (await e.OnTryPurchaseWrapper(inv) && e is MerchantCardRemovalEntry rm) rm.SetUsed();
+        if (await e.OnTryPurchaseUnsynchronized(inv) && e is MerchantCardRemovalEntry rm) rm.SetUsed();
     }
 
     static void Treasure(Decision d, TreasureRoom room)
@@ -727,7 +727,7 @@ public static class Ui
     }
 
     // NTreasureRoomRelicCollection.AnimateRelicAwards obtains the relic in the shipped game
-    static void OnRelicsAwarded(List<RelicPickingResult> results)
+    static void OnRelicsAwarded(List<RelicPickingResult> results, bool _)
     {
         foreach (var r in results.OrderBy(r => r.type))
             if (r.type != RelicPickingResultType.Skipped)
@@ -801,7 +801,7 @@ public static class Ui
         var acts = ActModel.GetRandomList(rng, unlock, isMultiplayer: false).ToList();
         var player = Player.CreateForNewRun(ch, unlock, 1UL);
         var run = RunState.CreateForNewRun(new List<Player> { player }, acts.Select(a => a.ToMutable()).ToList(), mods,
-            modifiers == null ? GameMode.Standard : GameMode.Custom, ascension, seed);
+            GameMode.Standard, modifiers != null, ascension, seed);
         RunManager.Instance.SetUpNewSingleplayer(run, shouldSave: false);
         RunManager.Instance.TreasureRoomRelicSynchronizer.RelicsAwarded += OnRelicsAwarded;
         await RunManager.Instance.FinalizeStartingRelics();

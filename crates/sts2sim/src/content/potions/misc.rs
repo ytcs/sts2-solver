@@ -24,7 +24,7 @@ listener!(Ambergris {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         heal_percent(cx, potion, target);
         if cx.in_progress {
-            cx.apply_power(ids::power::AMBERGRIS_POWER, target, Dec::ONE, PLAYER, NO);
+            cx.apply_power(ids::power::EXTRA_TURN_POWER, target, Dec::ONE, PLAYER, NO);
         }
         Flow::Done
     }

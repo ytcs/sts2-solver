@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 pub mod card {
-    pub const COUNT: usize = 596;
+    pub const COUNT: usize = 717;
     /// ModelId entry strings (e.g. `STRIKE_IRONCLAD`), indexed by id.
     pub static NAMES: [&str; COUNT] = [
         "ABRASIVE",
@@ -19,12 +19,17 @@ pub mod card {
         "ALCHEMIZE",
         "ALIGNMENT",
         "ALL_FOR_ONE",
+        "ALL_IS_WELL",
+        "AMNESIA",
         "ANGER",
+        "ANGUISH",
         "ANOINTED",
         "ANTICIPATE",
         "APOTHEOSIS",
         "APPARITION",
+        "ARCHERY",
         "ARMAMENTS",
+        "ARROW_STAB",
         "ARSENAL",
         "ASCENDERS_BANE",
         "ASHEN_STRIKE",
@@ -57,6 +62,8 @@ pub mod card {
         "BLIGHT_STRIKE",
         "BLOODLETTING",
         "BLOOD_WALL",
+        "BLOSSOM_SHOT",
+        "BLOT_OUT_THE_SKY",
         "BLUDGEON",
         "BLUR",
         "BODYGUARD",
@@ -67,10 +74,14 @@ pub mod card {
         "BOOST_AWAY",
         "BOOT_SEQUENCE",
         "BORROWED_TIME",
+        "BOUNCE",
         "BOUNCING_FLASK",
+        "BOW_SMACK",
+        "BRACE",
         "BRAND",
         "BREAK",
         "BREAKTHROUGH",
+        "BRIGHTEN_UP",
         "BRIGHTEST_FLAME",
         "BUBBLE_BUBBLE",
         "BUFFER",
@@ -101,6 +112,12 @@ pub mod card {
         "CHARGE_BATTERY",
         "CHILD_OF_THE_STARS",
         "CHILL",
+        "CHO_BARBS",
+        "CHO_CHORUS",
+        "CHO_FIRM",
+        "CHO_KI",
+        "CHO_LIMBS",
+        "CHO_READY",
         "CINDER",
         "CLASH",
         "CLAW",
@@ -108,12 +125,14 @@ pub mod card {
         "CLOAK_AND_DAGGER",
         "CLOAK_OF_STARS",
         "CLUMSY",
+        "CODA",
         "COLD_SNAP",
         "COLLISION_COURSE",
         "COLOSSUS",
         "COMET",
         "COMPACT",
         "COMPILE_DRIVER",
+        "COMPOST",
         "CONCOCT",
         "CONFLAGRATION",
         "CONQUEROR",
@@ -127,6 +146,7 @@ pub mod card {
         "CORRUPTION",
         "COSMIC_INDIFFERENCE",
         "COUNTDOWN",
+        "COVERING_FIRE",
         "CRASH_LANDING",
         "CREATIVE_AI",
         "CRESCENT_SPEAR",
@@ -143,6 +163,7 @@ pub mod card {
         "DASH",
         "DAZED",
         "DEADLY_POISON",
+        "DEATH",
         "DEATHBRINGER",
         "DEATHS_DOOR",
         "DEATH_MARCH",
@@ -151,7 +172,9 @@ pub mod card {
         "DEBT",
         "DECAY",
         "DECISIONS_DECISIONS",
+        "DEEP_STRETCH",
         "DEFEND_DEFECT",
+        "DEFEND_FOOL",
         "DEFEND_IRONCLAD",
         "DEFEND_NECROBINDER",
         "DEFEND_REGENT",
@@ -167,11 +190,14 @@ pub mod card {
         "DEPRECATED_CARD",
         "DEVASTATE",
         "DEVOUR_LIFE",
+        "DINGY_DAGGER",
         "DIRGE",
         "DISCOVERY",
         "DISINTEGRATION",
+        "DISLIKE_YOU",
         "DISMANTLE",
         "DISTRACTION",
+        "DIVINE_SHOT",
         "DODGE_AND_ROLL",
         "DOMINATE",
         "DOUBLE_ENERGY",
@@ -186,15 +212,21 @@ pub mod card {
         "DYING_STAR",
         "ECHOING_SLASH",
         "ECHO_FORM",
+        "ECSTASY",
         "EIDOLON",
+        "ENCORE",
         "END_OF_DAYS",
         "ENERGY_SURGE",
         "ENFEEBLING_TOUCH",
         "ENLIGHTENMENT",
+        "ENNUI",
+        "ENRAPTURE",
+        "ENSEMBLE",
         "ENTHRALLED",
         "ENTRENCH",
         "ENTROPY",
         "ENVENOM",
+        "EPIC_RETRIEVAL",
         "EQUILIBRIUM",
         "ERADICATE",
         "ESCAPE_PLAN",
@@ -202,6 +234,7 @@ pub mod card {
         "EVIL_EYE",
         "EXPECT_A_FIGHT",
         "EXPERTISE",
+        "EXPLOSIVE_ARROWS",
         "EXPOSE",
         "EXTERMINATE",
         "FADE",
@@ -227,8 +260,10 @@ pub mod card {
         "FLATTEN",
         "FLECHETTES",
         "FLICK_FLACK",
+        "FLORESCENCE",
         "FOCUSED_STRIKE",
         "FOLLY",
+        "FOOLISH_SHOT",
         "FOOTWORK",
         "FORBIDDEN_GRIMOIRE",
         "FOREGONE_CONCLUSION",
@@ -251,12 +286,14 @@ pub mod card {
         "GLIMPSE_BEYOND",
         "GLITTERSTREAM",
         "GLOW",
+        "GOD_BYRD",
         "GOLD_AXE",
         "GO_FOR_THE_EYES",
         "GRAND_FINALE",
         "GRAVEBLAST",
         "GRAVE_WARDEN",
         "GREED",
+        "GROWTH",
         "GUARDS",
         "GUIDING_STAR",
         "GUILTY",
@@ -266,11 +303,13 @@ pub mod card {
         "HAND_OF_GREED",
         "HAND_TRICK",
         "HANG",
+        "HARMONIC_SHIELD",
         "HAUNT",
         "HAVOC",
         "HAZE",
         "HEADBUTT",
         "HEAVENLY_DRILL",
+        "HEAVY_SHOT",
         "HEGEMONY",
         "HEIRLOOM_HAMMER",
         "HELIX_DRILL",
@@ -281,8 +320,11 @@ pub mod card {
         "HIDDEN_CACHE",
         "HIDDEN_DAGGERS",
         "HIDDEN_GEM",
+        "HIDDEN_ROOTS",
         "HIGH_FIVE",
+        "HOBBLING_SHOT",
         "HOLOGRAM",
+        "HONING",
         "HOTFIX",
         "HOWL_FROM_BEYOND",
         "HUDDLE_UP",
@@ -305,10 +347,19 @@ pub mod card {
         "I_AM_INVINCIBLE",
         "JACKPOT",
         "JACK_OF_ALL_TRADES",
+        "JEST",
+        "JOY",
+        "JUDGEMENT",
         "JUGGERNAUT",
         "JUGGLING",
+        "JUSTICE",
         "KINGLY_KICK",
         "KINGLY_PUNCH",
+        "KI_CHANT",
+        "KI_HOP",
+        "KI_REST",
+        "KI_VERSE",
+        "KI_WHIP",
         "KNIFE_TRAP",
         "KNOCKDOWN",
         "KNOCKOUT_BLOW",
@@ -322,7 +373,10 @@ pub mod card {
         "LETHALITY",
         "LIFT",
         "LIGHTNING_ROD",
+        "LOCKED_IN",
         "LOOP",
+        "LOST_LUTE",
+        "LULLABY",
         "LUMINESCE",
         "LUNAR_BLAST",
         "MACHINE_LEARNING",
@@ -336,11 +390,14 @@ pub mod card {
         "MAUL",
         "MAYHEM",
         "MELANCHOLY",
+        "MELODIC_SHOT",
         "MEMENTO_MORI",
         "METAMORPHOSIS",
         "METEOR_SHOWER",
         "METEOR_STRIKE",
         "MIDNIGHT",
+        "MIGHTY_SHIELD",
+        "MIGHTY_WEAPON",
         "MIMIC",
         "MIND_BLAST",
         "MIND_ROT",
@@ -354,8 +411,13 @@ pub mod card {
         "MOMENTUM_STRIKE",
         "MONARCHS_GAZE",
         "MONOLOGUE",
+        "MOTIF",
+        "MOURNING_BLOW",
         "MULTI_CAST",
         "MURDER",
+        "MYTHIC_FORM",
+        "MY_SHINIES",
+        "NAIL",
         "NECRO_MASTERY",
         "NEGATIVE_PULSE",
         "NEOWS_FURY",
@@ -363,6 +425,7 @@ pub mod card {
         "NEUTRALIZE",
         "NEUTRON_AEGIS",
         "NIGHTMARE",
+        "NOCK",
         "NORMALITY",
         "NOSTALGIA",
         "NOT_YET",
@@ -414,16 +477,22 @@ pub mod card {
         "PROWESS",
         "PULL_AGGRO",
         "PULL_FROM_BELOW",
+        "PUNCH_OF_JOY",
         "PURITY",
         "PUTREFY",
         "PYRE",
         "QUADCAST",
         "QUASAR",
+        "QUICK_SHOT",
+        "QUIETUS",
+        "QUIVER",
         "RADIATE",
         "RAGE",
         "RAINBOW",
+        "RAIN_SHOT",
         "RALLY",
         "RAMPAGE",
+        "RAPID_SHOT",
         "RATTLE",
         "REANIMATE",
         "REAP",
@@ -431,6 +500,7 @@ pub mod card {
         "REAVE",
         "REBOOT",
         "REBOUND",
+        "RECALL",
         "REFINE_BLADE",
         "REFLECT",
         "REFLEX",
@@ -438,8 +508,10 @@ pub mod card {
         "REGRET",
         "RELAX",
         "REND",
+        "REPEAT_SHOT",
         "RESONANCE",
         "RESTLESSNESS",
+        "RHYTHM_STRIKE",
         "RICOCHET",
         "RIGHT_HAND_HAND",
         "RIP_AND_TEAR",
@@ -447,8 +519,10 @@ pub mod card {
         "ROLLING_BOULDER",
         "ROYALTIES",
         "ROYAL_GAMBLE",
+        "RUMMAGE",
         "RUPTURE",
         "SACRIFICE",
+        "SADNESS",
         "SALVO",
         "SCAVENGE",
         "SCOURGE",
@@ -461,8 +535,10 @@ pub mod card {
         "SECRET_WEAPON",
         "SEEKER_STRIKE",
         "SEEKING_EDGE",
+        "SELF_DEPRECATE",
         "SENTRY_MODE",
         "SERPENT_FORM",
+        "SERRATED_ARROWS",
         "SETUP_STRIKE",
         "SEVEN_STARS",
         "SEVERANCE",
@@ -475,13 +551,16 @@ pub mod card {
         "SHINING_STRIKE",
         "SHIV",
         "SHOCKWAVE",
+        "SHOW_OFF",
         "SHROUD",
         "SHRUG_IT_OFF",
         "SIC_EM",
         "SIDESTEP",
         "SIGNAL_BOOST",
+        "SIMPLETON",
         "SKEWER",
         "SKIM",
+        "SKY_SHOT",
         "SLEIGHT_OF_FLESH",
         "SLICE",
         "SLIMED",
@@ -491,7 +570,9 @@ pub mod card {
         "SNAP",
         "SNEAKY",
         "SOLAR_STRIKE",
+        "SONG_PATH",
         "SOOT",
+        "SORROWFUL_STRIKE",
         "SOUL",
         "SOULBOUND",
         "SOUL_STORM",
@@ -512,6 +593,7 @@ pub mod card {
         "STACK",
         "STAMPEDE",
         "STARDUST",
+        "STEADY_CADENCE",
         "STOKE",
         "STOMP",
         "STONE_ARMOR",
@@ -519,7 +601,9 @@ pub mod card {
         "STORM_OF_STEEL",
         "STRANGLE",
         "STRATAGEM",
+        "STRENGTH",
         "STRIKE_DEFECT",
+        "STRIKE_FOOL",
         "STRIKE_IRONCLAD",
         "STRIKE_NECROBINDER",
         "STRIKE_REGENT",
@@ -543,21 +627,40 @@ pub mod card {
         "TANK",
         "TAUNT",
         "TEAR_ASUNDER",
+        "TEMPERANCE",
         "TEMPEST",
         "TERRAFORMING",
         "TESLA_COIL",
         "THE_BALL",
         "THE_BOMB",
+        "THE_CHARIOT",
+        "THE_DEVIL",
+        "THE_EMPEROR",
+        "THE_EMPRESS",
+        "THE_FOOL",
         "THE_GAMBIT",
+        "THE_HANGED_MAN",
+        "THE_HERMIT",
+        "THE_HIEROPHANT",
+        "THE_HIGH_PRIESTESS",
         "THE_HUNT",
+        "THE_LOVERS",
+        "THE_MAGICIAN",
+        "THE_MOON",
         "THE_SCYTHE",
         "THE_SEALED_THRONE",
+        "THE_SHOT",
         "THE_SMITH",
+        "THE_STAR",
+        "THE_SUN",
+        "THE_TOWER",
+        "THE_WORLD",
         "THINKING_AHEAD",
         "THRASH",
         "THRUMMING_HATCHET",
         "THUNDER",
         "THUNDERCLAP",
+        "TIMBER",
         "TIMES_UP",
         "TOOLS_OF_THE_TRADE",
         "TORIC_TOUGHNESS",
@@ -566,7 +669,9 @@ pub mod card {
         "TRANSFIGURE",
         "TRASH_TO_TREASURE",
         "TREMBLE",
+        "TRICK_SHOT",
         "TRUE_GRIT",
+        "TUNE",
         "TURBO",
         "TUTOR",
         "TWIN_STRIKE",
@@ -581,26 +686,42 @@ pub mod card {
         "UNTOUCHABLE",
         "UPPERCUT",
         "UPROAR",
+        "UPROOT",
         "UP_MY_SLEEVE",
         "VEILPIERCER",
         "VENERATE",
         "VICIOUS",
+        "VIOLENT_CHORD",
+        "VITRIOL",
         "VOID",
         "VOID_FORM",
         "VOLLEY",
         "VOLTAIC",
+        "WAH_BLAST",
+        "WAH_CHO",
+        "WAH_CHO_KI",
+        "WAH_HAMMER",
+        "WAH_KI",
+        "WAH_SWEEP",
+        "WAH_SYMPHONY",
+        "WAH_TOUCH",
         "WASTE_AWAY",
         "WELL_LAID_PLANS",
+        "WHEEL_OF_FORTUNE",
         "WHIRLWIND",
         "WHISTLE",
+        "WHISTLING_ARROWS",
         "WHITE_NOISE",
         "WISH",
         "WISP",
         "WITHER",
         "WOUND",
         "WRAITH_FORM",
+        "WREST",
         "WRITHE",
         "WROUGHT_IN_WAR",
+        "YAH",
+        "YOGA",
         "ZAP",
     ];
     /// C# class names, indexed by id.
@@ -618,12 +739,17 @@ pub mod card {
         "Alchemize",
         "Alignment",
         "AllForOne",
+        "AllIsWell",
+        "Amnesia",
         "Anger",
+        "Anguish",
         "Anointed",
         "Anticipate",
         "Apotheosis",
         "Apparition",
+        "Archery",
         "Armaments",
+        "ArrowStab",
         "Arsenal",
         "AscendersBane",
         "AshenStrike",
@@ -656,6 +782,8 @@ pub mod card {
         "BlightStrike",
         "Bloodletting",
         "BloodWall",
+        "BlossomShot",
+        "BlotOutTheSky",
         "Bludgeon",
         "Blur",
         "Bodyguard",
@@ -666,10 +794,14 @@ pub mod card {
         "BoostAway",
         "BootSequence",
         "BorrowedTime",
+        "Bounce",
         "BouncingFlask",
+        "BowSmack",
+        "Brace",
         "Brand",
         "Break",
         "Breakthrough",
+        "BrightenUp",
         "BrightestFlame",
         "BubbleBubble",
         "Buffer",
@@ -700,6 +832,12 @@ pub mod card {
         "ChargeBattery",
         "ChildOfTheStars",
         "Chill",
+        "ChoBarbs",
+        "ChoChorus",
+        "ChoFirm",
+        "ChoKi",
+        "ChoLimbs",
+        "ChoReady",
         "Cinder",
         "Clash",
         "Claw",
@@ -707,12 +845,14 @@ pub mod card {
         "CloakAndDagger",
         "CloakOfStars",
         "Clumsy",
+        "Coda",
         "ColdSnap",
         "CollisionCourse",
         "Colossus",
         "Comet",
         "Compact",
         "CompileDriver",
+        "Compost",
         "Concoct",
         "Conflagration",
         "Conqueror",
@@ -726,6 +866,7 @@ pub mod card {
         "Corruption",
         "CosmicIndifference",
         "Countdown",
+        "CoveringFire",
         "CrashLanding",
         "CreativeAi",
         "CrescentSpear",
@@ -742,6 +883,7 @@ pub mod card {
         "Dash",
         "Dazed",
         "DeadlyPoison",
+        "Death",
         "Deathbringer",
         "DeathsDoor",
         "DeathMarch",
@@ -750,7 +892,9 @@ pub mod card {
         "Debt",
         "Decay",
         "DecisionsDecisions",
+        "DeepStretch",
         "DefendDefect",
+        "DefendFool",
         "DefendIronclad",
         "DefendNecrobinder",
         "DefendRegent",
@@ -766,11 +910,14 @@ pub mod card {
         "DeprecatedCard",
         "Devastate",
         "DevourLife",
+        "DingyDagger",
         "Dirge",
         "Discovery",
         "Disintegration",
+        "DislikeYou",
         "Dismantle",
         "Distraction",
+        "DivineShot",
         "DodgeAndRoll",
         "Dominate",
         "DoubleEnergy",
@@ -785,15 +932,21 @@ pub mod card {
         "DyingStar",
         "EchoingSlash",
         "EchoForm",
+        "Ecstasy",
         "Eidolon",
+        "Encore",
         "EndOfDays",
         "EnergySurge",
         "EnfeeblingTouch",
         "Enlightenment",
+        "Ennui",
+        "Enrapture",
+        "Ensemble",
         "Enthralled",
         "Entrench",
         "Entropy",
         "Envenom",
+        "EpicRetrieval",
         "Equilibrium",
         "Eradicate",
         "EscapePlan",
@@ -801,6 +954,7 @@ pub mod card {
         "EvilEye",
         "ExpectAFight",
         "Expertise",
+        "ExplosiveArrows",
         "Expose",
         "Exterminate",
         "Fade",
@@ -826,8 +980,10 @@ pub mod card {
         "Flatten",
         "Flechettes",
         "FlickFlack",
+        "Florescence",
         "FocusedStrike",
         "Folly",
+        "FoolishShot",
         "Footwork",
         "ForbiddenGrimoire",
         "ForegoneConclusion",
@@ -850,12 +1006,14 @@ pub mod card {
         "GlimpseBeyond",
         "Glitterstream",
         "Glow",
+        "GodByrd",
         "GoldAxe",
         "GoForTheEyes",
         "GrandFinale",
         "Graveblast",
         "GraveWarden",
         "Greed",
+        "Growth",
         "Guards",
         "GuidingStar",
         "Guilty",
@@ -865,11 +1023,13 @@ pub mod card {
         "HandOfGreed",
         "HandTrick",
         "Hang",
+        "HarmonicShield",
         "Haunt",
         "Havoc",
         "Haze",
         "Headbutt",
         "HeavenlyDrill",
+        "HeavyShot",
         "Hegemony",
         "HeirloomHammer",
         "HelixDrill",
@@ -880,8 +1040,11 @@ pub mod card {
         "HiddenCache",
         "HiddenDaggers",
         "HiddenGem",
+        "HiddenRoots",
         "HighFive",
+        "HobblingShot",
         "Hologram",
+        "Honing",
         "Hotfix",
         "HowlFromBeyond",
         "HuddleUp",
@@ -904,10 +1067,19 @@ pub mod card {
         "IAmInvincible",
         "Jackpot",
         "JackOfAllTrades",
+        "Jest",
+        "Joy",
+        "Judgement",
         "Juggernaut",
         "Juggling",
+        "Justice",
         "KinglyKick",
         "KinglyPunch",
+        "KiChant",
+        "KiHop",
+        "KiRest",
+        "KiVerse",
+        "KiWhip",
         "KnifeTrap",
         "Knockdown",
         "KnockoutBlow",
@@ -921,7 +1093,10 @@ pub mod card {
         "Lethality",
         "Lift",
         "LightningRod",
+        "LockedIn",
         "Loop",
+        "LostLute",
+        "Lullaby",
         "Luminesce",
         "LunarBlast",
         "MachineLearning",
@@ -935,11 +1110,14 @@ pub mod card {
         "Maul",
         "Mayhem",
         "Melancholy",
+        "MelodicShot",
         "MementoMori",
         "Metamorphosis",
         "MeteorShower",
         "MeteorStrike",
         "Midnight",
+        "MightyShield",
+        "MightyWeapon",
         "Mimic",
         "MindBlast",
         "MindRot",
@@ -953,8 +1131,13 @@ pub mod card {
         "MomentumStrike",
         "MonarchsGaze",
         "Monologue",
+        "Motif",
+        "MourningBlow",
         "MultiCast",
         "Murder",
+        "MythicForm",
+        "MyShinies",
+        "Nail",
         "NecroMastery",
         "NegativePulse",
         "NeowsFury",
@@ -962,6 +1145,7 @@ pub mod card {
         "Neutralize",
         "NeutronAegis",
         "Nightmare",
+        "Nock",
         "Normality",
         "Nostalgia",
         "NotYet",
@@ -1013,16 +1197,22 @@ pub mod card {
         "Prowess",
         "PullAggro",
         "PullFromBelow",
+        "PunchOfJoy",
         "Purity",
         "Putrefy",
         "Pyre",
         "Quadcast",
         "Quasar",
+        "QuickShot",
+        "Quietus",
+        "Quiver",
         "Radiate",
         "Rage",
         "Rainbow",
+        "RainShot",
         "Rally",
         "Rampage",
+        "RapidShot",
         "Rattle",
         "Reanimate",
         "Reap",
@@ -1030,6 +1220,7 @@ pub mod card {
         "Reave",
         "Reboot",
         "Rebound",
+        "Recall",
         "RefineBlade",
         "Reflect",
         "Reflex",
@@ -1037,8 +1228,10 @@ pub mod card {
         "Regret",
         "Relax",
         "Rend",
+        "RepeatShot",
         "Resonance",
         "Restlessness",
+        "RhythmStrike",
         "Ricochet",
         "RightHandHand",
         "RipAndTear",
@@ -1046,8 +1239,10 @@ pub mod card {
         "RollingBoulder",
         "Royalties",
         "RoyalGamble",
+        "Rummage",
         "Rupture",
         "Sacrifice",
+        "Sadness",
         "Salvo",
         "Scavenge",
         "Scourge",
@@ -1060,8 +1255,10 @@ pub mod card {
         "SecretWeapon",
         "SeekerStrike",
         "SeekingEdge",
+        "SelfDeprecate",
         "SentryMode",
         "SerpentForm",
+        "SerratedArrows",
         "SetupStrike",
         "SevenStars",
         "Severance",
@@ -1074,13 +1271,16 @@ pub mod card {
         "ShiningStrike",
         "Shiv",
         "Shockwave",
+        "ShowOff",
         "Shroud",
         "ShrugItOff",
         "SicEm",
         "Sidestep",
         "SignalBoost",
+        "Simpleton",
         "Skewer",
         "Skim",
+        "SkyShot",
         "SleightOfFlesh",
         "Slice",
         "Slimed",
@@ -1090,7 +1290,9 @@ pub mod card {
         "Snap",
         "Sneaky",
         "SolarStrike",
+        "SongPath",
         "Soot",
+        "SorrowfulStrike",
         "Soul",
         "Soulbound",
         "SoulStorm",
@@ -1111,6 +1313,7 @@ pub mod card {
         "Stack",
         "Stampede",
         "Stardust",
+        "SteadyCadence",
         "Stoke",
         "Stomp",
         "StoneArmor",
@@ -1118,7 +1321,9 @@ pub mod card {
         "StormOfSteel",
         "Strangle",
         "Stratagem",
+        "Strength",
         "StrikeDefect",
+        "StrikeFool",
         "StrikeIronclad",
         "StrikeNecrobinder",
         "StrikeRegent",
@@ -1142,21 +1347,40 @@ pub mod card {
         "Tank",
         "Taunt",
         "TearAsunder",
+        "Temperance",
         "Tempest",
         "Terraforming",
         "TeslaCoil",
         "TheBall",
         "TheBomb",
+        "TheChariot",
+        "TheDevil",
+        "TheEmperor",
+        "TheEmpress",
+        "TheFool",
         "TheGambit",
+        "TheHangedMan",
+        "TheHermit",
+        "TheHierophant",
+        "TheHighPriestess",
         "TheHunt",
+        "TheLovers",
+        "TheMagician",
+        "TheMoon",
         "TheScythe",
         "TheSealedThrone",
+        "TheShot",
         "TheSmith",
+        "TheStar",
+        "TheSun",
+        "TheTower",
+        "TheWorld",
         "ThinkingAhead",
         "Thrash",
         "ThrummingHatchet",
         "Thunder",
         "Thunderclap",
+        "Timber",
         "TimesUp",
         "ToolsOfTheTrade",
         "ToricToughness",
@@ -1165,7 +1389,9 @@ pub mod card {
         "Transfigure",
         "TrashToTreasure",
         "Tremble",
+        "TrickShot",
         "TrueGrit",
+        "Tune",
         "Turbo",
         "Tutor",
         "TwinStrike",
@@ -1180,26 +1406,42 @@ pub mod card {
         "Untouchable",
         "Uppercut",
         "Uproar",
+        "Uproot",
         "UpMySleeve",
         "Veilpiercer",
         "Venerate",
         "Vicious",
+        "ViolentChord",
+        "Vitriol",
         "Void",
         "VoidForm",
         "Volley",
         "Voltaic",
+        "WahBlast",
+        "WahCho",
+        "WahChoKi",
+        "WahHammer",
+        "WahKi",
+        "WahSweep",
+        "WahSymphony",
+        "WahTouch",
         "WasteAway",
         "WellLaidPlans",
+        "WheelOfFortune",
         "Whirlwind",
         "Whistle",
+        "WhistlingArrows",
         "WhiteNoise",
         "Wish",
         "Wisp",
         "Wither",
         "Wound",
         "WraithForm",
+        "Wrest",
         "Writhe",
         "WroughtInWar",
+        "Yah",
+        "Yoga",
         "Zap",
     ];
     pub const ABRASIVE: u16 = 0;
@@ -1215,602 +1457,727 @@ pub mod card {
     pub const ALCHEMIZE: u16 = 10;
     pub const ALIGNMENT: u16 = 11;
     pub const ALL_FOR_ONE: u16 = 12;
-    pub const ANGER: u16 = 13;
-    pub const ANOINTED: u16 = 14;
-    pub const ANTICIPATE: u16 = 15;
-    pub const APOTHEOSIS: u16 = 16;
-    pub const APPARITION: u16 = 17;
-    pub const ARMAMENTS: u16 = 18;
-    pub const ARSENAL: u16 = 19;
-    pub const ASCENDERS_BANE: u16 = 20;
-    pub const ASHEN_STRIKE: u16 = 21;
-    pub const ASSASSINATE: u16 = 22;
-    pub const ASTRAL_PULSE: u16 = 23;
-    pub const AUTOMATION: u16 = 24;
-    pub const BACKFLIP: u16 = 25;
-    pub const BACKSTAB: u16 = 26;
-    pub const BAD_LUCK: u16 = 27;
-    pub const BALL_LIGHTNING: u16 = 28;
-    pub const BANSHEES_CRY: u16 = 29;
-    pub const BARRAGE: u16 = 30;
-    pub const BARRICADE: u16 = 31;
-    pub const BASH: u16 = 32;
-    pub const BATTLE_TRANCE: u16 = 33;
-    pub const BEACON_OF_HOPE: u16 = 34;
-    pub const BEAM_CELL: u16 = 35;
-    pub const BEAT_DOWN: u16 = 36;
-    pub const BEAT_INTO_SHAPE: u16 = 37;
-    pub const BECKON: u16 = 38;
-    pub const BEGONE: u16 = 39;
-    pub const BELIEVE_IN_YOU: u16 = 40;
-    pub const BIASED_COGNITION: u16 = 41;
-    pub const BIG_BANG: u16 = 42;
-    pub const BLACK_HOLE: u16 = 43;
-    pub const BLADE_DANCE: u16 = 44;
-    pub const BLADE_OF_INK: u16 = 45;
-    pub const BLADE_SYMPHONY: u16 = 46;
-    pub const BLAZE: u16 = 47;
-    pub const BLIGHT_STRIKE: u16 = 48;
-    pub const BLOODLETTING: u16 = 49;
-    pub const BLOOD_WALL: u16 = 50;
-    pub const BLUDGEON: u16 = 51;
-    pub const BLUR: u16 = 52;
-    pub const BODYGUARD: u16 = 53;
-    pub const BODY_SLAM: u16 = 54;
-    pub const BOLAS: u16 = 55;
-    pub const BOMBARDMENT: u16 = 56;
-    pub const BONE_SHARDS: u16 = 57;
-    pub const BOOST_AWAY: u16 = 58;
-    pub const BOOT_SEQUENCE: u16 = 59;
-    pub const BORROWED_TIME: u16 = 60;
-    pub const BOUNCING_FLASK: u16 = 61;
-    pub const BRAND: u16 = 62;
-    pub const BREAK: u16 = 63;
-    pub const BREAKTHROUGH: u16 = 64;
-    pub const BRIGHTEST_FLAME: u16 = 65;
-    pub const BUBBLE_BUBBLE: u16 = 66;
-    pub const BUFFER: u16 = 67;
-    pub const BULK_UP: u16 = 68;
-    pub const BULLET_TIME: u16 = 69;
-    pub const BULLY: u16 = 70;
-    pub const BULWARK: u16 = 71;
-    pub const BUNDLE_OF_JOY: u16 = 72;
-    pub const BURN: u16 = 73;
-    pub const BURNING_PACT: u16 = 74;
-    pub const BURST: u16 = 75;
-    pub const BURY: u16 = 76;
-    pub const BYRDONIS_EGG: u16 = 77;
-    pub const BYRD_SWOOP: u16 = 78;
-    pub const CACOPHONY: u16 = 79;
-    pub const CALAMITY: u16 = 80;
-    pub const CALCIFY: u16 = 81;
-    pub const CALCULATED_GAMBLE: u16 = 82;
-    pub const CALL_OF_THE_VOID: u16 = 83;
-    pub const CALTROPS: u16 = 84;
-    pub const CAPACITOR: u16 = 85;
-    pub const CAPTURE_SPIRIT: u16 = 86;
-    pub const CASCADE: u16 = 87;
-    pub const CATASTROPHE: u16 = 88;
-    pub const CELESTIAL_MIGHT: u16 = 89;
-    pub const CHAOS: u16 = 90;
-    pub const CHARGE: u16 = 91;
-    pub const CHARGE_BATTERY: u16 = 92;
-    pub const CHILD_OF_THE_STARS: u16 = 93;
-    pub const CHILL: u16 = 94;
-    pub const CINDER: u16 = 95;
-    pub const CLASH: u16 = 96;
-    pub const CLAW: u16 = 97;
-    pub const CLEANSE: u16 = 98;
-    pub const CLOAK_AND_DAGGER: u16 = 99;
-    pub const CLOAK_OF_STARS: u16 = 100;
-    pub const CLUMSY: u16 = 101;
-    pub const COLD_SNAP: u16 = 102;
-    pub const COLLISION_COURSE: u16 = 103;
-    pub const COLOSSUS: u16 = 104;
-    pub const COMET: u16 = 105;
-    pub const COMPACT: u16 = 106;
-    pub const COMPILE_DRIVER: u16 = 107;
-    pub const CONCOCT: u16 = 108;
-    pub const CONFLAGRATION: u16 = 109;
-    pub const CONQUEROR: u16 = 110;
-    pub const CONSTELLATION: u16 = 111;
-    pub const CONSUMING_SHADOW: u16 = 112;
-    pub const CONVERGENCE: u16 = 113;
-    pub const COOLANT: u16 = 114;
-    pub const COOLHEADED: u16 = 115;
-    pub const COORDINATE: u16 = 116;
-    pub const CORROSIVE_WAVE: u16 = 117;
-    pub const CORRUPTION: u16 = 118;
-    pub const COSMIC_INDIFFERENCE: u16 = 119;
-    pub const COUNTDOWN: u16 = 120;
-    pub const CRASH_LANDING: u16 = 121;
-    pub const CREATIVE_AI: u16 = 122;
-    pub const CRESCENT_SPEAR: u16 = 123;
-    pub const CRIMSON_MANTLE: u16 = 124;
-    pub const CRUELTY: u16 = 125;
-    pub const CRUSH_UNDER: u16 = 126;
-    pub const CURSE_OF_THE_BELL: u16 = 127;
-    pub const DAGGER_SPRAY: u16 = 128;
-    pub const DAGGER_THROW: u16 = 129;
-    pub const DANSE_MACABRE: u16 = 130;
-    pub const DARKNESS: u16 = 131;
-    pub const DARK_EMBRACE: u16 = 132;
-    pub const DARK_SHACKLES: u16 = 133;
-    pub const DASH: u16 = 134;
-    pub const DAZED: u16 = 135;
-    pub const DEADLY_POISON: u16 = 136;
-    pub const DEATHBRINGER: u16 = 137;
-    pub const DEATHS_DOOR: u16 = 138;
-    pub const DEATH_MARCH: u16 = 139;
-    pub const DEBILITATE: u16 = 140;
-    pub const DEBRIS: u16 = 141;
-    pub const DEBT: u16 = 142;
-    pub const DECAY: u16 = 143;
-    pub const DECISIONS_DECISIONS: u16 = 144;
-    pub const DEFEND_DEFECT: u16 = 145;
-    pub const DEFEND_IRONCLAD: u16 = 146;
-    pub const DEFEND_NECROBINDER: u16 = 147;
-    pub const DEFEND_REGENT: u16 = 148;
-    pub const DEFEND_SILENT: u16 = 149;
-    pub const DEFILE: u16 = 150;
-    pub const DEFLECT: u16 = 151;
-    pub const DEFRAGMENT: u16 = 152;
-    pub const DEFY: u16 = 153;
-    pub const DELAY: u16 = 154;
-    pub const DEMESNE: u16 = 155;
-    pub const DEMONIC_SHIELD: u16 = 156;
-    pub const DEMON_FORM: u16 = 157;
-    pub const DEPRECATED_CARD: u16 = 158;
-    pub const DEVASTATE: u16 = 159;
-    pub const DEVOUR_LIFE: u16 = 160;
-    pub const DIRGE: u16 = 161;
-    pub const DISCOVERY: u16 = 162;
-    pub const DISINTEGRATION: u16 = 163;
-    pub const DISMANTLE: u16 = 164;
-    pub const DISTRACTION: u16 = 165;
-    pub const DODGE_AND_ROLL: u16 = 166;
-    pub const DOMINATE: u16 = 167;
-    pub const DOUBLE_ENERGY: u16 = 168;
-    pub const DOUBT: u16 = 169;
-    pub const DOWSING: u16 = 170;
-    pub const DRAIN_POWER: u16 = 171;
-    pub const DRAMATIC_ENTRANCE: u16 = 172;
-    pub const DREDGE: u16 = 173;
-    pub const DRUM_OF_BATTLE: u16 = 174;
-    pub const DUALCAST: u16 = 175;
-    pub const DUAL_WIELD: u16 = 176;
-    pub const DYING_STAR: u16 = 177;
-    pub const ECHOING_SLASH: u16 = 178;
-    pub const ECHO_FORM: u16 = 179;
-    pub const EIDOLON: u16 = 180;
-    pub const END_OF_DAYS: u16 = 181;
-    pub const ENERGY_SURGE: u16 = 182;
-    pub const ENFEEBLING_TOUCH: u16 = 183;
-    pub const ENLIGHTENMENT: u16 = 184;
-    pub const ENTHRALLED: u16 = 185;
-    pub const ENTRENCH: u16 = 186;
-    pub const ENTROPY: u16 = 187;
-    pub const ENVENOM: u16 = 188;
-    pub const EQUILIBRIUM: u16 = 189;
-    pub const ERADICATE: u16 = 190;
-    pub const ESCAPE_PLAN: u16 = 191;
-    pub const ETERNAL_ARMOR: u16 = 192;
-    pub const EVIL_EYE: u16 = 193;
-    pub const EXPECT_A_FIGHT: u16 = 194;
-    pub const EXPERTISE: u16 = 195;
-    pub const EXPOSE: u16 = 196;
-    pub const EXTERMINATE: u16 = 197;
-    pub const FADE: u16 = 198;
-    pub const FALLING_STAR: u16 = 199;
-    pub const FAN_OF_KNIVES: u16 = 200;
-    pub const FASTEN: u16 = 201;
-    pub const FEAR: u16 = 202;
-    pub const FEED: u16 = 203;
-    pub const FEEDING_FRENZY: u16 = 204;
-    pub const FEEL_NO_PAIN: u16 = 205;
-    pub const FERAL: u16 = 206;
-    pub const FETCH: u16 = 207;
-    pub const FIEND_FIRE: u16 = 208;
-    pub const FIGHT_ME: u16 = 209;
-    pub const FIGHT_THROUGH: u16 = 210;
-    pub const FINESSE: u16 = 211;
-    pub const FINISHER: u16 = 212;
-    pub const FISTICUFFS: u16 = 213;
-    pub const FLAK_CANNON: u16 = 214;
-    pub const FLAME_BARRIER: u16 = 215;
-    pub const FLANKING: u16 = 216;
-    pub const FLASH_OF_STEEL: u16 = 217;
-    pub const FLATTEN: u16 = 218;
-    pub const FLECHETTES: u16 = 219;
-    pub const FLICK_FLACK: u16 = 220;
-    pub const FOCUSED_STRIKE: u16 = 221;
-    pub const FOLLY: u16 = 222;
-    pub const FOOTWORK: u16 = 223;
-    pub const FORBIDDEN_GRIMOIRE: u16 = 224;
-    pub const FOREGONE_CONCLUSION: u16 = 225;
-    pub const FORGOTTEN_RITUAL: u16 = 226;
-    pub const FRANTIC_ESCAPE: u16 = 227;
-    pub const FRIENDSHIP: u16 = 228;
-    pub const FTL: u16 = 229;
-    pub const FUEL: u16 = 230;
-    pub const FURNACE: u16 = 231;
-    pub const FUSION: u16 = 232;
-    pub const GAMMA_BLAST: u16 = 233;
-    pub const GANG_UP: u16 = 234;
-    pub const GATHER_LIGHT: u16 = 235;
-    pub const GENESIS: u16 = 236;
-    pub const GENETIC_ALGORITHM: u16 = 237;
-    pub const GIANT_ROCK: u16 = 238;
-    pub const GLACIER: u16 = 239;
-    pub const GLASSWORK: u16 = 240;
-    pub const GLIMMER: u16 = 241;
-    pub const GLIMPSE_BEYOND: u16 = 242;
-    pub const GLITTERSTREAM: u16 = 243;
-    pub const GLOW: u16 = 244;
-    pub const GOLD_AXE: u16 = 245;
-    pub const GO_FOR_THE_EYES: u16 = 246;
-    pub const GRAND_FINALE: u16 = 247;
-    pub const GRAVEBLAST: u16 = 248;
-    pub const GRAVE_WARDEN: u16 = 249;
-    pub const GREED: u16 = 250;
-    pub const GUARDS: u16 = 251;
-    pub const GUIDING_STAR: u16 = 252;
-    pub const GUILTY: u16 = 253;
-    pub const GUNK_UP: u16 = 254;
-    pub const HAILSTORM: u16 = 255;
-    pub const HAMMER_TIME: u16 = 256;
-    pub const HAND_OF_GREED: u16 = 257;
-    pub const HAND_TRICK: u16 = 258;
-    pub const HANG: u16 = 259;
-    pub const HAUNT: u16 = 260;
-    pub const HAVOC: u16 = 261;
-    pub const HAZE: u16 = 262;
-    pub const HEADBUTT: u16 = 263;
-    pub const HEAVENLY_DRILL: u16 = 264;
-    pub const HEGEMONY: u16 = 265;
-    pub const HEIRLOOM_HAMMER: u16 = 266;
-    pub const HELIX_DRILL: u16 = 267;
-    pub const HELLO_WORLD: u16 = 268;
-    pub const HELLRAISER: u16 = 269;
-    pub const HEMOKINESIS: u16 = 270;
-    pub const HIBERNATE: u16 = 271;
-    pub const HIDDEN_CACHE: u16 = 272;
-    pub const HIDDEN_DAGGERS: u16 = 273;
-    pub const HIDDEN_GEM: u16 = 274;
-    pub const HIGH_FIVE: u16 = 275;
-    pub const HOLOGRAM: u16 = 276;
-    pub const HOTFIX: u16 = 277;
-    pub const HOWL_FROM_BEYOND: u16 = 278;
-    pub const HUDDLE_UP: u16 = 279;
-    pub const HYPERBEAM: u16 = 280;
-    pub const ICE_LANCE: u16 = 281;
-    pub const IGNITION: u16 = 282;
-    pub const IMITATION_LEARNING: u16 = 283;
-    pub const IMPATIENCE: u16 = 284;
-    pub const IMPERVIOUS: u16 = 285;
-    pub const INFECTION: u16 = 286;
-    pub const INFERNAL_BLADE: u16 = 287;
-    pub const INFERNO: u16 = 288;
-    pub const INFINITE_BLADES: u16 = 289;
-    pub const INFLAME: u16 = 290;
-    pub const INJURY: u16 = 291;
-    pub const INTERCEPT: u16 = 292;
-    pub const INVOKE: u16 = 293;
-    pub const IRON_WAVE: u16 = 294;
-    pub const ITERATION: u16 = 295;
-    pub const I_AM_INVINCIBLE: u16 = 296;
-    pub const JACKPOT: u16 = 297;
-    pub const JACK_OF_ALL_TRADES: u16 = 298;
-    pub const JUGGERNAUT: u16 = 299;
-    pub const JUGGLING: u16 = 300;
-    pub const KINGLY_KICK: u16 = 301;
-    pub const KINGLY_PUNCH: u16 = 302;
-    pub const KNIFE_TRAP: u16 = 303;
-    pub const KNOCKDOWN: u16 = 304;
-    pub const KNOCKOUT_BLOW: u16 = 305;
-    pub const KNOW_THY_PLACE: u16 = 306;
-    pub const LANTERN_KEY: u16 = 307;
-    pub const LARGESSE: u16 = 308;
-    pub const LEADING_STRIKE: u16 = 309;
-    pub const LEAP: u16 = 310;
-    pub const LEGION_OF_BONE: u16 = 311;
-    pub const LEG_SWEEP: u16 = 312;
-    pub const LETHALITY: u16 = 313;
-    pub const LIFT: u16 = 314;
-    pub const LIGHTNING_ROD: u16 = 315;
-    pub const LOOP: u16 = 316;
-    pub const LUMINESCE: u16 = 317;
-    pub const LUNAR_BLAST: u16 = 318;
-    pub const MACHINE_LEARNING: u16 = 319;
-    pub const MAD_SCIENCE: u16 = 320;
-    pub const MAKE_IT_SO: u16 = 321;
-    pub const MALAISE: u16 = 322;
-    pub const MANGLE: u16 = 323;
-    pub const MANIFEST_AUTHORITY: u16 = 324;
-    pub const MASTER_OF_STRATEGY: u16 = 325;
-    pub const MASTER_PLANNER: u16 = 326;
-    pub const MAUL: u16 = 327;
-    pub const MAYHEM: u16 = 328;
-    pub const MELANCHOLY: u16 = 329;
-    pub const MEMENTO_MORI: u16 = 330;
-    pub const METAMORPHOSIS: u16 = 331;
-    pub const METEOR_SHOWER: u16 = 332;
-    pub const METEOR_STRIKE: u16 = 333;
-    pub const MIDNIGHT: u16 = 334;
-    pub const MIMIC: u16 = 335;
-    pub const MIND_BLAST: u16 = 336;
-    pub const MIND_ROT: u16 = 337;
-    pub const MINION_DIVE_BOMB: u16 = 338;
-    pub const MINION_SACRIFICE: u16 = 339;
-    pub const MINION_STRIKE: u16 = 340;
-    pub const MIRAGE: u16 = 341;
-    pub const MISERY: u16 = 342;
-    pub const MODDED: u16 = 343;
-    pub const MOLTEN_FIST: u16 = 344;
-    pub const MOMENTUM_STRIKE: u16 = 345;
-    pub const MONARCHS_GAZE: u16 = 346;
-    pub const MONOLOGUE: u16 = 347;
-    pub const MULTI_CAST: u16 = 348;
-    pub const MURDER: u16 = 349;
-    pub const NECRO_MASTERY: u16 = 350;
-    pub const NEGATIVE_PULSE: u16 = 351;
-    pub const NEOWS_FURY: u16 = 352;
-    pub const NEUROSURGE: u16 = 353;
-    pub const NEUTRALIZE: u16 = 354;
-    pub const NEUTRON_AEGIS: u16 = 355;
-    pub const NIGHTMARE: u16 = 356;
-    pub const NORMALITY: u16 = 357;
-    pub const NOSTALGIA: u16 = 358;
-    pub const NOT_YET: u16 = 359;
-    pub const NOXIOUS_FUMES: u16 = 360;
-    pub const NO_ESCAPE: u16 = 361;
-    pub const NULL: u16 = 362;
-    pub const OBLIVION: u16 = 363;
-    pub const OFFERING: u16 = 364;
-    pub const OMNISLICE: u16 = 365;
-    pub const ONE_FOR_ALL: u16 = 366;
-    pub const ONE_TWO_PUNCH: u16 = 367;
-    pub const ORBIT: u16 = 368;
-    pub const OUTBREAK: u16 = 369;
-    pub const OUTMANEUVER: u16 = 370;
-    pub const OUTRAGE: u16 = 371;
-    pub const OVERCLOCK: u16 = 372;
-    pub const PACTS_END: u16 = 373;
-    pub const PAGESTORM: u16 = 374;
-    pub const PALE_BLUE_DOT: u16 = 375;
-    pub const PANACHE: u16 = 376;
-    pub const PANIC_BUTTON: u16 = 377;
-    pub const PARRY: u16 = 378;
-    pub const PARSE: u16 = 379;
-    pub const PARTICLE_WALL: u16 = 380;
-    pub const PATTER: u16 = 381;
-    pub const PECK: u16 = 382;
-    pub const PERFECTED_STRIKE: u16 = 383;
-    pub const PHANTOM_BLADES: u16 = 384;
-    pub const PHOTON_CUT: u16 = 385;
-    pub const PIERCING_WAIL: u16 = 386;
-    pub const PILLAGE: u16 = 387;
-    pub const PILLAR_OF_CREATION: u16 = 388;
-    pub const PINPOINT: u16 = 389;
-    pub const PLOT: u16 = 390;
-    pub const POISONED_STAB: u16 = 391;
-    pub const POKE: u16 = 392;
-    pub const POMMEL_STRIKE: u16 = 393;
-    pub const POOR_SLEEP: u16 = 394;
-    pub const POUNCE: u16 = 395;
-    pub const PRECISE_CUT: u16 = 396;
-    pub const PREDATOR: u16 = 397;
-    pub const PREPARED: u16 = 398;
-    pub const PREP_TIME: u16 = 399;
-    pub const PRIMAL_FORCE: u16 = 400;
-    pub const PRODUCTION: u16 = 401;
-    pub const PROLONG: u16 = 402;
-    pub const PROPHESIZE: u16 = 403;
-    pub const PROTECTOR: u16 = 404;
-    pub const PROWESS: u16 = 405;
-    pub const PULL_AGGRO: u16 = 406;
-    pub const PULL_FROM_BELOW: u16 = 407;
-    pub const PURITY: u16 = 408;
-    pub const PUTREFY: u16 = 409;
-    pub const PYRE: u16 = 410;
-    pub const QUADCAST: u16 = 411;
-    pub const QUASAR: u16 = 412;
-    pub const RADIATE: u16 = 413;
-    pub const RAGE: u16 = 414;
-    pub const RAINBOW: u16 = 415;
-    pub const RALLY: u16 = 416;
-    pub const RAMPAGE: u16 = 417;
-    pub const RATTLE: u16 = 418;
-    pub const REANIMATE: u16 = 419;
-    pub const REAP: u16 = 420;
-    pub const REAPER_FORM: u16 = 421;
-    pub const REAVE: u16 = 422;
-    pub const REBOOT: u16 = 423;
-    pub const REBOUND: u16 = 424;
-    pub const REFINE_BLADE: u16 = 425;
-    pub const REFLECT: u16 = 426;
-    pub const REFLEX: u16 = 427;
-    pub const REFRACT: u16 = 428;
-    pub const REGRET: u16 = 429;
-    pub const RELAX: u16 = 430;
-    pub const REND: u16 = 431;
-    pub const RESONANCE: u16 = 432;
-    pub const RESTLESSNESS: u16 = 433;
-    pub const RICOCHET: u16 = 434;
-    pub const RIGHT_HAND_HAND: u16 = 435;
-    pub const RIP_AND_TEAR: u16 = 436;
-    pub const ROCKET_PUNCH: u16 = 437;
-    pub const ROLLING_BOULDER: u16 = 438;
-    pub const ROYALTIES: u16 = 439;
-    pub const ROYAL_GAMBLE: u16 = 440;
-    pub const RUPTURE: u16 = 441;
-    pub const SACRIFICE: u16 = 442;
-    pub const SALVO: u16 = 443;
-    pub const SCAVENGE: u16 = 444;
-    pub const SCOURGE: u16 = 445;
-    pub const SCRAPE: u16 = 446;
-    pub const SCRAWL: u16 = 447;
-    pub const SCULPTING_STRIKE: u16 = 448;
-    pub const SEANCE: u16 = 449;
-    pub const SECOND_WIND: u16 = 450;
-    pub const SECRET_TECHNIQUE: u16 = 451;
-    pub const SECRET_WEAPON: u16 = 452;
-    pub const SEEKER_STRIKE: u16 = 453;
-    pub const SEEKING_EDGE: u16 = 454;
-    pub const SENTRY_MODE: u16 = 455;
-    pub const SERPENT_FORM: u16 = 456;
-    pub const SETUP_STRIKE: u16 = 457;
-    pub const SEVEN_STARS: u16 = 458;
-    pub const SEVERANCE: u16 = 459;
-    pub const SHADOWMELD: u16 = 460;
-    pub const SHADOW_SHIELD: u16 = 461;
-    pub const SHADOW_STEP: u16 = 462;
-    pub const SHAME: u16 = 463;
-    pub const SHARED_FATE: u16 = 464;
-    pub const SHATTER: u16 = 465;
-    pub const SHINING_STRIKE: u16 = 466;
-    pub const SHIV: u16 = 467;
-    pub const SHOCKWAVE: u16 = 468;
-    pub const SHROUD: u16 = 469;
-    pub const SHRUG_IT_OFF: u16 = 470;
-    pub const SIC_EM: u16 = 471;
-    pub const SIDESTEP: u16 = 472;
-    pub const SIGNAL_BOOST: u16 = 473;
-    pub const SKEWER: u16 = 474;
-    pub const SKIM: u16 = 475;
-    pub const SLEIGHT_OF_FLESH: u16 = 476;
-    pub const SLICE: u16 = 477;
-    pub const SLIMED: u16 = 478;
-    pub const SLOTH: u16 = 479;
-    pub const SMOKESTACK: u16 = 480;
-    pub const SNAKEBITE: u16 = 481;
-    pub const SNAP: u16 = 482;
-    pub const SNEAKY: u16 = 483;
-    pub const SOLAR_STRIKE: u16 = 484;
-    pub const SOOT: u16 = 485;
-    pub const SOUL: u16 = 486;
-    pub const SOULBOUND: u16 = 487;
-    pub const SOUL_STORM: u16 = 488;
-    pub const SOVEREIGN_BLADE: u16 = 489;
-    pub const SOW: u16 = 490;
-    pub const SPECTRUM_SHIFT: u16 = 491;
-    pub const SPEEDSTER: u16 = 492;
-    pub const SPINNER: u16 = 493;
-    pub const SPIRIT_OF_ASH: u16 = 494;
-    pub const SPITE: u16 = 495;
-    pub const SPLASH: u16 = 496;
-    pub const SPOILS_MAP: u16 = 497;
-    pub const SPOILS_OF_BATTLE: u16 = 498;
-    pub const SPORE_MIND: u16 = 499;
-    pub const SPUR: u16 = 500;
-    pub const SQUASH: u16 = 501;
-    pub const SQUEEZE: u16 = 502;
-    pub const STACK: u16 = 503;
-    pub const STAMPEDE: u16 = 504;
-    pub const STARDUST: u16 = 505;
-    pub const STOKE: u16 = 506;
-    pub const STOMP: u16 = 507;
-    pub const STONE_ARMOR: u16 = 508;
-    pub const STORM: u16 = 509;
-    pub const STORM_OF_STEEL: u16 = 510;
-    pub const STRANGLE: u16 = 511;
-    pub const STRATAGEM: u16 = 512;
-    pub const STRIKE_DEFECT: u16 = 513;
-    pub const STRIKE_IRONCLAD: u16 = 514;
-    pub const STRIKE_NECROBINDER: u16 = 515;
-    pub const STRIKE_REGENT: u16 = 516;
-    pub const STRIKE_SILENT: u16 = 517;
-    pub const SUBROUTINE: u16 = 518;
-    pub const SUCKER_PUNCH: u16 = 519;
-    pub const SUMMON_FORTH: u16 = 520;
-    pub const SUNDER: u16 = 521;
-    pub const SUPERCRITICAL: u16 = 522;
-    pub const SUPERMASSIVE: u16 = 523;
-    pub const SUPPRESS: u16 = 524;
-    pub const SURVIVOR: u16 = 525;
-    pub const SWEEPING_BEAM: u16 = 526;
-    pub const SWEEPING_GAZE: u16 = 527;
-    pub const SWORD_BOOMERANG: u16 = 528;
-    pub const SWORD_SAGE: u16 = 529;
-    pub const SYNCHRONIZE: u16 = 530;
-    pub const SYNTHESIS: u16 = 531;
-    pub const TACTICIAN: u16 = 532;
-    pub const TAG_TEAM: u16 = 533;
-    pub const TANK: u16 = 534;
-    pub const TAUNT: u16 = 535;
-    pub const TEAR_ASUNDER: u16 = 536;
-    pub const TEMPEST: u16 = 537;
-    pub const TERRAFORMING: u16 = 538;
-    pub const TESLA_COIL: u16 = 539;
-    pub const THE_BALL: u16 = 540;
-    pub const THE_BOMB: u16 = 541;
-    pub const THE_GAMBIT: u16 = 542;
-    pub const THE_HUNT: u16 = 543;
-    pub const THE_SCYTHE: u16 = 544;
-    pub const THE_SEALED_THRONE: u16 = 545;
-    pub const THE_SMITH: u16 = 546;
-    pub const THINKING_AHEAD: u16 = 547;
-    pub const THRASH: u16 = 548;
-    pub const THRUMMING_HATCHET: u16 = 549;
-    pub const THUNDER: u16 = 550;
-    pub const THUNDERCLAP: u16 = 551;
-    pub const TIMES_UP: u16 = 552;
-    pub const TOOLS_OF_THE_TRADE: u16 = 553;
-    pub const TORIC_TOUGHNESS: u16 = 554;
-    pub const TOXIC: u16 = 555;
-    pub const TRACKING: u16 = 556;
-    pub const TRANSFIGURE: u16 = 557;
-    pub const TRASH_TO_TREASURE: u16 = 558;
-    pub const TREMBLE: u16 = 559;
-    pub const TRUE_GRIT: u16 = 560;
-    pub const TURBO: u16 = 561;
-    pub const TUTOR: u16 = 562;
-    pub const TWIN_STRIKE: u16 = 563;
-    pub const TYRANNY: u16 = 564;
-    pub const ULTIMATE_DEFEND: u16 = 565;
-    pub const ULTIMATE_STRIKE: u16 = 566;
-    pub const UNDEATH: u16 = 567;
-    pub const UNDERWORLD: u16 = 568;
-    pub const UNLEASH: u16 = 569;
-    pub const UNMOVABLE: u16 = 570;
-    pub const UNRELENTING: u16 = 571;
-    pub const UNTOUCHABLE: u16 = 572;
-    pub const UPPERCUT: u16 = 573;
-    pub const UPROAR: u16 = 574;
-    pub const UP_MY_SLEEVE: u16 = 575;
-    pub const VEILPIERCER: u16 = 576;
-    pub const VENERATE: u16 = 577;
-    pub const VICIOUS: u16 = 578;
-    pub const VOID: u16 = 579;
-    pub const VOID_FORM: u16 = 580;
-    pub const VOLLEY: u16 = 581;
-    pub const VOLTAIC: u16 = 582;
-    pub const WASTE_AWAY: u16 = 583;
-    pub const WELL_LAID_PLANS: u16 = 584;
-    pub const WHIRLWIND: u16 = 585;
-    pub const WHISTLE: u16 = 586;
-    pub const WHITE_NOISE: u16 = 587;
-    pub const WISH: u16 = 588;
-    pub const WISP: u16 = 589;
-    pub const WITHER: u16 = 590;
-    pub const WOUND: u16 = 591;
-    pub const WRAITH_FORM: u16 = 592;
-    pub const WRITHE: u16 = 593;
-    pub const WROUGHT_IN_WAR: u16 = 594;
-    pub const ZAP: u16 = 595;
+    pub const ALL_IS_WELL: u16 = 13;
+    pub const AMNESIA: u16 = 14;
+    pub const ANGER: u16 = 15;
+    pub const ANGUISH: u16 = 16;
+    pub const ANOINTED: u16 = 17;
+    pub const ANTICIPATE: u16 = 18;
+    pub const APOTHEOSIS: u16 = 19;
+    pub const APPARITION: u16 = 20;
+    pub const ARCHERY: u16 = 21;
+    pub const ARMAMENTS: u16 = 22;
+    pub const ARROW_STAB: u16 = 23;
+    pub const ARSENAL: u16 = 24;
+    pub const ASCENDERS_BANE: u16 = 25;
+    pub const ASHEN_STRIKE: u16 = 26;
+    pub const ASSASSINATE: u16 = 27;
+    pub const ASTRAL_PULSE: u16 = 28;
+    pub const AUTOMATION: u16 = 29;
+    pub const BACKFLIP: u16 = 30;
+    pub const BACKSTAB: u16 = 31;
+    pub const BAD_LUCK: u16 = 32;
+    pub const BALL_LIGHTNING: u16 = 33;
+    pub const BANSHEES_CRY: u16 = 34;
+    pub const BARRAGE: u16 = 35;
+    pub const BARRICADE: u16 = 36;
+    pub const BASH: u16 = 37;
+    pub const BATTLE_TRANCE: u16 = 38;
+    pub const BEACON_OF_HOPE: u16 = 39;
+    pub const BEAM_CELL: u16 = 40;
+    pub const BEAT_DOWN: u16 = 41;
+    pub const BEAT_INTO_SHAPE: u16 = 42;
+    pub const BECKON: u16 = 43;
+    pub const BEGONE: u16 = 44;
+    pub const BELIEVE_IN_YOU: u16 = 45;
+    pub const BIASED_COGNITION: u16 = 46;
+    pub const BIG_BANG: u16 = 47;
+    pub const BLACK_HOLE: u16 = 48;
+    pub const BLADE_DANCE: u16 = 49;
+    pub const BLADE_OF_INK: u16 = 50;
+    pub const BLADE_SYMPHONY: u16 = 51;
+    pub const BLAZE: u16 = 52;
+    pub const BLIGHT_STRIKE: u16 = 53;
+    pub const BLOODLETTING: u16 = 54;
+    pub const BLOOD_WALL: u16 = 55;
+    pub const BLOSSOM_SHOT: u16 = 56;
+    pub const BLOT_OUT_THE_SKY: u16 = 57;
+    pub const BLUDGEON: u16 = 58;
+    pub const BLUR: u16 = 59;
+    pub const BODYGUARD: u16 = 60;
+    pub const BODY_SLAM: u16 = 61;
+    pub const BOLAS: u16 = 62;
+    pub const BOMBARDMENT: u16 = 63;
+    pub const BONE_SHARDS: u16 = 64;
+    pub const BOOST_AWAY: u16 = 65;
+    pub const BOOT_SEQUENCE: u16 = 66;
+    pub const BORROWED_TIME: u16 = 67;
+    pub const BOUNCE: u16 = 68;
+    pub const BOUNCING_FLASK: u16 = 69;
+    pub const BOW_SMACK: u16 = 70;
+    pub const BRACE: u16 = 71;
+    pub const BRAND: u16 = 72;
+    pub const BREAK: u16 = 73;
+    pub const BREAKTHROUGH: u16 = 74;
+    pub const BRIGHTEN_UP: u16 = 75;
+    pub const BRIGHTEST_FLAME: u16 = 76;
+    pub const BUBBLE_BUBBLE: u16 = 77;
+    pub const BUFFER: u16 = 78;
+    pub const BULK_UP: u16 = 79;
+    pub const BULLET_TIME: u16 = 80;
+    pub const BULLY: u16 = 81;
+    pub const BULWARK: u16 = 82;
+    pub const BUNDLE_OF_JOY: u16 = 83;
+    pub const BURN: u16 = 84;
+    pub const BURNING_PACT: u16 = 85;
+    pub const BURST: u16 = 86;
+    pub const BURY: u16 = 87;
+    pub const BYRDONIS_EGG: u16 = 88;
+    pub const BYRD_SWOOP: u16 = 89;
+    pub const CACOPHONY: u16 = 90;
+    pub const CALAMITY: u16 = 91;
+    pub const CALCIFY: u16 = 92;
+    pub const CALCULATED_GAMBLE: u16 = 93;
+    pub const CALL_OF_THE_VOID: u16 = 94;
+    pub const CALTROPS: u16 = 95;
+    pub const CAPACITOR: u16 = 96;
+    pub const CAPTURE_SPIRIT: u16 = 97;
+    pub const CASCADE: u16 = 98;
+    pub const CATASTROPHE: u16 = 99;
+    pub const CELESTIAL_MIGHT: u16 = 100;
+    pub const CHAOS: u16 = 101;
+    pub const CHARGE: u16 = 102;
+    pub const CHARGE_BATTERY: u16 = 103;
+    pub const CHILD_OF_THE_STARS: u16 = 104;
+    pub const CHILL: u16 = 105;
+    pub const CHO_BARBS: u16 = 106;
+    pub const CHO_CHORUS: u16 = 107;
+    pub const CHO_FIRM: u16 = 108;
+    pub const CHO_KI: u16 = 109;
+    pub const CHO_LIMBS: u16 = 110;
+    pub const CHO_READY: u16 = 111;
+    pub const CINDER: u16 = 112;
+    pub const CLASH: u16 = 113;
+    pub const CLAW: u16 = 114;
+    pub const CLEANSE: u16 = 115;
+    pub const CLOAK_AND_DAGGER: u16 = 116;
+    pub const CLOAK_OF_STARS: u16 = 117;
+    pub const CLUMSY: u16 = 118;
+    pub const CODA: u16 = 119;
+    pub const COLD_SNAP: u16 = 120;
+    pub const COLLISION_COURSE: u16 = 121;
+    pub const COLOSSUS: u16 = 122;
+    pub const COMET: u16 = 123;
+    pub const COMPACT: u16 = 124;
+    pub const COMPILE_DRIVER: u16 = 125;
+    pub const COMPOST: u16 = 126;
+    pub const CONCOCT: u16 = 127;
+    pub const CONFLAGRATION: u16 = 128;
+    pub const CONQUEROR: u16 = 129;
+    pub const CONSTELLATION: u16 = 130;
+    pub const CONSUMING_SHADOW: u16 = 131;
+    pub const CONVERGENCE: u16 = 132;
+    pub const COOLANT: u16 = 133;
+    pub const COOLHEADED: u16 = 134;
+    pub const COORDINATE: u16 = 135;
+    pub const CORROSIVE_WAVE: u16 = 136;
+    pub const CORRUPTION: u16 = 137;
+    pub const COSMIC_INDIFFERENCE: u16 = 138;
+    pub const COUNTDOWN: u16 = 139;
+    pub const COVERING_FIRE: u16 = 140;
+    pub const CRASH_LANDING: u16 = 141;
+    pub const CREATIVE_AI: u16 = 142;
+    pub const CRESCENT_SPEAR: u16 = 143;
+    pub const CRIMSON_MANTLE: u16 = 144;
+    pub const CRUELTY: u16 = 145;
+    pub const CRUSH_UNDER: u16 = 146;
+    pub const CURSE_OF_THE_BELL: u16 = 147;
+    pub const DAGGER_SPRAY: u16 = 148;
+    pub const DAGGER_THROW: u16 = 149;
+    pub const DANSE_MACABRE: u16 = 150;
+    pub const DARKNESS: u16 = 151;
+    pub const DARK_EMBRACE: u16 = 152;
+    pub const DARK_SHACKLES: u16 = 153;
+    pub const DASH: u16 = 154;
+    pub const DAZED: u16 = 155;
+    pub const DEADLY_POISON: u16 = 156;
+    pub const DEATH: u16 = 157;
+    pub const DEATHBRINGER: u16 = 158;
+    pub const DEATHS_DOOR: u16 = 159;
+    pub const DEATH_MARCH: u16 = 160;
+    pub const DEBILITATE: u16 = 161;
+    pub const DEBRIS: u16 = 162;
+    pub const DEBT: u16 = 163;
+    pub const DECAY: u16 = 164;
+    pub const DECISIONS_DECISIONS: u16 = 165;
+    pub const DEEP_STRETCH: u16 = 166;
+    pub const DEFEND_DEFECT: u16 = 167;
+    pub const DEFEND_FOOL: u16 = 168;
+    pub const DEFEND_IRONCLAD: u16 = 169;
+    pub const DEFEND_NECROBINDER: u16 = 170;
+    pub const DEFEND_REGENT: u16 = 171;
+    pub const DEFEND_SILENT: u16 = 172;
+    pub const DEFILE: u16 = 173;
+    pub const DEFLECT: u16 = 174;
+    pub const DEFRAGMENT: u16 = 175;
+    pub const DEFY: u16 = 176;
+    pub const DELAY: u16 = 177;
+    pub const DEMESNE: u16 = 178;
+    pub const DEMONIC_SHIELD: u16 = 179;
+    pub const DEMON_FORM: u16 = 180;
+    pub const DEPRECATED_CARD: u16 = 181;
+    pub const DEVASTATE: u16 = 182;
+    pub const DEVOUR_LIFE: u16 = 183;
+    pub const DINGY_DAGGER: u16 = 184;
+    pub const DIRGE: u16 = 185;
+    pub const DISCOVERY: u16 = 186;
+    pub const DISINTEGRATION: u16 = 187;
+    pub const DISLIKE_YOU: u16 = 188;
+    pub const DISMANTLE: u16 = 189;
+    pub const DISTRACTION: u16 = 190;
+    pub const DIVINE_SHOT: u16 = 191;
+    pub const DODGE_AND_ROLL: u16 = 192;
+    pub const DOMINATE: u16 = 193;
+    pub const DOUBLE_ENERGY: u16 = 194;
+    pub const DOUBT: u16 = 195;
+    pub const DOWSING: u16 = 196;
+    pub const DRAIN_POWER: u16 = 197;
+    pub const DRAMATIC_ENTRANCE: u16 = 198;
+    pub const DREDGE: u16 = 199;
+    pub const DRUM_OF_BATTLE: u16 = 200;
+    pub const DUALCAST: u16 = 201;
+    pub const DUAL_WIELD: u16 = 202;
+    pub const DYING_STAR: u16 = 203;
+    pub const ECHOING_SLASH: u16 = 204;
+    pub const ECHO_FORM: u16 = 205;
+    pub const ECSTASY: u16 = 206;
+    pub const EIDOLON: u16 = 207;
+    pub const ENCORE: u16 = 208;
+    pub const END_OF_DAYS: u16 = 209;
+    pub const ENERGY_SURGE: u16 = 210;
+    pub const ENFEEBLING_TOUCH: u16 = 211;
+    pub const ENLIGHTENMENT: u16 = 212;
+    pub const ENNUI: u16 = 213;
+    pub const ENRAPTURE: u16 = 214;
+    pub const ENSEMBLE: u16 = 215;
+    pub const ENTHRALLED: u16 = 216;
+    pub const ENTRENCH: u16 = 217;
+    pub const ENTROPY: u16 = 218;
+    pub const ENVENOM: u16 = 219;
+    pub const EPIC_RETRIEVAL: u16 = 220;
+    pub const EQUILIBRIUM: u16 = 221;
+    pub const ERADICATE: u16 = 222;
+    pub const ESCAPE_PLAN: u16 = 223;
+    pub const ETERNAL_ARMOR: u16 = 224;
+    pub const EVIL_EYE: u16 = 225;
+    pub const EXPECT_A_FIGHT: u16 = 226;
+    pub const EXPERTISE: u16 = 227;
+    pub const EXPLOSIVE_ARROWS: u16 = 228;
+    pub const EXPOSE: u16 = 229;
+    pub const EXTERMINATE: u16 = 230;
+    pub const FADE: u16 = 231;
+    pub const FALLING_STAR: u16 = 232;
+    pub const FAN_OF_KNIVES: u16 = 233;
+    pub const FASTEN: u16 = 234;
+    pub const FEAR: u16 = 235;
+    pub const FEED: u16 = 236;
+    pub const FEEDING_FRENZY: u16 = 237;
+    pub const FEEL_NO_PAIN: u16 = 238;
+    pub const FERAL: u16 = 239;
+    pub const FETCH: u16 = 240;
+    pub const FIEND_FIRE: u16 = 241;
+    pub const FIGHT_ME: u16 = 242;
+    pub const FIGHT_THROUGH: u16 = 243;
+    pub const FINESSE: u16 = 244;
+    pub const FINISHER: u16 = 245;
+    pub const FISTICUFFS: u16 = 246;
+    pub const FLAK_CANNON: u16 = 247;
+    pub const FLAME_BARRIER: u16 = 248;
+    pub const FLANKING: u16 = 249;
+    pub const FLASH_OF_STEEL: u16 = 250;
+    pub const FLATTEN: u16 = 251;
+    pub const FLECHETTES: u16 = 252;
+    pub const FLICK_FLACK: u16 = 253;
+    pub const FLORESCENCE: u16 = 254;
+    pub const FOCUSED_STRIKE: u16 = 255;
+    pub const FOLLY: u16 = 256;
+    pub const FOOLISH_SHOT: u16 = 257;
+    pub const FOOTWORK: u16 = 258;
+    pub const FORBIDDEN_GRIMOIRE: u16 = 259;
+    pub const FOREGONE_CONCLUSION: u16 = 260;
+    pub const FORGOTTEN_RITUAL: u16 = 261;
+    pub const FRANTIC_ESCAPE: u16 = 262;
+    pub const FRIENDSHIP: u16 = 263;
+    pub const FTL: u16 = 264;
+    pub const FUEL: u16 = 265;
+    pub const FURNACE: u16 = 266;
+    pub const FUSION: u16 = 267;
+    pub const GAMMA_BLAST: u16 = 268;
+    pub const GANG_UP: u16 = 269;
+    pub const GATHER_LIGHT: u16 = 270;
+    pub const GENESIS: u16 = 271;
+    pub const GENETIC_ALGORITHM: u16 = 272;
+    pub const GIANT_ROCK: u16 = 273;
+    pub const GLACIER: u16 = 274;
+    pub const GLASSWORK: u16 = 275;
+    pub const GLIMMER: u16 = 276;
+    pub const GLIMPSE_BEYOND: u16 = 277;
+    pub const GLITTERSTREAM: u16 = 278;
+    pub const GLOW: u16 = 279;
+    pub const GOD_BYRD: u16 = 280;
+    pub const GOLD_AXE: u16 = 281;
+    pub const GO_FOR_THE_EYES: u16 = 282;
+    pub const GRAND_FINALE: u16 = 283;
+    pub const GRAVEBLAST: u16 = 284;
+    pub const GRAVE_WARDEN: u16 = 285;
+    pub const GREED: u16 = 286;
+    pub const GROWTH: u16 = 287;
+    pub const GUARDS: u16 = 288;
+    pub const GUIDING_STAR: u16 = 289;
+    pub const GUILTY: u16 = 290;
+    pub const GUNK_UP: u16 = 291;
+    pub const HAILSTORM: u16 = 292;
+    pub const HAMMER_TIME: u16 = 293;
+    pub const HAND_OF_GREED: u16 = 294;
+    pub const HAND_TRICK: u16 = 295;
+    pub const HANG: u16 = 296;
+    pub const HARMONIC_SHIELD: u16 = 297;
+    pub const HAUNT: u16 = 298;
+    pub const HAVOC: u16 = 299;
+    pub const HAZE: u16 = 300;
+    pub const HEADBUTT: u16 = 301;
+    pub const HEAVENLY_DRILL: u16 = 302;
+    pub const HEAVY_SHOT: u16 = 303;
+    pub const HEGEMONY: u16 = 304;
+    pub const HEIRLOOM_HAMMER: u16 = 305;
+    pub const HELIX_DRILL: u16 = 306;
+    pub const HELLO_WORLD: u16 = 307;
+    pub const HELLRAISER: u16 = 308;
+    pub const HEMOKINESIS: u16 = 309;
+    pub const HIBERNATE: u16 = 310;
+    pub const HIDDEN_CACHE: u16 = 311;
+    pub const HIDDEN_DAGGERS: u16 = 312;
+    pub const HIDDEN_GEM: u16 = 313;
+    pub const HIDDEN_ROOTS: u16 = 314;
+    pub const HIGH_FIVE: u16 = 315;
+    pub const HOBBLING_SHOT: u16 = 316;
+    pub const HOLOGRAM: u16 = 317;
+    pub const HONING: u16 = 318;
+    pub const HOTFIX: u16 = 319;
+    pub const HOWL_FROM_BEYOND: u16 = 320;
+    pub const HUDDLE_UP: u16 = 321;
+    pub const HYPERBEAM: u16 = 322;
+    pub const ICE_LANCE: u16 = 323;
+    pub const IGNITION: u16 = 324;
+    pub const IMITATION_LEARNING: u16 = 325;
+    pub const IMPATIENCE: u16 = 326;
+    pub const IMPERVIOUS: u16 = 327;
+    pub const INFECTION: u16 = 328;
+    pub const INFERNAL_BLADE: u16 = 329;
+    pub const INFERNO: u16 = 330;
+    pub const INFINITE_BLADES: u16 = 331;
+    pub const INFLAME: u16 = 332;
+    pub const INJURY: u16 = 333;
+    pub const INTERCEPT: u16 = 334;
+    pub const INVOKE: u16 = 335;
+    pub const IRON_WAVE: u16 = 336;
+    pub const ITERATION: u16 = 337;
+    pub const I_AM_INVINCIBLE: u16 = 338;
+    pub const JACKPOT: u16 = 339;
+    pub const JACK_OF_ALL_TRADES: u16 = 340;
+    pub const JEST: u16 = 341;
+    pub const JOY: u16 = 342;
+    pub const JUDGEMENT: u16 = 343;
+    pub const JUGGERNAUT: u16 = 344;
+    pub const JUGGLING: u16 = 345;
+    pub const JUSTICE: u16 = 346;
+    pub const KINGLY_KICK: u16 = 347;
+    pub const KINGLY_PUNCH: u16 = 348;
+    pub const KI_CHANT: u16 = 349;
+    pub const KI_HOP: u16 = 350;
+    pub const KI_REST: u16 = 351;
+    pub const KI_VERSE: u16 = 352;
+    pub const KI_WHIP: u16 = 353;
+    pub const KNIFE_TRAP: u16 = 354;
+    pub const KNOCKDOWN: u16 = 355;
+    pub const KNOCKOUT_BLOW: u16 = 356;
+    pub const KNOW_THY_PLACE: u16 = 357;
+    pub const LANTERN_KEY: u16 = 358;
+    pub const LARGESSE: u16 = 359;
+    pub const LEADING_STRIKE: u16 = 360;
+    pub const LEAP: u16 = 361;
+    pub const LEGION_OF_BONE: u16 = 362;
+    pub const LEG_SWEEP: u16 = 363;
+    pub const LETHALITY: u16 = 364;
+    pub const LIFT: u16 = 365;
+    pub const LIGHTNING_ROD: u16 = 366;
+    pub const LOCKED_IN: u16 = 367;
+    pub const LOOP: u16 = 368;
+    pub const LOST_LUTE: u16 = 369;
+    pub const LULLABY: u16 = 370;
+    pub const LUMINESCE: u16 = 371;
+    pub const LUNAR_BLAST: u16 = 372;
+    pub const MACHINE_LEARNING: u16 = 373;
+    pub const MAD_SCIENCE: u16 = 374;
+    pub const MAKE_IT_SO: u16 = 375;
+    pub const MALAISE: u16 = 376;
+    pub const MANGLE: u16 = 377;
+    pub const MANIFEST_AUTHORITY: u16 = 378;
+    pub const MASTER_OF_STRATEGY: u16 = 379;
+    pub const MASTER_PLANNER: u16 = 380;
+    pub const MAUL: u16 = 381;
+    pub const MAYHEM: u16 = 382;
+    pub const MELANCHOLY: u16 = 383;
+    pub const MELODIC_SHOT: u16 = 384;
+    pub const MEMENTO_MORI: u16 = 385;
+    pub const METAMORPHOSIS: u16 = 386;
+    pub const METEOR_SHOWER: u16 = 387;
+    pub const METEOR_STRIKE: u16 = 388;
+    pub const MIDNIGHT: u16 = 389;
+    pub const MIGHTY_SHIELD: u16 = 390;
+    pub const MIGHTY_WEAPON: u16 = 391;
+    pub const MIMIC: u16 = 392;
+    pub const MIND_BLAST: u16 = 393;
+    pub const MIND_ROT: u16 = 394;
+    pub const MINION_DIVE_BOMB: u16 = 395;
+    pub const MINION_SACRIFICE: u16 = 396;
+    pub const MINION_STRIKE: u16 = 397;
+    pub const MIRAGE: u16 = 398;
+    pub const MISERY: u16 = 399;
+    pub const MODDED: u16 = 400;
+    pub const MOLTEN_FIST: u16 = 401;
+    pub const MOMENTUM_STRIKE: u16 = 402;
+    pub const MONARCHS_GAZE: u16 = 403;
+    pub const MONOLOGUE: u16 = 404;
+    pub const MOTIF: u16 = 405;
+    pub const MOURNING_BLOW: u16 = 406;
+    pub const MULTI_CAST: u16 = 407;
+    pub const MURDER: u16 = 408;
+    pub const MYTHIC_FORM: u16 = 409;
+    pub const MY_SHINIES: u16 = 410;
+    pub const NAIL: u16 = 411;
+    pub const NECRO_MASTERY: u16 = 412;
+    pub const NEGATIVE_PULSE: u16 = 413;
+    pub const NEOWS_FURY: u16 = 414;
+    pub const NEUROSURGE: u16 = 415;
+    pub const NEUTRALIZE: u16 = 416;
+    pub const NEUTRON_AEGIS: u16 = 417;
+    pub const NIGHTMARE: u16 = 418;
+    pub const NOCK: u16 = 419;
+    pub const NORMALITY: u16 = 420;
+    pub const NOSTALGIA: u16 = 421;
+    pub const NOT_YET: u16 = 422;
+    pub const NOXIOUS_FUMES: u16 = 423;
+    pub const NO_ESCAPE: u16 = 424;
+    pub const NULL: u16 = 425;
+    pub const OBLIVION: u16 = 426;
+    pub const OFFERING: u16 = 427;
+    pub const OMNISLICE: u16 = 428;
+    pub const ONE_FOR_ALL: u16 = 429;
+    pub const ONE_TWO_PUNCH: u16 = 430;
+    pub const ORBIT: u16 = 431;
+    pub const OUTBREAK: u16 = 432;
+    pub const OUTMANEUVER: u16 = 433;
+    pub const OUTRAGE: u16 = 434;
+    pub const OVERCLOCK: u16 = 435;
+    pub const PACTS_END: u16 = 436;
+    pub const PAGESTORM: u16 = 437;
+    pub const PALE_BLUE_DOT: u16 = 438;
+    pub const PANACHE: u16 = 439;
+    pub const PANIC_BUTTON: u16 = 440;
+    pub const PARRY: u16 = 441;
+    pub const PARSE: u16 = 442;
+    pub const PARTICLE_WALL: u16 = 443;
+    pub const PATTER: u16 = 444;
+    pub const PECK: u16 = 445;
+    pub const PERFECTED_STRIKE: u16 = 446;
+    pub const PHANTOM_BLADES: u16 = 447;
+    pub const PHOTON_CUT: u16 = 448;
+    pub const PIERCING_WAIL: u16 = 449;
+    pub const PILLAGE: u16 = 450;
+    pub const PILLAR_OF_CREATION: u16 = 451;
+    pub const PINPOINT: u16 = 452;
+    pub const PLOT: u16 = 453;
+    pub const POISONED_STAB: u16 = 454;
+    pub const POKE: u16 = 455;
+    pub const POMMEL_STRIKE: u16 = 456;
+    pub const POOR_SLEEP: u16 = 457;
+    pub const POUNCE: u16 = 458;
+    pub const PRECISE_CUT: u16 = 459;
+    pub const PREDATOR: u16 = 460;
+    pub const PREPARED: u16 = 461;
+    pub const PREP_TIME: u16 = 462;
+    pub const PRIMAL_FORCE: u16 = 463;
+    pub const PRODUCTION: u16 = 464;
+    pub const PROLONG: u16 = 465;
+    pub const PROPHESIZE: u16 = 466;
+    pub const PROTECTOR: u16 = 467;
+    pub const PROWESS: u16 = 468;
+    pub const PULL_AGGRO: u16 = 469;
+    pub const PULL_FROM_BELOW: u16 = 470;
+    pub const PUNCH_OF_JOY: u16 = 471;
+    pub const PURITY: u16 = 472;
+    pub const PUTREFY: u16 = 473;
+    pub const PYRE: u16 = 474;
+    pub const QUADCAST: u16 = 475;
+    pub const QUASAR: u16 = 476;
+    pub const QUICK_SHOT: u16 = 477;
+    pub const QUIETUS: u16 = 478;
+    pub const QUIVER: u16 = 479;
+    pub const RADIATE: u16 = 480;
+    pub const RAGE: u16 = 481;
+    pub const RAINBOW: u16 = 482;
+    pub const RAIN_SHOT: u16 = 483;
+    pub const RALLY: u16 = 484;
+    pub const RAMPAGE: u16 = 485;
+    pub const RAPID_SHOT: u16 = 486;
+    pub const RATTLE: u16 = 487;
+    pub const REANIMATE: u16 = 488;
+    pub const REAP: u16 = 489;
+    pub const REAPER_FORM: u16 = 490;
+    pub const REAVE: u16 = 491;
+    pub const REBOOT: u16 = 492;
+    pub const REBOUND: u16 = 493;
+    pub const RECALL: u16 = 494;
+    pub const REFINE_BLADE: u16 = 495;
+    pub const REFLECT: u16 = 496;
+    pub const REFLEX: u16 = 497;
+    pub const REFRACT: u16 = 498;
+    pub const REGRET: u16 = 499;
+    pub const RELAX: u16 = 500;
+    pub const REND: u16 = 501;
+    pub const REPEAT_SHOT: u16 = 502;
+    pub const RESONANCE: u16 = 503;
+    pub const RESTLESSNESS: u16 = 504;
+    pub const RHYTHM_STRIKE: u16 = 505;
+    pub const RICOCHET: u16 = 506;
+    pub const RIGHT_HAND_HAND: u16 = 507;
+    pub const RIP_AND_TEAR: u16 = 508;
+    pub const ROCKET_PUNCH: u16 = 509;
+    pub const ROLLING_BOULDER: u16 = 510;
+    pub const ROYALTIES: u16 = 511;
+    pub const ROYAL_GAMBLE: u16 = 512;
+    pub const RUMMAGE: u16 = 513;
+    pub const RUPTURE: u16 = 514;
+    pub const SACRIFICE: u16 = 515;
+    pub const SADNESS: u16 = 516;
+    pub const SALVO: u16 = 517;
+    pub const SCAVENGE: u16 = 518;
+    pub const SCOURGE: u16 = 519;
+    pub const SCRAPE: u16 = 520;
+    pub const SCRAWL: u16 = 521;
+    pub const SCULPTING_STRIKE: u16 = 522;
+    pub const SEANCE: u16 = 523;
+    pub const SECOND_WIND: u16 = 524;
+    pub const SECRET_TECHNIQUE: u16 = 525;
+    pub const SECRET_WEAPON: u16 = 526;
+    pub const SEEKER_STRIKE: u16 = 527;
+    pub const SEEKING_EDGE: u16 = 528;
+    pub const SELF_DEPRECATE: u16 = 529;
+    pub const SENTRY_MODE: u16 = 530;
+    pub const SERPENT_FORM: u16 = 531;
+    pub const SERRATED_ARROWS: u16 = 532;
+    pub const SETUP_STRIKE: u16 = 533;
+    pub const SEVEN_STARS: u16 = 534;
+    pub const SEVERANCE: u16 = 535;
+    pub const SHADOWMELD: u16 = 536;
+    pub const SHADOW_SHIELD: u16 = 537;
+    pub const SHADOW_STEP: u16 = 538;
+    pub const SHAME: u16 = 539;
+    pub const SHARED_FATE: u16 = 540;
+    pub const SHATTER: u16 = 541;
+    pub const SHINING_STRIKE: u16 = 542;
+    pub const SHIV: u16 = 543;
+    pub const SHOCKWAVE: u16 = 544;
+    pub const SHOW_OFF: u16 = 545;
+    pub const SHROUD: u16 = 546;
+    pub const SHRUG_IT_OFF: u16 = 547;
+    pub const SIC_EM: u16 = 548;
+    pub const SIDESTEP: u16 = 549;
+    pub const SIGNAL_BOOST: u16 = 550;
+    pub const SIMPLETON: u16 = 551;
+    pub const SKEWER: u16 = 552;
+    pub const SKIM: u16 = 553;
+    pub const SKY_SHOT: u16 = 554;
+    pub const SLEIGHT_OF_FLESH: u16 = 555;
+    pub const SLICE: u16 = 556;
+    pub const SLIMED: u16 = 557;
+    pub const SLOTH: u16 = 558;
+    pub const SMOKESTACK: u16 = 559;
+    pub const SNAKEBITE: u16 = 560;
+    pub const SNAP: u16 = 561;
+    pub const SNEAKY: u16 = 562;
+    pub const SOLAR_STRIKE: u16 = 563;
+    pub const SONG_PATH: u16 = 564;
+    pub const SOOT: u16 = 565;
+    pub const SORROWFUL_STRIKE: u16 = 566;
+    pub const SOUL: u16 = 567;
+    pub const SOULBOUND: u16 = 568;
+    pub const SOUL_STORM: u16 = 569;
+    pub const SOVEREIGN_BLADE: u16 = 570;
+    pub const SOW: u16 = 571;
+    pub const SPECTRUM_SHIFT: u16 = 572;
+    pub const SPEEDSTER: u16 = 573;
+    pub const SPINNER: u16 = 574;
+    pub const SPIRIT_OF_ASH: u16 = 575;
+    pub const SPITE: u16 = 576;
+    pub const SPLASH: u16 = 577;
+    pub const SPOILS_MAP: u16 = 578;
+    pub const SPOILS_OF_BATTLE: u16 = 579;
+    pub const SPORE_MIND: u16 = 580;
+    pub const SPUR: u16 = 581;
+    pub const SQUASH: u16 = 582;
+    pub const SQUEEZE: u16 = 583;
+    pub const STACK: u16 = 584;
+    pub const STAMPEDE: u16 = 585;
+    pub const STARDUST: u16 = 586;
+    pub const STEADY_CADENCE: u16 = 587;
+    pub const STOKE: u16 = 588;
+    pub const STOMP: u16 = 589;
+    pub const STONE_ARMOR: u16 = 590;
+    pub const STORM: u16 = 591;
+    pub const STORM_OF_STEEL: u16 = 592;
+    pub const STRANGLE: u16 = 593;
+    pub const STRATAGEM: u16 = 594;
+    pub const STRENGTH: u16 = 595;
+    pub const STRIKE_DEFECT: u16 = 596;
+    pub const STRIKE_FOOL: u16 = 597;
+    pub const STRIKE_IRONCLAD: u16 = 598;
+    pub const STRIKE_NECROBINDER: u16 = 599;
+    pub const STRIKE_REGENT: u16 = 600;
+    pub const STRIKE_SILENT: u16 = 601;
+    pub const SUBROUTINE: u16 = 602;
+    pub const SUCKER_PUNCH: u16 = 603;
+    pub const SUMMON_FORTH: u16 = 604;
+    pub const SUNDER: u16 = 605;
+    pub const SUPERCRITICAL: u16 = 606;
+    pub const SUPERMASSIVE: u16 = 607;
+    pub const SUPPRESS: u16 = 608;
+    pub const SURVIVOR: u16 = 609;
+    pub const SWEEPING_BEAM: u16 = 610;
+    pub const SWEEPING_GAZE: u16 = 611;
+    pub const SWORD_BOOMERANG: u16 = 612;
+    pub const SWORD_SAGE: u16 = 613;
+    pub const SYNCHRONIZE: u16 = 614;
+    pub const SYNTHESIS: u16 = 615;
+    pub const TACTICIAN: u16 = 616;
+    pub const TAG_TEAM: u16 = 617;
+    pub const TANK: u16 = 618;
+    pub const TAUNT: u16 = 619;
+    pub const TEAR_ASUNDER: u16 = 620;
+    pub const TEMPERANCE: u16 = 621;
+    pub const TEMPEST: u16 = 622;
+    pub const TERRAFORMING: u16 = 623;
+    pub const TESLA_COIL: u16 = 624;
+    pub const THE_BALL: u16 = 625;
+    pub const THE_BOMB: u16 = 626;
+    pub const THE_CHARIOT: u16 = 627;
+    pub const THE_DEVIL: u16 = 628;
+    pub const THE_EMPEROR: u16 = 629;
+    pub const THE_EMPRESS: u16 = 630;
+    pub const THE_FOOL: u16 = 631;
+    pub const THE_GAMBIT: u16 = 632;
+    pub const THE_HANGED_MAN: u16 = 633;
+    pub const THE_HERMIT: u16 = 634;
+    pub const THE_HIEROPHANT: u16 = 635;
+    pub const THE_HIGH_PRIESTESS: u16 = 636;
+    pub const THE_HUNT: u16 = 637;
+    pub const THE_LOVERS: u16 = 638;
+    pub const THE_MAGICIAN: u16 = 639;
+    pub const THE_MOON: u16 = 640;
+    pub const THE_SCYTHE: u16 = 641;
+    pub const THE_SEALED_THRONE: u16 = 642;
+    pub const THE_SHOT: u16 = 643;
+    pub const THE_SMITH: u16 = 644;
+    pub const THE_STAR: u16 = 645;
+    pub const THE_SUN: u16 = 646;
+    pub const THE_TOWER: u16 = 647;
+    pub const THE_WORLD: u16 = 648;
+    pub const THINKING_AHEAD: u16 = 649;
+    pub const THRASH: u16 = 650;
+    pub const THRUMMING_HATCHET: u16 = 651;
+    pub const THUNDER: u16 = 652;
+    pub const THUNDERCLAP: u16 = 653;
+    pub const TIMBER: u16 = 654;
+    pub const TIMES_UP: u16 = 655;
+    pub const TOOLS_OF_THE_TRADE: u16 = 656;
+    pub const TORIC_TOUGHNESS: u16 = 657;
+    pub const TOXIC: u16 = 658;
+    pub const TRACKING: u16 = 659;
+    pub const TRANSFIGURE: u16 = 660;
+    pub const TRASH_TO_TREASURE: u16 = 661;
+    pub const TREMBLE: u16 = 662;
+    pub const TRICK_SHOT: u16 = 663;
+    pub const TRUE_GRIT: u16 = 664;
+    pub const TUNE: u16 = 665;
+    pub const TURBO: u16 = 666;
+    pub const TUTOR: u16 = 667;
+    pub const TWIN_STRIKE: u16 = 668;
+    pub const TYRANNY: u16 = 669;
+    pub const ULTIMATE_DEFEND: u16 = 670;
+    pub const ULTIMATE_STRIKE: u16 = 671;
+    pub const UNDEATH: u16 = 672;
+    pub const UNDERWORLD: u16 = 673;
+    pub const UNLEASH: u16 = 674;
+    pub const UNMOVABLE: u16 = 675;
+    pub const UNRELENTING: u16 = 676;
+    pub const UNTOUCHABLE: u16 = 677;
+    pub const UPPERCUT: u16 = 678;
+    pub const UPROAR: u16 = 679;
+    pub const UPROOT: u16 = 680;
+    pub const UP_MY_SLEEVE: u16 = 681;
+    pub const VEILPIERCER: u16 = 682;
+    pub const VENERATE: u16 = 683;
+    pub const VICIOUS: u16 = 684;
+    pub const VIOLENT_CHORD: u16 = 685;
+    pub const VITRIOL: u16 = 686;
+    pub const VOID: u16 = 687;
+    pub const VOID_FORM: u16 = 688;
+    pub const VOLLEY: u16 = 689;
+    pub const VOLTAIC: u16 = 690;
+    pub const WAH_BLAST: u16 = 691;
+    pub const WAH_CHO: u16 = 692;
+    pub const WAH_CHO_KI: u16 = 693;
+    pub const WAH_HAMMER: u16 = 694;
+    pub const WAH_KI: u16 = 695;
+    pub const WAH_SWEEP: u16 = 696;
+    pub const WAH_SYMPHONY: u16 = 697;
+    pub const WAH_TOUCH: u16 = 698;
+    pub const WASTE_AWAY: u16 = 699;
+    pub const WELL_LAID_PLANS: u16 = 700;
+    pub const WHEEL_OF_FORTUNE: u16 = 701;
+    pub const WHIRLWIND: u16 = 702;
+    pub const WHISTLE: u16 = 703;
+    pub const WHISTLING_ARROWS: u16 = 704;
+    pub const WHITE_NOISE: u16 = 705;
+    pub const WISH: u16 = 706;
+    pub const WISP: u16 = 707;
+    pub const WITHER: u16 = 708;
+    pub const WOUND: u16 = 709;
+    pub const WRAITH_FORM: u16 = 710;
+    pub const WREST: u16 = 711;
+    pub const WRITHE: u16 = 712;
+    pub const WROUGHT_IN_WAR: u16 = 713;
+    pub const YAH: u16 = 714;
+    pub const YOGA: u16 = 715;
+    pub const ZAP: u16 = 716;
 }
 
 pub mod power {
-    pub const COUNT: usize = 265;
+    pub const COUNT: usize = 304;
     /// ModelId entry strings (e.g. `STRIKE_IRONCLAD`), indexed by id.
     pub static NAMES: [&str; COUNT] = [
         "ACCELERANT_POWER",
         "ACCURACY_POWER",
         "ADAPTABLE_POWER",
+        "AEONGLASS_DOMINION_POWER",
         "AFTERIMAGE_POWER",
         "AGGRESSION_POWER",
-        "AMBERGRIS_POWER",
+        "AIM_POWER",
+        "ALL_IS_WELL_POWER",
+        "AMNESIA_POWER",
         "ANTICIPATE_POWER",
+        "ARCHERY_POWER",
         "ARSENAL_POWER",
         "ARTIFACT_POWER",
         "ASLEEP_POWER",
@@ -1834,9 +2201,12 @@ pub mod power {
         "CALL_OF_THE_VOID_POWER",
         "CHAINS_OF_BINDING_POWER",
         "CHILD_OF_THE_STARS_POWER",
+        "CHO_BARBS_POWER",
         "CLARITY_POWER",
         "COLOSSUS_POWER",
+        "COMPOST_POWER",
         "CONCOCT_POWER",
+        "CONDUCTORS_BATON_POWER",
         "CONFUSED_POWER",
         "CONQUEROR_POWER",
         "CONSTRICT_POWER",
@@ -1847,6 +2217,7 @@ pub mod power {
         "CORRUPTION_POWER",
         "COUNTDOWN_POWER",
         "COVERED_POWER",
+        "COVERING_FIRE_POWER",
         "CRAB_RAGE_POWER",
         "CREATIVE_AI_POWER",
         "CRIMSON_MANTLE_POWER",
@@ -1866,18 +2237,26 @@ pub mod power {
         "DEXTERITY_POWER",
         "DIE_FOR_YOU_POWER",
         "DISINTEGRATION_POWER",
+        "DISLIKE_YOU_POWER",
         "DOOM_POWER",
         "DOUBLE_DAMAGE_POWER",
         "DRAW_CARDS_NEXT_TURN_POWER",
         "DUPLICATION_POWER",
         "DYING_STAR_POWER",
         "ECHO_FORM_POWER",
+        "ECSTASY_POWER",
+        "ENCORE_POWER",
         "ENERGY_NEXT_TURN_POWER",
         "ENFEEBLING_TOUCH_POWER",
+        "ENNUI_POWER",
         "ENRAGE_POWER",
+        "ENSEMBLE_POWER",
         "ENTROPY_POWER",
         "ENVENOM_POWER",
         "ESCAPE_ARTIST_POWER",
+        "EXPLOSIVE_ARROWS_POWER",
+        "EXPLOSIVE_POWER",
+        "EXTRA_TURN_POWER",
         "FADE_POWER",
         "FAN_OF_KNIVES_POWER",
         "FASTEN_POWER",
@@ -1894,6 +2273,7 @@ pub mod power {
         "FOREGONE_CONCLUSION_POWER",
         "FRAIL_POWER",
         "FREE_ATTACK_POWER",
+        "FREE_CARD_POWER",
         "FREE_POWER_POWER",
         "FREE_SKILL_POWER",
         "FRIENDSHIP_POWER",
@@ -1901,6 +2281,7 @@ pub mod power {
         "GALVANIC_POWER",
         "GENESIS_POWER",
         "GIGANTIFICATION_POWER",
+        "GOD_BYRD_POWER",
         "GRAVITY_POWER",
         "GUARDED_POWER",
         "HAILSTORM_POWER",
@@ -1916,26 +2297,34 @@ pub mod power {
         "HELLRAISER_POWER",
         "HEX_POWER",
         "HIBERNATE_POWER",
+        "HIDDEN_ROOTS_POWER",
         "HIGH_VOLTAGE_POWER",
+        "HONING_POWER",
         "HOTFIX_POWER",
         "HYPERBEAM_FOCUS_DOWN_POWER",
         "ILLUSION_POWER",
         "IMBALANCED_POWER",
         "IMITATION_LEARNING_POWER",
+        "IMPALED_POWER",
         "IMPROVEMENT_POWER",
         "INFERNO_POWER",
         "INFESTED_POWER",
         "INFINITE_BLADES_POWER",
+        "INSATIABLE_DOMINION_POWER",
         "INTANGIBLE_POWER",
         "INTERCEPT_POWER",
         "ITERATION_POWER",
         "JUGGERNAUT_POWER",
         "JUGGLING_POWER",
+        "KI_VERSE_POWER",
         "KNOCKDOWN_POWER",
+        "LAGAVULIN_MATRIARCH_DOMINION_POWER",
         "LEADERSHIP_POWER",
         "LETHALITY_POWER",
         "LIGHTNING_ROD_POWER",
         "LOOP_POWER",
+        "LOST_LUTE_POWER",
+        "LULLABY_POWER",
         "MACHINE_LEARNING_POWER",
         "MAGIC_BOMB_POWER",
         "MANGLE_POWER",
@@ -1946,6 +2335,8 @@ pub mod power {
         "MONARCHS_GAZE_POWER",
         "MONARCHS_GAZE_STRENGTH_DOWN_POWER",
         "MONOLOGUE_POWER",
+        "MOTIF_POWER",
+        "MYTHIC_FORM_POWER",
         "NECRO_MASTERY_POWER",
         "NEMESIS_POWER",
         "NEUROSURGE_POWER",
@@ -1976,6 +2367,7 @@ pub mod power {
         "POSSESS_STRENGTH_POWER",
         "PREP_TIME_POWER",
         "PYRE_POWER",
+        "QUIETUS_POWER",
         "RADIANCE_POWER",
         "RAGE_POWER",
         "RAMPART_POWER",
@@ -1997,15 +2389,18 @@ pub mod power {
         "SELF_FORMING_CLAY_POWER",
         "SENTRY_MODE_POWER",
         "SERPENT_FORM_POWER",
+        "SERRATED_ARROWS_POWER",
         "SETUP_STRIKE_POWER",
         "SHACKLING_POTION_POWER",
         "SHADOWMELD_POWER",
         "SHADOW_STEP_POWER",
+        "SHOW_OFF_POWER",
         "SHRIEK_POWER",
         "SHRINK_POWER",
         "SHROUD_POWER",
         "SIC_EM_POWER",
         "SIGNAL_BOOST_POWER",
+        "SIMPLETON_POWER",
         "SKITTISH_POWER",
         "SLEIGHT_OF_FLESH_POWER",
         "SLIPPERY_POWER",
@@ -2016,6 +2411,7 @@ pub mod power {
         "SMOKESTACK_POWER",
         "SNEAKY_POWER",
         "SOAR_POWER",
+        "SONG_PATH_POWER",
         "SOULBOUND_POWER",
         "SPECTRUM_SHIFT_POWER",
         "SPEEDSTER_POWER",
@@ -2030,6 +2426,7 @@ pub mod power {
         "STRANGLE_POWER",
         "STRATAGEM_POWER",
         "STRENGTH_POWER",
+        "STRETCH_POWER",
         "SUBROUTINE_POWER",
         "SUCK_POWER",
         "SUMMON_NEXT_TURN_POWER",
@@ -2055,12 +2452,14 @@ pub mod power {
         "TORIC_TOUGHNESS_POWER",
         "TRACKING_POWER",
         "TRASH_TO_TREASURE_POWER",
+        "TUNE_POWER",
         "TYRANNY_POWER",
         "UNDERWORLD_POWER",
         "UNMOVABLE_POWER",
         "VEILPIERCER_POWER",
         "VICIOUS_POWER",
         "VIGOR_POWER",
+        "VIOLENT_CHORD_POWER",
         "VITAL_SPARK_POWER",
         "VOID_FORM_POWER",
         "VULNERABLE_POWER",
@@ -2069,16 +2468,23 @@ pub mod power {
         "WELL_LAID_PLANS_POWER",
         "WITHERING_PRESENCE_POWER",
         "WRAITH_FORM_POWER",
+        "WUPPYS_LOYALTY_POWER",
+        "YAH_POWER",
+        "YOU_ARE_MINE_POWER",
     ];
     /// C# class names, indexed by id.
     pub static CLASS_NAMES: [&str; COUNT] = [
         "AccelerantPower",
         "AccuracyPower",
         "AdaptablePower",
+        "AeonglassDominionPower",
         "AfterimagePower",
         "AggressionPower",
-        "AmbergrisPower",
+        "AimPower",
+        "AllIsWellPower",
+        "AmnesiaPower",
         "AnticipatePower",
+        "ArcheryPower",
         "ArsenalPower",
         "ArtifactPower",
         "AsleepPower",
@@ -2102,9 +2508,12 @@ pub mod power {
         "CallOfTheVoidPower",
         "ChainsOfBindingPower",
         "ChildOfTheStarsPower",
+        "ChoBarbsPower",
         "ClarityPower",
         "ColossusPower",
+        "CompostPower",
         "ConcoctPower",
+        "ConductorsBatonPower",
         "ConfusedPower",
         "ConquerorPower",
         "ConstrictPower",
@@ -2115,6 +2524,7 @@ pub mod power {
         "CorruptionPower",
         "CountdownPower",
         "CoveredPower",
+        "CoveringFirePower",
         "CrabRagePower",
         "CreativeAiPower",
         "CrimsonMantlePower",
@@ -2134,18 +2544,26 @@ pub mod power {
         "DexterityPower",
         "DieForYouPower",
         "DisintegrationPower",
+        "DislikeYouPower",
         "DoomPower",
         "DoubleDamagePower",
         "DrawCardsNextTurnPower",
         "DuplicationPower",
         "DyingStarPower",
         "EchoFormPower",
+        "EcstasyPower",
+        "EncorePower",
         "EnergyNextTurnPower",
         "EnfeeblingTouchPower",
+        "EnnuiPower",
         "EnragePower",
+        "EnsemblePower",
         "EntropyPower",
         "EnvenomPower",
         "EscapeArtistPower",
+        "ExplosiveArrowsPower",
+        "ExplosivePower",
+        "ExtraTurnPower",
         "FadePower",
         "FanOfKnivesPower",
         "FastenPower",
@@ -2162,6 +2580,7 @@ pub mod power {
         "ForegoneConclusionPower",
         "FrailPower",
         "FreeAttackPower",
+        "FreeCardPower",
         "FreePowerPower",
         "FreeSkillPower",
         "FriendshipPower",
@@ -2169,6 +2588,7 @@ pub mod power {
         "GalvanicPower",
         "GenesisPower",
         "GigantificationPower",
+        "GodByrdPower",
         "GravityPower",
         "GuardedPower",
         "HailstormPower",
@@ -2184,26 +2604,34 @@ pub mod power {
         "HellraiserPower",
         "HexPower",
         "HibernatePower",
+        "HiddenRootsPower",
         "HighVoltagePower",
+        "HoningPower",
         "HotfixPower",
         "HyperbeamFocusDownPower",
         "IllusionPower",
         "ImbalancedPower",
         "ImitationLearningPower",
+        "ImpaledPower",
         "ImprovementPower",
         "InfernoPower",
         "InfestedPower",
         "InfiniteBladesPower",
+        "InsatiableDominionPower",
         "IntangiblePower",
         "InterceptPower",
         "IterationPower",
         "JuggernautPower",
         "JugglingPower",
+        "KiVersePower",
         "KnockdownPower",
+        "LagavulinMatriarchDominionPower",
         "LeadershipPower",
         "LethalityPower",
         "LightningRodPower",
         "LoopPower",
+        "LostLutePower",
+        "LullabyPower",
         "MachineLearningPower",
         "MagicBombPower",
         "ManglePower",
@@ -2214,6 +2642,8 @@ pub mod power {
         "MonarchsGazePower",
         "MonarchsGazeStrengthDownPower",
         "MonologuePower",
+        "MotifPower",
+        "MythicFormPower",
         "NecroMasteryPower",
         "NemesisPower",
         "NeurosurgePower",
@@ -2244,6 +2674,7 @@ pub mod power {
         "PossessStrengthPower",
         "PrepTimePower",
         "PyrePower",
+        "QuietusPower",
         "RadiancePower",
         "RagePower",
         "RampartPower",
@@ -2265,15 +2696,18 @@ pub mod power {
         "SelfFormingClayPower",
         "SentryModePower",
         "SerpentFormPower",
+        "SerratedArrowsPower",
         "SetupStrikePower",
         "ShacklingPotionPower",
         "ShadowmeldPower",
         "ShadowStepPower",
+        "ShowOffPower",
         "ShriekPower",
         "ShrinkPower",
         "ShroudPower",
         "SicEmPower",
         "SignalBoostPower",
+        "SimpletonPower",
         "SkittishPower",
         "SleightOfFleshPower",
         "SlipperyPower",
@@ -2284,6 +2718,7 @@ pub mod power {
         "SmokestackPower",
         "SneakyPower",
         "SoarPower",
+        "SongPathPower",
         "SoulboundPower",
         "SpectrumShiftPower",
         "SpeedsterPower",
@@ -2298,6 +2733,7 @@ pub mod power {
         "StranglePower",
         "StratagemPower",
         "StrengthPower",
+        "StretchPower",
         "SubroutinePower",
         "SuckPower",
         "SummonNextTurnPower",
@@ -2323,12 +2759,14 @@ pub mod power {
         "ToricToughnessPower",
         "TrackingPower",
         "TrashToTreasurePower",
+        "TunePower",
         "TyrannyPower",
         "UnderworldPower",
         "UnmovablePower",
         "VeilpiercerPower",
         "ViciousPower",
         "VigorPower",
+        "ViolentChordPower",
         "VitalSparkPower",
         "VoidFormPower",
         "VulnerablePower",
@@ -2337,276 +2775,318 @@ pub mod power {
         "WellLaidPlansPower",
         "WitheringPresencePower",
         "WraithFormPower",
+        "WuppysLoyaltyPower",
+        "YahPower",
+        "YouAreMinePower",
     ];
     pub const ACCELERANT_POWER: u16 = 0;
     pub const ACCURACY_POWER: u16 = 1;
     pub const ADAPTABLE_POWER: u16 = 2;
-    pub const AFTERIMAGE_POWER: u16 = 3;
-    pub const AGGRESSION_POWER: u16 = 4;
-    pub const AMBERGRIS_POWER: u16 = 5;
-    pub const ANTICIPATE_POWER: u16 = 6;
-    pub const ARSENAL_POWER: u16 = 7;
-    pub const ARTIFACT_POWER: u16 = 8;
-    pub const ASLEEP_POWER: u16 = 9;
-    pub const AUTOMATION_POWER: u16 = 10;
-    pub const BACK_ATTACK_LEFT_POWER: u16 = 11;
-    pub const BACK_ATTACK_RIGHT_POWER: u16 = 12;
-    pub const BARRICADE_POWER: u16 = 13;
-    pub const BATTLEWORN_DUMMY_TIME_LIMIT_POWER: u16 = 14;
-    pub const BEACON_OF_HOPE_POWER: u16 = 15;
-    pub const BIASED_COGNITION_POWER: u16 = 16;
-    pub const BLACK_HOLE_POWER: u16 = 17;
-    pub const BLOCK_NEXT_TURN_POWER: u16 = 18;
-    pub const BLUR_POWER: u16 = 19;
-    pub const BORROWED_TIME_POWER: u16 = 20;
-    pub const BUFFER_POWER: u16 = 21;
-    pub const BURROWED_POWER: u16 = 22;
-    pub const BURST_POWER: u16 = 23;
-    pub const CACOPHONY_POWER: u16 = 24;
-    pub const CALAMITY_POWER: u16 = 25;
-    pub const CALCIFY_POWER: u16 = 26;
-    pub const CALL_OF_THE_VOID_POWER: u16 = 27;
-    pub const CHAINS_OF_BINDING_POWER: u16 = 28;
-    pub const CHILD_OF_THE_STARS_POWER: u16 = 29;
-    pub const CLARITY_POWER: u16 = 30;
-    pub const COLOSSUS_POWER: u16 = 31;
-    pub const CONCOCT_POWER: u16 = 32;
-    pub const CONFUSED_POWER: u16 = 33;
-    pub const CONQUEROR_POWER: u16 = 34;
-    pub const CONSTRICT_POWER: u16 = 35;
-    pub const CONSUMING_SHADOW_POWER: u16 = 36;
-    pub const COOLANT_POWER: u16 = 37;
-    pub const COORDINATE_POWER: u16 = 38;
-    pub const CORROSIVE_WAVE_POWER: u16 = 39;
-    pub const CORRUPTION_POWER: u16 = 40;
-    pub const COUNTDOWN_POWER: u16 = 41;
-    pub const COVERED_POWER: u16 = 42;
-    pub const CRAB_RAGE_POWER: u16 = 43;
-    pub const CREATIVE_AI_POWER: u16 = 44;
-    pub const CRIMSON_MANTLE_POWER: u16 = 45;
-    pub const CRUELTY_POWER: u16 = 46;
-    pub const CRUSH_UNDER_POWER: u16 = 47;
-    pub const CURIOUS_POWER: u16 = 48;
-    pub const CURL_UP_POWER: u16 = 49;
-    pub const DAMPEN_POWER: u16 = 50;
-    pub const DANSE_MACABRE_POWER: u16 = 51;
-    pub const DARK_EMBRACE_POWER: u16 = 52;
-    pub const DARK_SHACKLES_POWER: u16 = 53;
-    pub const DEBILITATE_POWER: u16 = 54;
-    pub const DEMESNE_POWER: u16 = 55;
-    pub const DEMISE_POWER: u16 = 56;
-    pub const DEMON_FORM_POWER: u16 = 57;
-    pub const DEVOUR_LIFE_POWER: u16 = 58;
-    pub const DEXTERITY_POWER: u16 = 59;
-    pub const DIE_FOR_YOU_POWER: u16 = 60;
-    pub const DISINTEGRATION_POWER: u16 = 61;
-    pub const DOOM_POWER: u16 = 62;
-    pub const DOUBLE_DAMAGE_POWER: u16 = 63;
-    pub const DRAW_CARDS_NEXT_TURN_POWER: u16 = 64;
-    pub const DUPLICATION_POWER: u16 = 65;
-    pub const DYING_STAR_POWER: u16 = 66;
-    pub const ECHO_FORM_POWER: u16 = 67;
-    pub const ENERGY_NEXT_TURN_POWER: u16 = 68;
-    pub const ENFEEBLING_TOUCH_POWER: u16 = 69;
-    pub const ENRAGE_POWER: u16 = 70;
-    pub const ENTROPY_POWER: u16 = 71;
-    pub const ENVENOM_POWER: u16 = 72;
-    pub const ESCAPE_ARTIST_POWER: u16 = 73;
-    pub const FADE_POWER: u16 = 74;
-    pub const FAN_OF_KNIVES_POWER: u16 = 75;
-    pub const FASTEN_POWER: u16 = 76;
-    pub const FEEDING_FRENZY_POWER: u16 = 77;
-    pub const FEEL_NO_PAIN_POWER: u16 = 78;
-    pub const FERAL_POWER: u16 = 79;
-    pub const FLAME_BARRIER_POWER: u16 = 80;
-    pub const FLANKING_POWER: u16 = 81;
-    pub const FLEX_POTION_POWER: u16 = 82;
-    pub const FLUTTER_POWER: u16 = 83;
-    pub const FOCUSED_STRIKE_POWER: u16 = 84;
-    pub const FOCUS_POWER: u16 = 85;
-    pub const FORBIDDEN_GRIMOIRE_POWER: u16 = 86;
-    pub const FOREGONE_CONCLUSION_POWER: u16 = 87;
-    pub const FRAIL_POWER: u16 = 88;
-    pub const FREE_ATTACK_POWER: u16 = 89;
-    pub const FREE_POWER_POWER: u16 = 90;
-    pub const FREE_SKILL_POWER: u16 = 91;
-    pub const FRIENDSHIP_POWER: u16 = 92;
-    pub const FURNACE_POWER: u16 = 93;
-    pub const GALVANIC_POWER: u16 = 94;
-    pub const GENESIS_POWER: u16 = 95;
-    pub const GIGANTIFICATION_POWER: u16 = 96;
-    pub const GRAVITY_POWER: u16 = 97;
-    pub const GUARDED_POWER: u16 = 98;
-    pub const HAILSTORM_POWER: u16 = 99;
-    pub const HAMMER_TIME_POWER: u16 = 100;
-    pub const HANG_POWER: u16 = 101;
-    pub const HARDENED_SHELL_POWER: u16 = 102;
-    pub const HARD_TO_KILL_POWER: u16 = 103;
-    pub const HATCH_POWER: u16 = 104;
-    pub const HAUNT_POWER: u16 = 105;
-    pub const HEIST_POWER: u16 = 106;
-    pub const HELICAL_DART_POWER: u16 = 107;
-    pub const HELLO_WORLD_POWER: u16 = 108;
-    pub const HELLRAISER_POWER: u16 = 109;
-    pub const HEX_POWER: u16 = 110;
-    pub const HIBERNATE_POWER: u16 = 111;
-    pub const HIGH_VOLTAGE_POWER: u16 = 112;
-    pub const HOTFIX_POWER: u16 = 113;
-    pub const HYPERBEAM_FOCUS_DOWN_POWER: u16 = 114;
-    pub const ILLUSION_POWER: u16 = 115;
-    pub const IMBALANCED_POWER: u16 = 116;
-    pub const IMITATION_LEARNING_POWER: u16 = 117;
-    pub const IMPROVEMENT_POWER: u16 = 118;
-    pub const INFERNO_POWER: u16 = 119;
-    pub const INFESTED_POWER: u16 = 120;
-    pub const INFINITE_BLADES_POWER: u16 = 121;
-    pub const INTANGIBLE_POWER: u16 = 122;
-    pub const INTERCEPT_POWER: u16 = 123;
-    pub const ITERATION_POWER: u16 = 124;
-    pub const JUGGERNAUT_POWER: u16 = 125;
-    pub const JUGGLING_POWER: u16 = 126;
-    pub const KNOCKDOWN_POWER: u16 = 127;
-    pub const LEADERSHIP_POWER: u16 = 128;
-    pub const LETHALITY_POWER: u16 = 129;
-    pub const LIGHTNING_ROD_POWER: u16 = 130;
-    pub const LOOP_POWER: u16 = 131;
-    pub const MACHINE_LEARNING_POWER: u16 = 132;
-    pub const MAGIC_BOMB_POWER: u16 = 133;
-    pub const MANGLE_POWER: u16 = 134;
-    pub const MASTER_PLANNER_POWER: u16 = 135;
-    pub const MAYHEM_POWER: u16 = 136;
-    pub const MIND_ROT_POWER: u16 = 137;
-    pub const MINION_POWER: u16 = 138;
-    pub const MONARCHS_GAZE_POWER: u16 = 139;
-    pub const MONARCHS_GAZE_STRENGTH_DOWN_POWER: u16 = 140;
-    pub const MONOLOGUE_POWER: u16 = 141;
-    pub const NECRO_MASTERY_POWER: u16 = 142;
-    pub const NEMESIS_POWER: u16 = 143;
-    pub const NEUROSURGE_POWER: u16 = 144;
-    pub const NIGHTMARE_POWER: u16 = 145;
-    pub const NOSTALGIA_POWER: u16 = 146;
-    pub const NOXIOUS_FUMES_POWER: u16 = 147;
-    pub const NO_BLOCK_POWER: u16 = 148;
-    pub const NO_DRAW_POWER: u16 = 149;
-    pub const NO_ENERGY_GAIN_POWER: u16 = 150;
-    pub const OBLIVION_POWER: u16 = 151;
-    pub const ONE_FOR_ALL_POWER: u16 = 152;
-    pub const ONE_TWO_PUNCH_POWER: u16 = 153;
-    pub const ORBIT_POWER: u16 = 154;
-    pub const PAGESTORM_POWER: u16 = 155;
-    pub const PAINFUL_STABS_POWER: u16 = 156;
-    pub const PALE_BLUE_DOT_POWER: u16 = 157;
-    pub const PANACHE_POWER: u16 = 158;
-    pub const PAPER_CUTS_POWER: u16 = 159;
-    pub const PARRY_POWER: u16 = 160;
-    pub const PERSONAL_HIVE_POWER: u16 = 161;
-    pub const PHANTOM_BLADES_POWER: u16 = 162;
-    pub const PIERCING_WAIL_POWER: u16 = 163;
-    pub const PILLAR_OF_CREATION_POWER: u16 = 164;
-    pub const PLATING_POWER: u16 = 165;
-    pub const PLOW_POWER: u16 = 166;
-    pub const POISON_POWER: u16 = 167;
-    pub const POSSESS_SPEED_POWER: u16 = 168;
-    pub const POSSESS_STRENGTH_POWER: u16 = 169;
-    pub const PREP_TIME_POWER: u16 = 170;
-    pub const PYRE_POWER: u16 = 171;
-    pub const RADIANCE_POWER: u16 = 172;
-    pub const RAGE_POWER: u16 = 173;
-    pub const RAMPART_POWER: u16 = 174;
-    pub const RAVENOUS_POWER: u16 = 175;
-    pub const REAPER_FORM_POWER: u16 = 176;
-    pub const REATTACH_POWER: u16 = 177;
-    pub const REBOUND_POWER: u16 = 178;
-    pub const REFLECT_POWER: u16 = 179;
-    pub const REGEN_POWER: u16 = 180;
-    pub const REPTILE_TRINKET_POWER: u16 = 181;
-    pub const RETAIN_HAND_POWER: u16 = 182;
-    pub const RINGING_POWER: u16 = 183;
-    pub const RITUAL_POWER: u16 = 184;
-    pub const ROLLING_BOULDER_POWER: u16 = 185;
-    pub const ROYALTIES_POWER: u16 = 186;
-    pub const RUPTURE_POWER: u16 = 187;
-    pub const SANDPIT_POWER: u16 = 188;
-    pub const SEEKING_EDGE_POWER: u16 = 189;
-    pub const SELF_FORMING_CLAY_POWER: u16 = 190;
-    pub const SENTRY_MODE_POWER: u16 = 191;
-    pub const SERPENT_FORM_POWER: u16 = 192;
-    pub const SETUP_STRIKE_POWER: u16 = 193;
-    pub const SHACKLING_POTION_POWER: u16 = 194;
-    pub const SHADOWMELD_POWER: u16 = 195;
-    pub const SHADOW_STEP_POWER: u16 = 196;
-    pub const SHRIEK_POWER: u16 = 197;
-    pub const SHRINK_POWER: u16 = 198;
-    pub const SHROUD_POWER: u16 = 199;
-    pub const SIC_EM_POWER: u16 = 200;
-    pub const SIGNAL_BOOST_POWER: u16 = 201;
-    pub const SKITTISH_POWER: u16 = 202;
-    pub const SLEIGHT_OF_FLESH_POWER: u16 = 203;
-    pub const SLIPPERY_POWER: u16 = 204;
-    pub const SLOTH_POWER: u16 = 205;
-    pub const SLOW_POWER: u16 = 206;
-    pub const SLUMBER_POWER: u16 = 207;
-    pub const SMOGGY_POWER: u16 = 208;
-    pub const SMOKESTACK_POWER: u16 = 209;
-    pub const SNEAKY_POWER: u16 = 210;
-    pub const SOAR_POWER: u16 = 211;
-    pub const SOULBOUND_POWER: u16 = 212;
-    pub const SPECTRUM_SHIFT_POWER: u16 = 213;
-    pub const SPEEDSTER_POWER: u16 = 214;
-    pub const SPEED_POTION_POWER: u16 = 215;
-    pub const SPINNER_POWER: u16 = 216;
-    pub const SPIRIT_OF_ASH_POWER: u16 = 217;
-    pub const STAMPEDE_POWER: u16 = 218;
-    pub const STAR_NEXT_TURN_POWER: u16 = 219;
-    pub const STEAM_ERUPTION_POWER: u16 = 220;
-    pub const STOCK_POWER: u16 = 221;
-    pub const STORM_POWER: u16 = 222;
-    pub const STRANGLE_POWER: u16 = 223;
-    pub const STRATAGEM_POWER: u16 = 224;
-    pub const STRENGTH_POWER: u16 = 225;
-    pub const SUBROUTINE_POWER: u16 = 226;
-    pub const SUCK_POWER: u16 = 227;
-    pub const SUMMON_NEXT_TURN_POWER: u16 = 228;
-    pub const SURPRISE_POWER: u16 = 229;
-    pub const SURROUNDED_POWER: u16 = 230;
-    pub const SWIPE_POWER: u16 = 231;
-    pub const SWORD_SAGE_POWER: u16 = 232;
-    pub const SYNCHRONIZE_POWER: u16 = 233;
-    pub const TAG_TEAM_POWER: u16 = 234;
-    pub const TAINTED_POWER: u16 = 235;
-    pub const TANGLED_POWER: u16 = 236;
-    pub const TANK_POWER: u16 = 237;
-    pub const TENDER_POWER: u16 = 238;
-    pub const TERRITORIAL_POWER: u16 = 239;
-    pub const THE_BOMB_POWER: u16 = 240;
-    pub const THE_GAMBIT_POWER: u16 = 241;
-    pub const THE_HUNT_POWER: u16 = 242;
-    pub const THE_SEALED_THRONE_POWER: u16 = 243;
-    pub const THIEVERY_POWER: u16 = 244;
-    pub const THORNS_POWER: u16 = 245;
-    pub const THUNDER_POWER: u16 = 246;
-    pub const TOOLS_OF_THE_TRADE_POWER: u16 = 247;
-    pub const TORIC_TOUGHNESS_POWER: u16 = 248;
-    pub const TRACKING_POWER: u16 = 249;
-    pub const TRASH_TO_TREASURE_POWER: u16 = 250;
-    pub const TYRANNY_POWER: u16 = 251;
-    pub const UNDERWORLD_POWER: u16 = 252;
-    pub const UNMOVABLE_POWER: u16 = 253;
-    pub const VEILPIERCER_POWER: u16 = 254;
-    pub const VICIOUS_POWER: u16 = 255;
-    pub const VIGOR_POWER: u16 = 256;
-    pub const VITAL_SPARK_POWER: u16 = 257;
-    pub const VOID_FORM_POWER: u16 = 258;
-    pub const VULNERABLE_POWER: u16 = 259;
-    pub const WASTE_AWAY_POWER: u16 = 260;
-    pub const WEAK_POWER: u16 = 261;
-    pub const WELL_LAID_PLANS_POWER: u16 = 262;
-    pub const WITHERING_PRESENCE_POWER: u16 = 263;
-    pub const WRAITH_FORM_POWER: u16 = 264;
+    pub const AEONGLASS_DOMINION_POWER: u16 = 3;
+    pub const AFTERIMAGE_POWER: u16 = 4;
+    pub const AGGRESSION_POWER: u16 = 5;
+    pub const AIM_POWER: u16 = 6;
+    pub const ALL_IS_WELL_POWER: u16 = 7;
+    pub const AMNESIA_POWER: u16 = 8;
+    pub const ANTICIPATE_POWER: u16 = 9;
+    pub const ARCHERY_POWER: u16 = 10;
+    pub const ARSENAL_POWER: u16 = 11;
+    pub const ARTIFACT_POWER: u16 = 12;
+    pub const ASLEEP_POWER: u16 = 13;
+    pub const AUTOMATION_POWER: u16 = 14;
+    pub const BACK_ATTACK_LEFT_POWER: u16 = 15;
+    pub const BACK_ATTACK_RIGHT_POWER: u16 = 16;
+    pub const BARRICADE_POWER: u16 = 17;
+    pub const BATTLEWORN_DUMMY_TIME_LIMIT_POWER: u16 = 18;
+    pub const BEACON_OF_HOPE_POWER: u16 = 19;
+    pub const BIASED_COGNITION_POWER: u16 = 20;
+    pub const BLACK_HOLE_POWER: u16 = 21;
+    pub const BLOCK_NEXT_TURN_POWER: u16 = 22;
+    pub const BLUR_POWER: u16 = 23;
+    pub const BORROWED_TIME_POWER: u16 = 24;
+    pub const BUFFER_POWER: u16 = 25;
+    pub const BURROWED_POWER: u16 = 26;
+    pub const BURST_POWER: u16 = 27;
+    pub const CACOPHONY_POWER: u16 = 28;
+    pub const CALAMITY_POWER: u16 = 29;
+    pub const CALCIFY_POWER: u16 = 30;
+    pub const CALL_OF_THE_VOID_POWER: u16 = 31;
+    pub const CHAINS_OF_BINDING_POWER: u16 = 32;
+    pub const CHILD_OF_THE_STARS_POWER: u16 = 33;
+    pub const CHO_BARBS_POWER: u16 = 34;
+    pub const CLARITY_POWER: u16 = 35;
+    pub const COLOSSUS_POWER: u16 = 36;
+    pub const COMPOST_POWER: u16 = 37;
+    pub const CONCOCT_POWER: u16 = 38;
+    pub const CONDUCTORS_BATON_POWER: u16 = 39;
+    pub const CONFUSED_POWER: u16 = 40;
+    pub const CONQUEROR_POWER: u16 = 41;
+    pub const CONSTRICT_POWER: u16 = 42;
+    pub const CONSUMING_SHADOW_POWER: u16 = 43;
+    pub const COOLANT_POWER: u16 = 44;
+    pub const COORDINATE_POWER: u16 = 45;
+    pub const CORROSIVE_WAVE_POWER: u16 = 46;
+    pub const CORRUPTION_POWER: u16 = 47;
+    pub const COUNTDOWN_POWER: u16 = 48;
+    pub const COVERED_POWER: u16 = 49;
+    pub const COVERING_FIRE_POWER: u16 = 50;
+    pub const CRAB_RAGE_POWER: u16 = 51;
+    pub const CREATIVE_AI_POWER: u16 = 52;
+    pub const CRIMSON_MANTLE_POWER: u16 = 53;
+    pub const CRUELTY_POWER: u16 = 54;
+    pub const CRUSH_UNDER_POWER: u16 = 55;
+    pub const CURIOUS_POWER: u16 = 56;
+    pub const CURL_UP_POWER: u16 = 57;
+    pub const DAMPEN_POWER: u16 = 58;
+    pub const DANSE_MACABRE_POWER: u16 = 59;
+    pub const DARK_EMBRACE_POWER: u16 = 60;
+    pub const DARK_SHACKLES_POWER: u16 = 61;
+    pub const DEBILITATE_POWER: u16 = 62;
+    pub const DEMESNE_POWER: u16 = 63;
+    pub const DEMISE_POWER: u16 = 64;
+    pub const DEMON_FORM_POWER: u16 = 65;
+    pub const DEVOUR_LIFE_POWER: u16 = 66;
+    pub const DEXTERITY_POWER: u16 = 67;
+    pub const DIE_FOR_YOU_POWER: u16 = 68;
+    pub const DISINTEGRATION_POWER: u16 = 69;
+    pub const DISLIKE_YOU_POWER: u16 = 70;
+    pub const DOOM_POWER: u16 = 71;
+    pub const DOUBLE_DAMAGE_POWER: u16 = 72;
+    pub const DRAW_CARDS_NEXT_TURN_POWER: u16 = 73;
+    pub const DUPLICATION_POWER: u16 = 74;
+    pub const DYING_STAR_POWER: u16 = 75;
+    pub const ECHO_FORM_POWER: u16 = 76;
+    pub const ECSTASY_POWER: u16 = 77;
+    pub const ENCORE_POWER: u16 = 78;
+    pub const ENERGY_NEXT_TURN_POWER: u16 = 79;
+    pub const ENFEEBLING_TOUCH_POWER: u16 = 80;
+    pub const ENNUI_POWER: u16 = 81;
+    pub const ENRAGE_POWER: u16 = 82;
+    pub const ENSEMBLE_POWER: u16 = 83;
+    pub const ENTROPY_POWER: u16 = 84;
+    pub const ENVENOM_POWER: u16 = 85;
+    pub const ESCAPE_ARTIST_POWER: u16 = 86;
+    pub const EXPLOSIVE_ARROWS_POWER: u16 = 87;
+    pub const EXPLOSIVE_POWER: u16 = 88;
+    pub const EXTRA_TURN_POWER: u16 = 89;
+    pub const FADE_POWER: u16 = 90;
+    pub const FAN_OF_KNIVES_POWER: u16 = 91;
+    pub const FASTEN_POWER: u16 = 92;
+    pub const FEEDING_FRENZY_POWER: u16 = 93;
+    pub const FEEL_NO_PAIN_POWER: u16 = 94;
+    pub const FERAL_POWER: u16 = 95;
+    pub const FLAME_BARRIER_POWER: u16 = 96;
+    pub const FLANKING_POWER: u16 = 97;
+    pub const FLEX_POTION_POWER: u16 = 98;
+    pub const FLUTTER_POWER: u16 = 99;
+    pub const FOCUSED_STRIKE_POWER: u16 = 100;
+    pub const FOCUS_POWER: u16 = 101;
+    pub const FORBIDDEN_GRIMOIRE_POWER: u16 = 102;
+    pub const FOREGONE_CONCLUSION_POWER: u16 = 103;
+    pub const FRAIL_POWER: u16 = 104;
+    pub const FREE_ATTACK_POWER: u16 = 105;
+    pub const FREE_CARD_POWER: u16 = 106;
+    pub const FREE_POWER_POWER: u16 = 107;
+    pub const FREE_SKILL_POWER: u16 = 108;
+    pub const FRIENDSHIP_POWER: u16 = 109;
+    pub const FURNACE_POWER: u16 = 110;
+    pub const GALVANIC_POWER: u16 = 111;
+    pub const GENESIS_POWER: u16 = 112;
+    pub const GIGANTIFICATION_POWER: u16 = 113;
+    pub const GOD_BYRD_POWER: u16 = 114;
+    pub const GRAVITY_POWER: u16 = 115;
+    pub const GUARDED_POWER: u16 = 116;
+    pub const HAILSTORM_POWER: u16 = 117;
+    pub const HAMMER_TIME_POWER: u16 = 118;
+    pub const HANG_POWER: u16 = 119;
+    pub const HARDENED_SHELL_POWER: u16 = 120;
+    pub const HARD_TO_KILL_POWER: u16 = 121;
+    pub const HATCH_POWER: u16 = 122;
+    pub const HAUNT_POWER: u16 = 123;
+    pub const HEIST_POWER: u16 = 124;
+    pub const HELICAL_DART_POWER: u16 = 125;
+    pub const HELLO_WORLD_POWER: u16 = 126;
+    pub const HELLRAISER_POWER: u16 = 127;
+    pub const HEX_POWER: u16 = 128;
+    pub const HIBERNATE_POWER: u16 = 129;
+    pub const HIDDEN_ROOTS_POWER: u16 = 130;
+    pub const HIGH_VOLTAGE_POWER: u16 = 131;
+    pub const HONING_POWER: u16 = 132;
+    pub const HOTFIX_POWER: u16 = 133;
+    pub const HYPERBEAM_FOCUS_DOWN_POWER: u16 = 134;
+    pub const ILLUSION_POWER: u16 = 135;
+    pub const IMBALANCED_POWER: u16 = 136;
+    pub const IMITATION_LEARNING_POWER: u16 = 137;
+    pub const IMPALED_POWER: u16 = 138;
+    pub const IMPROVEMENT_POWER: u16 = 139;
+    pub const INFERNO_POWER: u16 = 140;
+    pub const INFESTED_POWER: u16 = 141;
+    pub const INFINITE_BLADES_POWER: u16 = 142;
+    pub const INSATIABLE_DOMINION_POWER: u16 = 143;
+    pub const INTANGIBLE_POWER: u16 = 144;
+    pub const INTERCEPT_POWER: u16 = 145;
+    pub const ITERATION_POWER: u16 = 146;
+    pub const JUGGERNAUT_POWER: u16 = 147;
+    pub const JUGGLING_POWER: u16 = 148;
+    pub const KI_VERSE_POWER: u16 = 149;
+    pub const KNOCKDOWN_POWER: u16 = 150;
+    pub const LAGAVULIN_MATRIARCH_DOMINION_POWER: u16 = 151;
+    pub const LEADERSHIP_POWER: u16 = 152;
+    pub const LETHALITY_POWER: u16 = 153;
+    pub const LIGHTNING_ROD_POWER: u16 = 154;
+    pub const LOOP_POWER: u16 = 155;
+    pub const LOST_LUTE_POWER: u16 = 156;
+    pub const LULLABY_POWER: u16 = 157;
+    pub const MACHINE_LEARNING_POWER: u16 = 158;
+    pub const MAGIC_BOMB_POWER: u16 = 159;
+    pub const MANGLE_POWER: u16 = 160;
+    pub const MASTER_PLANNER_POWER: u16 = 161;
+    pub const MAYHEM_POWER: u16 = 162;
+    pub const MIND_ROT_POWER: u16 = 163;
+    pub const MINION_POWER: u16 = 164;
+    pub const MONARCHS_GAZE_POWER: u16 = 165;
+    pub const MONARCHS_GAZE_STRENGTH_DOWN_POWER: u16 = 166;
+    pub const MONOLOGUE_POWER: u16 = 167;
+    pub const MOTIF_POWER: u16 = 168;
+    pub const MYTHIC_FORM_POWER: u16 = 169;
+    pub const NECRO_MASTERY_POWER: u16 = 170;
+    pub const NEMESIS_POWER: u16 = 171;
+    pub const NEUROSURGE_POWER: u16 = 172;
+    pub const NIGHTMARE_POWER: u16 = 173;
+    pub const NOSTALGIA_POWER: u16 = 174;
+    pub const NOXIOUS_FUMES_POWER: u16 = 175;
+    pub const NO_BLOCK_POWER: u16 = 176;
+    pub const NO_DRAW_POWER: u16 = 177;
+    pub const NO_ENERGY_GAIN_POWER: u16 = 178;
+    pub const OBLIVION_POWER: u16 = 179;
+    pub const ONE_FOR_ALL_POWER: u16 = 180;
+    pub const ONE_TWO_PUNCH_POWER: u16 = 181;
+    pub const ORBIT_POWER: u16 = 182;
+    pub const PAGESTORM_POWER: u16 = 183;
+    pub const PAINFUL_STABS_POWER: u16 = 184;
+    pub const PALE_BLUE_DOT_POWER: u16 = 185;
+    pub const PANACHE_POWER: u16 = 186;
+    pub const PAPER_CUTS_POWER: u16 = 187;
+    pub const PARRY_POWER: u16 = 188;
+    pub const PERSONAL_HIVE_POWER: u16 = 189;
+    pub const PHANTOM_BLADES_POWER: u16 = 190;
+    pub const PIERCING_WAIL_POWER: u16 = 191;
+    pub const PILLAR_OF_CREATION_POWER: u16 = 192;
+    pub const PLATING_POWER: u16 = 193;
+    pub const PLOW_POWER: u16 = 194;
+    pub const POISON_POWER: u16 = 195;
+    pub const POSSESS_SPEED_POWER: u16 = 196;
+    pub const POSSESS_STRENGTH_POWER: u16 = 197;
+    pub const PREP_TIME_POWER: u16 = 198;
+    pub const PYRE_POWER: u16 = 199;
+    pub const QUIETUS_POWER: u16 = 200;
+    pub const RADIANCE_POWER: u16 = 201;
+    pub const RAGE_POWER: u16 = 202;
+    pub const RAMPART_POWER: u16 = 203;
+    pub const RAVENOUS_POWER: u16 = 204;
+    pub const REAPER_FORM_POWER: u16 = 205;
+    pub const REATTACH_POWER: u16 = 206;
+    pub const REBOUND_POWER: u16 = 207;
+    pub const REFLECT_POWER: u16 = 208;
+    pub const REGEN_POWER: u16 = 209;
+    pub const REPTILE_TRINKET_POWER: u16 = 210;
+    pub const RETAIN_HAND_POWER: u16 = 211;
+    pub const RINGING_POWER: u16 = 212;
+    pub const RITUAL_POWER: u16 = 213;
+    pub const ROLLING_BOULDER_POWER: u16 = 214;
+    pub const ROYALTIES_POWER: u16 = 215;
+    pub const RUPTURE_POWER: u16 = 216;
+    pub const SANDPIT_POWER: u16 = 217;
+    pub const SEEKING_EDGE_POWER: u16 = 218;
+    pub const SELF_FORMING_CLAY_POWER: u16 = 219;
+    pub const SENTRY_MODE_POWER: u16 = 220;
+    pub const SERPENT_FORM_POWER: u16 = 221;
+    pub const SERRATED_ARROWS_POWER: u16 = 222;
+    pub const SETUP_STRIKE_POWER: u16 = 223;
+    pub const SHACKLING_POTION_POWER: u16 = 224;
+    pub const SHADOWMELD_POWER: u16 = 225;
+    pub const SHADOW_STEP_POWER: u16 = 226;
+    pub const SHOW_OFF_POWER: u16 = 227;
+    pub const SHRIEK_POWER: u16 = 228;
+    pub const SHRINK_POWER: u16 = 229;
+    pub const SHROUD_POWER: u16 = 230;
+    pub const SIC_EM_POWER: u16 = 231;
+    pub const SIGNAL_BOOST_POWER: u16 = 232;
+    pub const SIMPLETON_POWER: u16 = 233;
+    pub const SKITTISH_POWER: u16 = 234;
+    pub const SLEIGHT_OF_FLESH_POWER: u16 = 235;
+    pub const SLIPPERY_POWER: u16 = 236;
+    pub const SLOTH_POWER: u16 = 237;
+    pub const SLOW_POWER: u16 = 238;
+    pub const SLUMBER_POWER: u16 = 239;
+    pub const SMOGGY_POWER: u16 = 240;
+    pub const SMOKESTACK_POWER: u16 = 241;
+    pub const SNEAKY_POWER: u16 = 242;
+    pub const SOAR_POWER: u16 = 243;
+    pub const SONG_PATH_POWER: u16 = 244;
+    pub const SOULBOUND_POWER: u16 = 245;
+    pub const SPECTRUM_SHIFT_POWER: u16 = 246;
+    pub const SPEEDSTER_POWER: u16 = 247;
+    pub const SPEED_POTION_POWER: u16 = 248;
+    pub const SPINNER_POWER: u16 = 249;
+    pub const SPIRIT_OF_ASH_POWER: u16 = 250;
+    pub const STAMPEDE_POWER: u16 = 251;
+    pub const STAR_NEXT_TURN_POWER: u16 = 252;
+    pub const STEAM_ERUPTION_POWER: u16 = 253;
+    pub const STOCK_POWER: u16 = 254;
+    pub const STORM_POWER: u16 = 255;
+    pub const STRANGLE_POWER: u16 = 256;
+    pub const STRATAGEM_POWER: u16 = 257;
+    pub const STRENGTH_POWER: u16 = 258;
+    pub const STRETCH_POWER: u16 = 259;
+    pub const SUBROUTINE_POWER: u16 = 260;
+    pub const SUCK_POWER: u16 = 261;
+    pub const SUMMON_NEXT_TURN_POWER: u16 = 262;
+    pub const SURPRISE_POWER: u16 = 263;
+    pub const SURROUNDED_POWER: u16 = 264;
+    pub const SWIPE_POWER: u16 = 265;
+    pub const SWORD_SAGE_POWER: u16 = 266;
+    pub const SYNCHRONIZE_POWER: u16 = 267;
+    pub const TAG_TEAM_POWER: u16 = 268;
+    pub const TAINTED_POWER: u16 = 269;
+    pub const TANGLED_POWER: u16 = 270;
+    pub const TANK_POWER: u16 = 271;
+    pub const TENDER_POWER: u16 = 272;
+    pub const TERRITORIAL_POWER: u16 = 273;
+    pub const THE_BOMB_POWER: u16 = 274;
+    pub const THE_GAMBIT_POWER: u16 = 275;
+    pub const THE_HUNT_POWER: u16 = 276;
+    pub const THE_SEALED_THRONE_POWER: u16 = 277;
+    pub const THIEVERY_POWER: u16 = 278;
+    pub const THORNS_POWER: u16 = 279;
+    pub const THUNDER_POWER: u16 = 280;
+    pub const TOOLS_OF_THE_TRADE_POWER: u16 = 281;
+    pub const TORIC_TOUGHNESS_POWER: u16 = 282;
+    pub const TRACKING_POWER: u16 = 283;
+    pub const TRASH_TO_TREASURE_POWER: u16 = 284;
+    pub const TUNE_POWER: u16 = 285;
+    pub const TYRANNY_POWER: u16 = 286;
+    pub const UNDERWORLD_POWER: u16 = 287;
+    pub const UNMOVABLE_POWER: u16 = 288;
+    pub const VEILPIERCER_POWER: u16 = 289;
+    pub const VICIOUS_POWER: u16 = 290;
+    pub const VIGOR_POWER: u16 = 291;
+    pub const VIOLENT_CHORD_POWER: u16 = 292;
+    pub const VITAL_SPARK_POWER: u16 = 293;
+    pub const VOID_FORM_POWER: u16 = 294;
+    pub const VULNERABLE_POWER: u16 = 295;
+    pub const WASTE_AWAY_POWER: u16 = 296;
+    pub const WEAK_POWER: u16 = 297;
+    pub const WELL_LAID_PLANS_POWER: u16 = 298;
+    pub const WITHERING_PRESENCE_POWER: u16 = 299;
+    pub const WRAITH_FORM_POWER: u16 = 300;
+    pub const WUPPYS_LOYALTY_POWER: u16 = 301;
+    pub const YAH_POWER: u16 = 302;
+    pub const YOU_ARE_MINE_POWER: u16 = 303;
 }
 
 pub mod relic {
-    pub const COUNT: usize = 300;
+    pub const COUNT: usize = 317;
     /// ModelId entry strings (e.g. `STRIKE_IRONCLAD`), indexed by id.
     pub static NAMES: [&str; COUNT] = [
         "AKABEKO",
@@ -2619,6 +3099,8 @@ pub mod relic {
         "ASTROLABE",
         "BAG_OF_MARBLES",
         "BAG_OF_PREPARATION",
+        "BATH_ROBES",
+        "BATH_TOWEL",
         "BEATING_REMNANT",
         "BEAUTIFUL_BRACELET",
         "BELLOWS",
@@ -2627,6 +3109,7 @@ pub mod relic {
         "BIG_MUSHROOM",
         "BIIIG_HUG",
         "BING_BONG",
+        "BIZARRE_LAMP",
         "BLACK_BLOOD",
         "BLACK_STAR",
         "BLESSED_ANTLER",
@@ -2646,6 +3129,7 @@ pub mod relic {
         "BRONZE_SCALES",
         "BURNING_BLOOD",
         "BURNING_STICKS",
+        "BYRDINE",
         "BYRDPIP",
         "CALLING_BELL",
         "CANDELABRA",
@@ -2660,6 +3144,7 @@ pub mod relic {
         "CIRCLET",
         "CLAWS",
         "CLOAK_CLASP",
+        "CONDUCTORS_BATON",
         "CRACKED_CORE",
         "CROSSBOW",
         "CURSED_PEARL",
@@ -2686,6 +3171,7 @@ pub mod relic {
         "EMOTION_CHIP",
         "EMPTY_CAGE",
         "ETERNAL_FEATHER",
+        "EXERCISE_MAT",
         "FAKE_ANCHOR",
         "FAKE_BLOOD_VIAL",
         "FAKE_HAPPY_FLOWER",
@@ -2697,6 +3183,7 @@ pub mod relic {
         "FAKE_STRIKE_DUMMY",
         "FAKE_VENERABLE_TEA_SET",
         "FENCING_MANUAL",
+        "FERTILIZER",
         "FESTIVE_POPPER",
         "FIDDLE",
         "FISHING_ROD",
@@ -2763,6 +3250,7 @@ pub mod relic {
         "MEMBERSHIP_CARD",
         "MERCURY_HOURGLASS",
         "METRONOME",
+        "MIGHTY_WINGS",
         "MINIATURE_CANNON",
         "MINIATURE_TENT",
         "MINI_REGENT",
@@ -2780,6 +3268,8 @@ pub mod relic {
         "NUNCHAKU",
         "NUTRITIOUS_OYSTER",
         "NUTRITIOUS_SOUP",
+        "OBSIDIAN_VICE",
+        "OCARINA",
         "ODDLY_SMOOTH_STONE",
         "OLD_COIN",
         "ORANGE_DOUGH",
@@ -2856,6 +3346,7 @@ pub mod relic {
         "SMALL_CAPSULE",
         "SNECKO_EYE",
         "SNECKO_SKULL",
+        "SONG_BOW",
         "SOZU",
         "SPARKLING_ROUGE",
         "SPIKED_GAUNTLETS",
@@ -2863,6 +3354,7 @@ pub mod relic {
         "STONE_CRACKER",
         "STONE_HUMIDIFIER",
         "STORYBOOK",
+        "STORYTELLER",
         "STRAWBERRY",
         "STRIKE_DUMMY",
         "STURDY_CLAMP",
@@ -2875,10 +3367,12 @@ pub mod relic {
         "THE_BOOT",
         "THE_COURIER",
         "THROWING_AXE",
+        "THUMBSCREW",
         "TINGSHA",
         "TINY_MAILBOX",
         "TOASTY_MITTENS",
         "TOOLBOX",
+        "TORMENTOUS_COLLAR",
         "TOUCH_OF_OROBAS",
         "TOUGH_BANDAGES",
         "TOXIC_EGG",
@@ -2886,6 +3380,7 @@ pub mod relic {
         "TRI_BOOMERANG",
         "TUNGSTEN_ROD",
         "TUNING_FORK",
+        "TWINE",
         "TWISTED_FUNNEL",
         "UNCEASING_TOP",
         "UNDYING_SIGIL",
@@ -2904,10 +3399,12 @@ pub mod relic {
         "WHISPERING_EARRING",
         "WHITE_BEAST_STATUE",
         "WHITE_STAR",
+        "WHITTLING_KNIFE",
         "WINGED_BOOTS",
         "WING_CHARM",
         "WONGOS_MYSTERY_TICKET",
         "WONGO_CUSTOMER_APPRECIATION_BADGE",
+        "WUPPY",
         "YUMMY_COOKIE",
     ];
     /// C# class names, indexed by id.
@@ -2922,6 +3419,8 @@ pub mod relic {
         "Astrolabe",
         "BagOfMarbles",
         "BagOfPreparation",
+        "BathRobes",
+        "BathTowel",
         "BeatingRemnant",
         "BeautifulBracelet",
         "Bellows",
@@ -2930,6 +3429,7 @@ pub mod relic {
         "BigMushroom",
         "BiiigHug",
         "BingBong",
+        "BizarreLamp",
         "BlackBlood",
         "BlackStar",
         "BlessedAntler",
@@ -2949,6 +3449,7 @@ pub mod relic {
         "BronzeScales",
         "BurningBlood",
         "BurningSticks",
+        "Byrdine",
         "Byrdpip",
         "CallingBell",
         "Candelabra",
@@ -2963,6 +3464,7 @@ pub mod relic {
         "Circlet",
         "Claws",
         "CloakClasp",
+        "ConductorsBaton",
         "CrackedCore",
         "Crossbow",
         "CursedPearl",
@@ -2989,6 +3491,7 @@ pub mod relic {
         "EmotionChip",
         "EmptyCage",
         "EternalFeather",
+        "ExerciseMat",
         "FakeAnchor",
         "FakeBloodVial",
         "FakeHappyFlower",
@@ -3000,6 +3503,7 @@ pub mod relic {
         "FakeStrikeDummy",
         "FakeVenerableTeaSet",
         "FencingManual",
+        "Fertilizer",
         "FestivePopper",
         "Fiddle",
         "FishingRod",
@@ -3066,6 +3570,7 @@ pub mod relic {
         "MembershipCard",
         "MercuryHourglass",
         "Metronome",
+        "MightyWings",
         "MiniatureCannon",
         "MiniatureTent",
         "MiniRegent",
@@ -3083,6 +3588,8 @@ pub mod relic {
         "Nunchaku",
         "NutritiousOyster",
         "NutritiousSoup",
+        "ObsidianVice",
+        "Ocarina",
         "OddlySmoothStone",
         "OldCoin",
         "OrangeDough",
@@ -3159,6 +3666,7 @@ pub mod relic {
         "SmallCapsule",
         "SneckoEye",
         "SneckoSkull",
+        "SongBow",
         "Sozu",
         "SparklingRouge",
         "SpikedGauntlets",
@@ -3166,6 +3674,7 @@ pub mod relic {
         "StoneCracker",
         "StoneHumidifier",
         "Storybook",
+        "Storyteller",
         "Strawberry",
         "StrikeDummy",
         "SturdyClamp",
@@ -3178,10 +3687,12 @@ pub mod relic {
         "TheBoot",
         "TheCourier",
         "ThrowingAxe",
+        "Thumbscrew",
         "Tingsha",
         "TinyMailbox",
         "ToastyMittens",
         "Toolbox",
+        "TormentousCollar",
         "TouchOfOrobas",
         "ToughBandages",
         "ToxicEgg",
@@ -3189,6 +3700,7 @@ pub mod relic {
         "TriBoomerang",
         "TungstenRod",
         "TuningFork",
+        "Twine",
         "TwistedFunnel",
         "UnceasingTop",
         "UndyingSigil",
@@ -3207,10 +3719,12 @@ pub mod relic {
         "WhisperingEarring",
         "WhiteBeastStatue",
         "WhiteStar",
+        "WhittlingKnife",
         "WingedBoots",
         "WingCharm",
         "WongosMysteryTicket",
         "WongoCustomerAppreciationBadge",
+        "Wuppy",
         "YummyCookie",
     ];
     pub const AKABEKO: u16 = 0;
@@ -3223,300 +3737,317 @@ pub mod relic {
     pub const ASTROLABE: u16 = 7;
     pub const BAG_OF_MARBLES: u16 = 8;
     pub const BAG_OF_PREPARATION: u16 = 9;
-    pub const BEATING_REMNANT: u16 = 10;
-    pub const BEAUTIFUL_BRACELET: u16 = 11;
-    pub const BELLOWS: u16 = 12;
-    pub const BELT_BUCKLE: u16 = 13;
-    pub const BIG_HAT: u16 = 14;
-    pub const BIG_MUSHROOM: u16 = 15;
-    pub const BIIIG_HUG: u16 = 16;
-    pub const BING_BONG: u16 = 17;
-    pub const BLACK_BLOOD: u16 = 18;
-    pub const BLACK_STAR: u16 = 19;
-    pub const BLESSED_ANTLER: u16 = 20;
-    pub const BLOOD_SOAKED_ROSE: u16 = 21;
-    pub const BLOOD_VIAL: u16 = 22;
-    pub const BONE_FLUTE: u16 = 23;
-    pub const BONE_TEA: u16 = 24;
-    pub const BOOKMARK: u16 = 25;
-    pub const BOOK_OF_FIVE_RINGS: u16 = 26;
-    pub const BOOK_REPAIR_KNIFE: u16 = 27;
-    pub const BOOMING_CONCH: u16 = 28;
-    pub const BOUND_PHYLACTERY: u16 = 29;
-    pub const BOWLER_HAT: u16 = 30;
-    pub const BREAD: u16 = 31;
-    pub const BRILLIANT_SCARF: u16 = 32;
-    pub const BRIMSTONE: u16 = 33;
-    pub const BRONZE_SCALES: u16 = 34;
-    pub const BURNING_BLOOD: u16 = 35;
-    pub const BURNING_STICKS: u16 = 36;
-    pub const BYRDPIP: u16 = 37;
-    pub const CALLING_BELL: u16 = 38;
-    pub const CANDELABRA: u16 = 39;
-    pub const CAPTAINS_WHEEL: u16 = 40;
-    pub const CAULDRON: u16 = 41;
-    pub const CENTENNIAL_PUZZLE: u16 = 42;
-    pub const CHANDELIER: u16 = 43;
-    pub const CHARONS_ASHES: u16 = 44;
-    pub const CHEMICAL_X: u16 = 45;
-    pub const CHOICES_PARADOX: u16 = 46;
-    pub const CHOSEN_CHEESE: u16 = 47;
-    pub const CIRCLET: u16 = 48;
-    pub const CLAWS: u16 = 49;
-    pub const CLOAK_CLASP: u16 = 50;
-    pub const CRACKED_CORE: u16 = 51;
-    pub const CROSSBOW: u16 = 52;
-    pub const CURSED_PEARL: u16 = 53;
-    pub const DARKSTONE_PERIAPT: u16 = 54;
-    pub const DATA_DISK: u16 = 55;
-    pub const DAUGHTER_OF_THE_WIND: u16 = 56;
-    pub const DELICATE_FROND: u16 = 57;
-    pub const DEMON_TONGUE: u16 = 58;
-    pub const DEPRECATED_RELIC: u16 = 59;
-    pub const DIAMOND_DIADEM: u16 = 60;
-    pub const DINGY_RUG: u16 = 61;
-    pub const DISTINGUISHED_CAPE: u16 = 62;
-    pub const DIVINE_DESTINY: u16 = 63;
-    pub const DIVINE_RIGHT: u16 = 64;
-    pub const DOLLYS_MIRROR: u16 = 65;
-    pub const DOWSING_ROD: u16 = 66;
-    pub const DRAGON_FRUIT: u16 = 67;
-    pub const DREAM_CATCHER: u16 = 68;
-    pub const DRIFTWOOD: u16 = 69;
-    pub const DUSTY_TOME: u16 = 70;
-    pub const ECTOPLASM: u16 = 71;
-    pub const ELECTRIC_SHRYMP: u16 = 72;
-    pub const EMBER_TEA: u16 = 73;
-    pub const EMOTION_CHIP: u16 = 74;
-    pub const EMPTY_CAGE: u16 = 75;
-    pub const ETERNAL_FEATHER: u16 = 76;
-    pub const FAKE_ANCHOR: u16 = 77;
-    pub const FAKE_BLOOD_VIAL: u16 = 78;
-    pub const FAKE_HAPPY_FLOWER: u16 = 79;
-    pub const FAKE_LEES_WAFFLE: u16 = 80;
-    pub const FAKE_MANGO: u16 = 81;
-    pub const FAKE_MERCHANTS_RUG: u16 = 82;
-    pub const FAKE_ORICHALCUM: u16 = 83;
-    pub const FAKE_SNECKO_EYE: u16 = 84;
-    pub const FAKE_STRIKE_DUMMY: u16 = 85;
-    pub const FAKE_VENERABLE_TEA_SET: u16 = 86;
-    pub const FENCING_MANUAL: u16 = 87;
-    pub const FESTIVE_POPPER: u16 = 88;
-    pub const FIDDLE: u16 = 89;
-    pub const FISHING_ROD: u16 = 90;
-    pub const FORGOTTEN_SOUL: u16 = 91;
-    pub const FRAGRANT_MUSHROOM: u16 = 92;
-    pub const FRESNEL_LENS: u16 = 93;
-    pub const FROZEN_EGG: u16 = 94;
-    pub const FUNERARY_MASK: u16 = 95;
-    pub const FUR_COAT: u16 = 96;
-    pub const GALACTIC_DUST: u16 = 97;
-    pub const GAMBLING_CHIP: u16 = 98;
-    pub const GAME_PIECE: u16 = 99;
-    pub const GHOST_SEED: u16 = 100;
-    pub const GIRYA: u16 = 101;
-    pub const GLASS_EYE: u16 = 102;
-    pub const GLITTER: u16 = 103;
-    pub const GNARLED_HAMMER: u16 = 104;
-    pub const GOLDEN_COMPASS: u16 = 105;
-    pub const GOLDEN_PEARL: u16 = 106;
-    pub const GOLD_PLATED_CABLES: u16 = 107;
-    pub const GORGET: u16 = 108;
-    pub const GREMLIN_HORN: u16 = 109;
-    pub const HAND_DRILL: u16 = 110;
-    pub const HAPPY_FLOWER: u16 = 111;
-    pub const HEFTY_TABLET: u16 = 112;
-    pub const HELICAL_DART: u16 = 113;
-    pub const HISTORY_COURSE: u16 = 114;
-    pub const HORN_CLEAT: u16 = 115;
-    pub const ICE_CREAM: u16 = 116;
-    pub const INFUSED_CORE: u16 = 117;
-    pub const INTIMIDATING_HELMET: u16 = 118;
-    pub const IRON_CLUB: u16 = 119;
-    pub const IVORY_TILE: u16 = 120;
-    pub const JEWELED_MASK: u16 = 121;
-    pub const JEWELRY_BOX: u16 = 122;
-    pub const JOSS_PAPER: u16 = 123;
-    pub const JUZU_BRACELET: u16 = 124;
-    pub const KALEIDOSCOPE: u16 = 125;
-    pub const KIFUDA: u16 = 126;
-    pub const KUNAI: u16 = 127;
-    pub const KUSARIGAMA: u16 = 128;
-    pub const LANTERN: u16 = 129;
-    pub const LARGE_CAPSULE: u16 = 130;
-    pub const LASTING_CANDY: u16 = 131;
-    pub const LAVA_LAMP: u16 = 132;
-    pub const LAVA_ROCK: u16 = 133;
-    pub const LEAD_PAPERWEIGHT: u16 = 134;
-    pub const LEAFY_POULTICE: u16 = 135;
-    pub const LEES_WAFFLE: u16 = 136;
-    pub const LETTER_OPENER: u16 = 137;
-    pub const LIZARD_TAIL: u16 = 138;
-    pub const LOOMING_FRUIT: u16 = 139;
-    pub const LORDS_PARASOL: u16 = 140;
-    pub const LOST_COFFER: u16 = 141;
-    pub const LOST_WISP: u16 = 142;
-    pub const LUCKY_FYSH: u16 = 143;
-    pub const LUNAR_PASTRY: u16 = 144;
-    pub const MANGO: u16 = 145;
-    pub const MASSIVE_SCROLL: u16 = 146;
-    pub const MAW_BANK: u16 = 147;
-    pub const MEAL_TICKET: u16 = 148;
-    pub const MEAT_CLEAVER: u16 = 149;
-    pub const MEAT_ON_THE_BONE: u16 = 150;
-    pub const MEMBERSHIP_CARD: u16 = 151;
-    pub const MERCURY_HOURGLASS: u16 = 152;
-    pub const METRONOME: u16 = 153;
-    pub const MINIATURE_CANNON: u16 = 154;
-    pub const MINIATURE_TENT: u16 = 155;
-    pub const MINI_REGENT: u16 = 156;
-    pub const MOLTEN_EGG: u16 = 157;
-    pub const MR_STRUGGLES: u16 = 158;
-    pub const MUMMIFIED_HAND: u16 = 159;
-    pub const MUSIC_BOX: u16 = 160;
-    pub const MYSTIC_LIGHTER: u16 = 161;
-    pub const NEOWS_BONES: u16 = 162;
-    pub const NEOWS_SACRIFICE: u16 = 163;
-    pub const NEOWS_TALISMAN: u16 = 164;
-    pub const NEOWS_TORMENT: u16 = 165;
-    pub const NEW_LEAF: u16 = 166;
-    pub const NINJA_SCROLL: u16 = 167;
-    pub const NUNCHAKU: u16 = 168;
-    pub const NUTRITIOUS_OYSTER: u16 = 169;
-    pub const NUTRITIOUS_SOUP: u16 = 170;
-    pub const ODDLY_SMOOTH_STONE: u16 = 171;
-    pub const OLD_COIN: u16 = 172;
-    pub const ORANGE_DOUGH: u16 = 173;
-    pub const ORICHALCUM: u16 = 174;
-    pub const ORNAMENTAL_FAN: u16 = 175;
-    pub const ORRERY: u16 = 176;
-    pub const PAELS_BLOOD: u16 = 177;
-    pub const PAELS_CLAW: u16 = 178;
-    pub const PAELS_EYE: u16 = 179;
-    pub const PAELS_FLESH: u16 = 180;
-    pub const PAELS_GROWTH: u16 = 181;
-    pub const PAELS_HORN: u16 = 182;
-    pub const PAELS_LEGION: u16 = 183;
-    pub const PAELS_TEARS: u16 = 184;
-    pub const PAELS_TOOTH: u16 = 185;
-    pub const PAELS_WING: u16 = 186;
-    pub const PANDORAS_BOX: u16 = 187;
-    pub const PANTOGRAPH: u16 = 188;
-    pub const PAPER_KRANE: u16 = 189;
-    pub const PAPER_PHROG: u16 = 190;
-    pub const PARRYING_SHIELD: u16 = 191;
-    pub const PEAR: u16 = 192;
-    pub const PENDULUM: u16 = 193;
-    pub const PEN_NIB: u16 = 194;
-    pub const PERMAFROST: u16 = 195;
-    pub const PETRIFIED_TOAD: u16 = 196;
-    pub const PHIAL_HOLSTER: u16 = 197;
-    pub const PHILOSOPHERS_STONE: u16 = 198;
-    pub const PHYLACTERY_UNBOUND: u16 = 199;
-    pub const PLANISPHERE: u16 = 200;
-    pub const POCKETWATCH: u16 = 201;
-    pub const POLLINOUS_CORE: u16 = 202;
-    pub const POMANDER: u16 = 203;
-    pub const POTION_BELT: u16 = 204;
-    pub const POWER_CELL: u16 = 205;
-    pub const PRAYER_WHEEL: u16 = 206;
-    pub const PRECARIOUS_SHEARS: u16 = 207;
-    pub const PRECISE_SCISSORS: u16 = 208;
-    pub const PRESERVED_FOG: u16 = 209;
-    pub const PRISMATIC_GEM: u16 = 210;
-    pub const PUMPKIN_CANDLE: u16 = 211;
-    pub const PUNCH_DAGGER: u16 = 212;
-    pub const RADIANT_PEARL: u16 = 213;
-    pub const RAINBOW_RING: u16 = 214;
-    pub const RAZOR_TOOTH: u16 = 215;
-    pub const RED_MASK: u16 = 216;
-    pub const RED_SKULL: u16 = 217;
-    pub const REGALITE: u16 = 218;
-    pub const REGAL_PILLOW: u16 = 219;
-    pub const REPTILE_TRINKET: u16 = 220;
-    pub const RINGING_TRIANGLE: u16 = 221;
-    pub const RING_OF_THE_DRAKE: u16 = 222;
-    pub const RING_OF_THE_SNAKE: u16 = 223;
-    pub const RIPPLE_BASIN: u16 = 224;
-    pub const ROYAL_POISON: u16 = 225;
-    pub const ROYAL_STAMP: u16 = 226;
-    pub const RUINED_HELMET: u16 = 227;
-    pub const RUNIC_CAPACITOR: u16 = 228;
-    pub const RUNIC_PYRAMID: u16 = 229;
-    pub const SAI: u16 = 230;
-    pub const SAND_CASTLE: u16 = 231;
-    pub const SCREAMING_FLAGON: u16 = 232;
-    pub const SCROLL_BOXES: u16 = 233;
-    pub const SEAL_OF_GOLD: u16 = 234;
-    pub const SEA_GLASS: u16 = 235;
-    pub const SELF_FORMING_CLAY: u16 = 236;
-    pub const SERE_TALON: u16 = 237;
-    pub const SHOVEL: u16 = 238;
-    pub const SHURIKEN: u16 = 239;
-    pub const SIGNET_RING: u16 = 240;
-    pub const SILKEN_TRESS: u16 = 241;
-    pub const SILVER_CRUCIBLE: u16 = 242;
-    pub const SLING_OF_COURAGE: u16 = 243;
-    pub const SMALL_CAPSULE: u16 = 244;
-    pub const SNECKO_EYE: u16 = 245;
-    pub const SNECKO_SKULL: u16 = 246;
-    pub const SOZU: u16 = 247;
-    pub const SPARKLING_ROUGE: u16 = 248;
-    pub const SPIKED_GAUNTLETS: u16 = 249;
-    pub const STONE_CALENDAR: u16 = 250;
-    pub const STONE_CRACKER: u16 = 251;
-    pub const STONE_HUMIDIFIER: u16 = 252;
-    pub const STORYBOOK: u16 = 253;
-    pub const STRAWBERRY: u16 = 254;
-    pub const STRIKE_DUMMY: u16 = 255;
-    pub const STURDY_CLAMP: u16 = 256;
-    pub const SWORD_OF_JADE: u16 = 257;
-    pub const SWORD_OF_STONE: u16 = 258;
-    pub const SYMBIOTIC_VIRUS: u16 = 259;
-    pub const TANXS_WHISTLE: u16 = 260;
-    pub const TEA_OF_DISCOURTESY: u16 = 261;
-    pub const THE_ABACUS: u16 = 262;
-    pub const THE_BOOT: u16 = 263;
-    pub const THE_COURIER: u16 = 264;
-    pub const THROWING_AXE: u16 = 265;
-    pub const TINGSHA: u16 = 266;
-    pub const TINY_MAILBOX: u16 = 267;
-    pub const TOASTY_MITTENS: u16 = 268;
-    pub const TOOLBOX: u16 = 269;
-    pub const TOUCH_OF_OROBAS: u16 = 270;
-    pub const TOUGH_BANDAGES: u16 = 271;
-    pub const TOXIC_EGG: u16 = 272;
-    pub const TOY_BOX: u16 = 273;
-    pub const TRI_BOOMERANG: u16 = 274;
-    pub const TUNGSTEN_ROD: u16 = 275;
-    pub const TUNING_FORK: u16 = 276;
-    pub const TWISTED_FUNNEL: u16 = 277;
-    pub const UNCEASING_TOP: u16 = 278;
-    pub const UNDYING_SIGIL: u16 = 279;
-    pub const UNSETTLING_LAMP: u16 = 280;
-    pub const VAJRA: u16 = 281;
-    pub const VAKUU_CARD_SELECTOR: u16 = 282;
-    pub const VAMBRACE: u16 = 283;
-    pub const VELVET_CHOKER: u16 = 284;
-    pub const VENERABLE_TEA_SET: u16 = 285;
-    pub const VERY_HOT_COCOA: u16 = 286;
-    pub const VEXING_PUZZLEBOX: u16 = 287;
-    pub const VITRUVIAN_MINION: u16 = 288;
-    pub const WAR_HAMMER: u16 = 289;
-    pub const WAR_PAINT: u16 = 290;
-    pub const WHETSTONE: u16 = 291;
-    pub const WHISPERING_EARRING: u16 = 292;
-    pub const WHITE_BEAST_STATUE: u16 = 293;
-    pub const WHITE_STAR: u16 = 294;
-    pub const WINGED_BOOTS: u16 = 295;
-    pub const WING_CHARM: u16 = 296;
-    pub const WONGOS_MYSTERY_TICKET: u16 = 297;
-    pub const WONGO_CUSTOMER_APPRECIATION_BADGE: u16 = 298;
-    pub const YUMMY_COOKIE: u16 = 299;
+    pub const BATH_ROBES: u16 = 10;
+    pub const BATH_TOWEL: u16 = 11;
+    pub const BEATING_REMNANT: u16 = 12;
+    pub const BEAUTIFUL_BRACELET: u16 = 13;
+    pub const BELLOWS: u16 = 14;
+    pub const BELT_BUCKLE: u16 = 15;
+    pub const BIG_HAT: u16 = 16;
+    pub const BIG_MUSHROOM: u16 = 17;
+    pub const BIIIG_HUG: u16 = 18;
+    pub const BING_BONG: u16 = 19;
+    pub const BIZARRE_LAMP: u16 = 20;
+    pub const BLACK_BLOOD: u16 = 21;
+    pub const BLACK_STAR: u16 = 22;
+    pub const BLESSED_ANTLER: u16 = 23;
+    pub const BLOOD_SOAKED_ROSE: u16 = 24;
+    pub const BLOOD_VIAL: u16 = 25;
+    pub const BONE_FLUTE: u16 = 26;
+    pub const BONE_TEA: u16 = 27;
+    pub const BOOKMARK: u16 = 28;
+    pub const BOOK_OF_FIVE_RINGS: u16 = 29;
+    pub const BOOK_REPAIR_KNIFE: u16 = 30;
+    pub const BOOMING_CONCH: u16 = 31;
+    pub const BOUND_PHYLACTERY: u16 = 32;
+    pub const BOWLER_HAT: u16 = 33;
+    pub const BREAD: u16 = 34;
+    pub const BRILLIANT_SCARF: u16 = 35;
+    pub const BRIMSTONE: u16 = 36;
+    pub const BRONZE_SCALES: u16 = 37;
+    pub const BURNING_BLOOD: u16 = 38;
+    pub const BURNING_STICKS: u16 = 39;
+    pub const BYRDINE: u16 = 40;
+    pub const BYRDPIP: u16 = 41;
+    pub const CALLING_BELL: u16 = 42;
+    pub const CANDELABRA: u16 = 43;
+    pub const CAPTAINS_WHEEL: u16 = 44;
+    pub const CAULDRON: u16 = 45;
+    pub const CENTENNIAL_PUZZLE: u16 = 46;
+    pub const CHANDELIER: u16 = 47;
+    pub const CHARONS_ASHES: u16 = 48;
+    pub const CHEMICAL_X: u16 = 49;
+    pub const CHOICES_PARADOX: u16 = 50;
+    pub const CHOSEN_CHEESE: u16 = 51;
+    pub const CIRCLET: u16 = 52;
+    pub const CLAWS: u16 = 53;
+    pub const CLOAK_CLASP: u16 = 54;
+    pub const CONDUCTORS_BATON: u16 = 55;
+    pub const CRACKED_CORE: u16 = 56;
+    pub const CROSSBOW: u16 = 57;
+    pub const CURSED_PEARL: u16 = 58;
+    pub const DARKSTONE_PERIAPT: u16 = 59;
+    pub const DATA_DISK: u16 = 60;
+    pub const DAUGHTER_OF_THE_WIND: u16 = 61;
+    pub const DELICATE_FROND: u16 = 62;
+    pub const DEMON_TONGUE: u16 = 63;
+    pub const DEPRECATED_RELIC: u16 = 64;
+    pub const DIAMOND_DIADEM: u16 = 65;
+    pub const DINGY_RUG: u16 = 66;
+    pub const DISTINGUISHED_CAPE: u16 = 67;
+    pub const DIVINE_DESTINY: u16 = 68;
+    pub const DIVINE_RIGHT: u16 = 69;
+    pub const DOLLYS_MIRROR: u16 = 70;
+    pub const DOWSING_ROD: u16 = 71;
+    pub const DRAGON_FRUIT: u16 = 72;
+    pub const DREAM_CATCHER: u16 = 73;
+    pub const DRIFTWOOD: u16 = 74;
+    pub const DUSTY_TOME: u16 = 75;
+    pub const ECTOPLASM: u16 = 76;
+    pub const ELECTRIC_SHRYMP: u16 = 77;
+    pub const EMBER_TEA: u16 = 78;
+    pub const EMOTION_CHIP: u16 = 79;
+    pub const EMPTY_CAGE: u16 = 80;
+    pub const ETERNAL_FEATHER: u16 = 81;
+    pub const EXERCISE_MAT: u16 = 82;
+    pub const FAKE_ANCHOR: u16 = 83;
+    pub const FAKE_BLOOD_VIAL: u16 = 84;
+    pub const FAKE_HAPPY_FLOWER: u16 = 85;
+    pub const FAKE_LEES_WAFFLE: u16 = 86;
+    pub const FAKE_MANGO: u16 = 87;
+    pub const FAKE_MERCHANTS_RUG: u16 = 88;
+    pub const FAKE_ORICHALCUM: u16 = 89;
+    pub const FAKE_SNECKO_EYE: u16 = 90;
+    pub const FAKE_STRIKE_DUMMY: u16 = 91;
+    pub const FAKE_VENERABLE_TEA_SET: u16 = 92;
+    pub const FENCING_MANUAL: u16 = 93;
+    pub const FERTILIZER: u16 = 94;
+    pub const FESTIVE_POPPER: u16 = 95;
+    pub const FIDDLE: u16 = 96;
+    pub const FISHING_ROD: u16 = 97;
+    pub const FORGOTTEN_SOUL: u16 = 98;
+    pub const FRAGRANT_MUSHROOM: u16 = 99;
+    pub const FRESNEL_LENS: u16 = 100;
+    pub const FROZEN_EGG: u16 = 101;
+    pub const FUNERARY_MASK: u16 = 102;
+    pub const FUR_COAT: u16 = 103;
+    pub const GALACTIC_DUST: u16 = 104;
+    pub const GAMBLING_CHIP: u16 = 105;
+    pub const GAME_PIECE: u16 = 106;
+    pub const GHOST_SEED: u16 = 107;
+    pub const GIRYA: u16 = 108;
+    pub const GLASS_EYE: u16 = 109;
+    pub const GLITTER: u16 = 110;
+    pub const GNARLED_HAMMER: u16 = 111;
+    pub const GOLDEN_COMPASS: u16 = 112;
+    pub const GOLDEN_PEARL: u16 = 113;
+    pub const GOLD_PLATED_CABLES: u16 = 114;
+    pub const GORGET: u16 = 115;
+    pub const GREMLIN_HORN: u16 = 116;
+    pub const HAND_DRILL: u16 = 117;
+    pub const HAPPY_FLOWER: u16 = 118;
+    pub const HEFTY_TABLET: u16 = 119;
+    pub const HELICAL_DART: u16 = 120;
+    pub const HISTORY_COURSE: u16 = 121;
+    pub const HORN_CLEAT: u16 = 122;
+    pub const ICE_CREAM: u16 = 123;
+    pub const INFUSED_CORE: u16 = 124;
+    pub const INTIMIDATING_HELMET: u16 = 125;
+    pub const IRON_CLUB: u16 = 126;
+    pub const IVORY_TILE: u16 = 127;
+    pub const JEWELED_MASK: u16 = 128;
+    pub const JEWELRY_BOX: u16 = 129;
+    pub const JOSS_PAPER: u16 = 130;
+    pub const JUZU_BRACELET: u16 = 131;
+    pub const KALEIDOSCOPE: u16 = 132;
+    pub const KIFUDA: u16 = 133;
+    pub const KUNAI: u16 = 134;
+    pub const KUSARIGAMA: u16 = 135;
+    pub const LANTERN: u16 = 136;
+    pub const LARGE_CAPSULE: u16 = 137;
+    pub const LASTING_CANDY: u16 = 138;
+    pub const LAVA_LAMP: u16 = 139;
+    pub const LAVA_ROCK: u16 = 140;
+    pub const LEAD_PAPERWEIGHT: u16 = 141;
+    pub const LEAFY_POULTICE: u16 = 142;
+    pub const LEES_WAFFLE: u16 = 143;
+    pub const LETTER_OPENER: u16 = 144;
+    pub const LIZARD_TAIL: u16 = 145;
+    pub const LOOMING_FRUIT: u16 = 146;
+    pub const LORDS_PARASOL: u16 = 147;
+    pub const LOST_COFFER: u16 = 148;
+    pub const LOST_WISP: u16 = 149;
+    pub const LUCKY_FYSH: u16 = 150;
+    pub const LUNAR_PASTRY: u16 = 151;
+    pub const MANGO: u16 = 152;
+    pub const MASSIVE_SCROLL: u16 = 153;
+    pub const MAW_BANK: u16 = 154;
+    pub const MEAL_TICKET: u16 = 155;
+    pub const MEAT_CLEAVER: u16 = 156;
+    pub const MEAT_ON_THE_BONE: u16 = 157;
+    pub const MEMBERSHIP_CARD: u16 = 158;
+    pub const MERCURY_HOURGLASS: u16 = 159;
+    pub const METRONOME: u16 = 160;
+    pub const MIGHTY_WINGS: u16 = 161;
+    pub const MINIATURE_CANNON: u16 = 162;
+    pub const MINIATURE_TENT: u16 = 163;
+    pub const MINI_REGENT: u16 = 164;
+    pub const MOLTEN_EGG: u16 = 165;
+    pub const MR_STRUGGLES: u16 = 166;
+    pub const MUMMIFIED_HAND: u16 = 167;
+    pub const MUSIC_BOX: u16 = 168;
+    pub const MYSTIC_LIGHTER: u16 = 169;
+    pub const NEOWS_BONES: u16 = 170;
+    pub const NEOWS_SACRIFICE: u16 = 171;
+    pub const NEOWS_TALISMAN: u16 = 172;
+    pub const NEOWS_TORMENT: u16 = 173;
+    pub const NEW_LEAF: u16 = 174;
+    pub const NINJA_SCROLL: u16 = 175;
+    pub const NUNCHAKU: u16 = 176;
+    pub const NUTRITIOUS_OYSTER: u16 = 177;
+    pub const NUTRITIOUS_SOUP: u16 = 178;
+    pub const OBSIDIAN_VICE: u16 = 179;
+    pub const OCARINA: u16 = 180;
+    pub const ODDLY_SMOOTH_STONE: u16 = 181;
+    pub const OLD_COIN: u16 = 182;
+    pub const ORANGE_DOUGH: u16 = 183;
+    pub const ORICHALCUM: u16 = 184;
+    pub const ORNAMENTAL_FAN: u16 = 185;
+    pub const ORRERY: u16 = 186;
+    pub const PAELS_BLOOD: u16 = 187;
+    pub const PAELS_CLAW: u16 = 188;
+    pub const PAELS_EYE: u16 = 189;
+    pub const PAELS_FLESH: u16 = 190;
+    pub const PAELS_GROWTH: u16 = 191;
+    pub const PAELS_HORN: u16 = 192;
+    pub const PAELS_LEGION: u16 = 193;
+    pub const PAELS_TEARS: u16 = 194;
+    pub const PAELS_TOOTH: u16 = 195;
+    pub const PAELS_WING: u16 = 196;
+    pub const PANDORAS_BOX: u16 = 197;
+    pub const PANTOGRAPH: u16 = 198;
+    pub const PAPER_KRANE: u16 = 199;
+    pub const PAPER_PHROG: u16 = 200;
+    pub const PARRYING_SHIELD: u16 = 201;
+    pub const PEAR: u16 = 202;
+    pub const PENDULUM: u16 = 203;
+    pub const PEN_NIB: u16 = 204;
+    pub const PERMAFROST: u16 = 205;
+    pub const PETRIFIED_TOAD: u16 = 206;
+    pub const PHIAL_HOLSTER: u16 = 207;
+    pub const PHILOSOPHERS_STONE: u16 = 208;
+    pub const PHYLACTERY_UNBOUND: u16 = 209;
+    pub const PLANISPHERE: u16 = 210;
+    pub const POCKETWATCH: u16 = 211;
+    pub const POLLINOUS_CORE: u16 = 212;
+    pub const POMANDER: u16 = 213;
+    pub const POTION_BELT: u16 = 214;
+    pub const POWER_CELL: u16 = 215;
+    pub const PRAYER_WHEEL: u16 = 216;
+    pub const PRECARIOUS_SHEARS: u16 = 217;
+    pub const PRECISE_SCISSORS: u16 = 218;
+    pub const PRESERVED_FOG: u16 = 219;
+    pub const PRISMATIC_GEM: u16 = 220;
+    pub const PUMPKIN_CANDLE: u16 = 221;
+    pub const PUNCH_DAGGER: u16 = 222;
+    pub const RADIANT_PEARL: u16 = 223;
+    pub const RAINBOW_RING: u16 = 224;
+    pub const RAZOR_TOOTH: u16 = 225;
+    pub const RED_MASK: u16 = 226;
+    pub const RED_SKULL: u16 = 227;
+    pub const REGALITE: u16 = 228;
+    pub const REGAL_PILLOW: u16 = 229;
+    pub const REPTILE_TRINKET: u16 = 230;
+    pub const RINGING_TRIANGLE: u16 = 231;
+    pub const RING_OF_THE_DRAKE: u16 = 232;
+    pub const RING_OF_THE_SNAKE: u16 = 233;
+    pub const RIPPLE_BASIN: u16 = 234;
+    pub const ROYAL_POISON: u16 = 235;
+    pub const ROYAL_STAMP: u16 = 236;
+    pub const RUINED_HELMET: u16 = 237;
+    pub const RUNIC_CAPACITOR: u16 = 238;
+    pub const RUNIC_PYRAMID: u16 = 239;
+    pub const SAI: u16 = 240;
+    pub const SAND_CASTLE: u16 = 241;
+    pub const SCREAMING_FLAGON: u16 = 242;
+    pub const SCROLL_BOXES: u16 = 243;
+    pub const SEAL_OF_GOLD: u16 = 244;
+    pub const SEA_GLASS: u16 = 245;
+    pub const SELF_FORMING_CLAY: u16 = 246;
+    pub const SERE_TALON: u16 = 247;
+    pub const SHOVEL: u16 = 248;
+    pub const SHURIKEN: u16 = 249;
+    pub const SIGNET_RING: u16 = 250;
+    pub const SILKEN_TRESS: u16 = 251;
+    pub const SILVER_CRUCIBLE: u16 = 252;
+    pub const SLING_OF_COURAGE: u16 = 253;
+    pub const SMALL_CAPSULE: u16 = 254;
+    pub const SNECKO_EYE: u16 = 255;
+    pub const SNECKO_SKULL: u16 = 256;
+    pub const SONG_BOW: u16 = 257;
+    pub const SOZU: u16 = 258;
+    pub const SPARKLING_ROUGE: u16 = 259;
+    pub const SPIKED_GAUNTLETS: u16 = 260;
+    pub const STONE_CALENDAR: u16 = 261;
+    pub const STONE_CRACKER: u16 = 262;
+    pub const STONE_HUMIDIFIER: u16 = 263;
+    pub const STORYBOOK: u16 = 264;
+    pub const STORYTELLER: u16 = 265;
+    pub const STRAWBERRY: u16 = 266;
+    pub const STRIKE_DUMMY: u16 = 267;
+    pub const STURDY_CLAMP: u16 = 268;
+    pub const SWORD_OF_JADE: u16 = 269;
+    pub const SWORD_OF_STONE: u16 = 270;
+    pub const SYMBIOTIC_VIRUS: u16 = 271;
+    pub const TANXS_WHISTLE: u16 = 272;
+    pub const TEA_OF_DISCOURTESY: u16 = 273;
+    pub const THE_ABACUS: u16 = 274;
+    pub const THE_BOOT: u16 = 275;
+    pub const THE_COURIER: u16 = 276;
+    pub const THROWING_AXE: u16 = 277;
+    pub const THUMBSCREW: u16 = 278;
+    pub const TINGSHA: u16 = 279;
+    pub const TINY_MAILBOX: u16 = 280;
+    pub const TOASTY_MITTENS: u16 = 281;
+    pub const TOOLBOX: u16 = 282;
+    pub const TORMENTOUS_COLLAR: u16 = 283;
+    pub const TOUCH_OF_OROBAS: u16 = 284;
+    pub const TOUGH_BANDAGES: u16 = 285;
+    pub const TOXIC_EGG: u16 = 286;
+    pub const TOY_BOX: u16 = 287;
+    pub const TRI_BOOMERANG: u16 = 288;
+    pub const TUNGSTEN_ROD: u16 = 289;
+    pub const TUNING_FORK: u16 = 290;
+    pub const TWINE: u16 = 291;
+    pub const TWISTED_FUNNEL: u16 = 292;
+    pub const UNCEASING_TOP: u16 = 293;
+    pub const UNDYING_SIGIL: u16 = 294;
+    pub const UNSETTLING_LAMP: u16 = 295;
+    pub const VAJRA: u16 = 296;
+    pub const VAKUU_CARD_SELECTOR: u16 = 297;
+    pub const VAMBRACE: u16 = 298;
+    pub const VELVET_CHOKER: u16 = 299;
+    pub const VENERABLE_TEA_SET: u16 = 300;
+    pub const VERY_HOT_COCOA: u16 = 301;
+    pub const VEXING_PUZZLEBOX: u16 = 302;
+    pub const VITRUVIAN_MINION: u16 = 303;
+    pub const WAR_HAMMER: u16 = 304;
+    pub const WAR_PAINT: u16 = 305;
+    pub const WHETSTONE: u16 = 306;
+    pub const WHISPERING_EARRING: u16 = 307;
+    pub const WHITE_BEAST_STATUE: u16 = 308;
+    pub const WHITE_STAR: u16 = 309;
+    pub const WHITTLING_KNIFE: u16 = 310;
+    pub const WINGED_BOOTS: u16 = 311;
+    pub const WING_CHARM: u16 = 312;
+    pub const WONGOS_MYSTERY_TICKET: u16 = 313;
+    pub const WONGO_CUSTOMER_APPRECIATION_BADGE: u16 = 314;
+    pub const WUPPY: u16 = 315;
+    pub const YUMMY_COOKIE: u16 = 316;
 }
 
 pub mod potion {
-    pub const COUNT: usize = 65;
+    pub const COUNT: usize = 68;
     /// ModelId entry strings (e.g. `STRIKE_IRONCLAD`), indexed by id.
     pub static NAMES: [&str; COUNT] = [
         "AMBERGRIS",
@@ -3528,9 +4059,11 @@ pub mod potion {
         "BLOOD_POTION",
         "BONE_BREW",
         "BOTTLED_POTENTIAL",
+        "BOTTLED_SONG",
         "CLARITY",
         "COLORLESS_POTION",
         "COSMIC_CONCOCTION",
+        "CRYSTALLINE_EUPHORIA",
         "CUNNING_POTION",
         "CURE_ALL",
         "DEPRECATED_POTION",
@@ -3569,6 +4102,7 @@ pub mod potion {
         "POT_OF_GHOULS",
         "POWDERED_DEMISE",
         "POWER_POTION",
+        "PRECISION_POTION",
         "RADIANT_TINCTURE",
         "REGEN_POTION",
         "SHACKLING_POTION",
@@ -3596,9 +4130,11 @@ pub mod potion {
         "BloodPotion",
         "BoneBrew",
         "BottledPotential",
+        "BottledSong",
         "Clarity",
         "ColorlessPotion",
         "CosmicConcoction",
+        "CrystallineEuphoria",
         "CunningPotion",
         "CureAll",
         "DeprecatedPotion",
@@ -3637,6 +4173,7 @@ pub mod potion {
         "PotOfGhouls",
         "PowderedDemise",
         "PowerPotion",
+        "PrecisionPotion",
         "RadiantTincture",
         "RegenPotion",
         "ShacklingPotion",
@@ -3662,66 +4199,69 @@ pub mod potion {
     pub const BLOOD_POTION: u16 = 6;
     pub const BONE_BREW: u16 = 7;
     pub const BOTTLED_POTENTIAL: u16 = 8;
-    pub const CLARITY: u16 = 9;
-    pub const COLORLESS_POTION: u16 = 10;
-    pub const COSMIC_CONCOCTION: u16 = 11;
-    pub const CUNNING_POTION: u16 = 12;
-    pub const CURE_ALL: u16 = 13;
-    pub const DEPRECATED_POTION: u16 = 14;
-    pub const DEXTERITY_POTION: u16 = 15;
-    pub const DISTILLED_CHAOS: u16 = 16;
-    pub const DROPLET_OF_PRECOGNITION: u16 = 17;
-    pub const DUPLICATOR: u16 = 18;
-    pub const ENERGY_POTION: u16 = 19;
-    pub const ENTROPIC_BREW: u16 = 20;
-    pub const ESSENCE_OF_DARKNESS: u16 = 21;
-    pub const EXPLOSIVE_AMPOULE: u16 = 22;
-    pub const FAIRY_IN_A_BOTTLE: u16 = 23;
-    pub const FIRE_POTION: u16 = 24;
-    pub const FLEX_POTION: u16 = 25;
-    pub const FOCUS_POTION: u16 = 26;
-    pub const FORTIFIER: u16 = 27;
-    pub const FOUL_POTION: u16 = 28;
-    pub const FRUIT_JUICE: u16 = 29;
-    pub const FYSH_OIL: u16 = 30;
-    pub const GAMBLERS_BREW: u16 = 31;
-    pub const GHOST_IN_A_JAR: u16 = 32;
-    pub const GIGANTIFICATION_POTION: u16 = 33;
-    pub const GLOWWATER_POTION: u16 = 34;
-    pub const HEART_OF_IRON: u16 = 35;
-    pub const KINGS_COURAGE: u16 = 36;
-    pub const LIQUID_BRONZE: u16 = 37;
-    pub const LIQUID_MEMORIES: u16 = 38;
-    pub const LUCKY_TONIC: u16 = 39;
-    pub const MAZALETHS_GIFT: u16 = 40;
-    pub const OROBIC_ACID: u16 = 41;
-    pub const POISON_POTION: u16 = 42;
-    pub const POTION_OF_BINDING: u16 = 43;
-    pub const POTION_OF_CAPACITY: u16 = 44;
-    pub const POTION_OF_DOOM: u16 = 45;
-    pub const POTION_SHAPED_ROCK: u16 = 46;
-    pub const POT_OF_GHOULS: u16 = 47;
-    pub const POWDERED_DEMISE: u16 = 48;
-    pub const POWER_POTION: u16 = 49;
-    pub const RADIANT_TINCTURE: u16 = 50;
-    pub const REGEN_POTION: u16 = 51;
-    pub const SHACKLING_POTION: u16 = 52;
-    pub const SHIP_IN_A_BOTTLE: u16 = 53;
-    pub const SKILL_POTION: u16 = 54;
-    pub const SNECKO_OIL: u16 = 55;
-    pub const SOLDIERS_STEW: u16 = 56;
-    pub const SPEED_POTION: u16 = 57;
-    pub const STABLE_SERUM: u16 = 58;
-    pub const STAR_POTION: u16 = 59;
-    pub const STRENGTH_POTION: u16 = 60;
-    pub const SWIFT_POTION: u16 = 61;
-    pub const TOUCH_OF_INSANITY: u16 = 62;
-    pub const VULNERABLE_POTION: u16 = 63;
-    pub const WEAK_POTION: u16 = 64;
+    pub const BOTTLED_SONG: u16 = 9;
+    pub const CLARITY: u16 = 10;
+    pub const COLORLESS_POTION: u16 = 11;
+    pub const COSMIC_CONCOCTION: u16 = 12;
+    pub const CRYSTALLINE_EUPHORIA: u16 = 13;
+    pub const CUNNING_POTION: u16 = 14;
+    pub const CURE_ALL: u16 = 15;
+    pub const DEPRECATED_POTION: u16 = 16;
+    pub const DEXTERITY_POTION: u16 = 17;
+    pub const DISTILLED_CHAOS: u16 = 18;
+    pub const DROPLET_OF_PRECOGNITION: u16 = 19;
+    pub const DUPLICATOR: u16 = 20;
+    pub const ENERGY_POTION: u16 = 21;
+    pub const ENTROPIC_BREW: u16 = 22;
+    pub const ESSENCE_OF_DARKNESS: u16 = 23;
+    pub const EXPLOSIVE_AMPOULE: u16 = 24;
+    pub const FAIRY_IN_A_BOTTLE: u16 = 25;
+    pub const FIRE_POTION: u16 = 26;
+    pub const FLEX_POTION: u16 = 27;
+    pub const FOCUS_POTION: u16 = 28;
+    pub const FORTIFIER: u16 = 29;
+    pub const FOUL_POTION: u16 = 30;
+    pub const FRUIT_JUICE: u16 = 31;
+    pub const FYSH_OIL: u16 = 32;
+    pub const GAMBLERS_BREW: u16 = 33;
+    pub const GHOST_IN_A_JAR: u16 = 34;
+    pub const GIGANTIFICATION_POTION: u16 = 35;
+    pub const GLOWWATER_POTION: u16 = 36;
+    pub const HEART_OF_IRON: u16 = 37;
+    pub const KINGS_COURAGE: u16 = 38;
+    pub const LIQUID_BRONZE: u16 = 39;
+    pub const LIQUID_MEMORIES: u16 = 40;
+    pub const LUCKY_TONIC: u16 = 41;
+    pub const MAZALETHS_GIFT: u16 = 42;
+    pub const OROBIC_ACID: u16 = 43;
+    pub const POISON_POTION: u16 = 44;
+    pub const POTION_OF_BINDING: u16 = 45;
+    pub const POTION_OF_CAPACITY: u16 = 46;
+    pub const POTION_OF_DOOM: u16 = 47;
+    pub const POTION_SHAPED_ROCK: u16 = 48;
+    pub const POT_OF_GHOULS: u16 = 49;
+    pub const POWDERED_DEMISE: u16 = 50;
+    pub const POWER_POTION: u16 = 51;
+    pub const PRECISION_POTION: u16 = 52;
+    pub const RADIANT_TINCTURE: u16 = 53;
+    pub const REGEN_POTION: u16 = 54;
+    pub const SHACKLING_POTION: u16 = 55;
+    pub const SHIP_IN_A_BOTTLE: u16 = 56;
+    pub const SKILL_POTION: u16 = 57;
+    pub const SNECKO_OIL: u16 = 58;
+    pub const SOLDIERS_STEW: u16 = 59;
+    pub const SPEED_POTION: u16 = 60;
+    pub const STABLE_SERUM: u16 = 61;
+    pub const STAR_POTION: u16 = 62;
+    pub const STRENGTH_POTION: u16 = 63;
+    pub const SWIFT_POTION: u16 = 64;
+    pub const TOUCH_OF_INSANITY: u16 = 65;
+    pub const VULNERABLE_POTION: u16 = 66;
+    pub const WEAK_POTION: u16 = 67;
 }
 
 pub mod monster {
-    pub const COUNT: usize = 120;
+    pub const COUNT: usize = 122;
     /// ModelId entry strings (e.g. `STRIKE_IRONCLAD`), indexed by id.
     pub static NAMES: [&str; COUNT] = [
         "AEONGLASS",
@@ -3739,6 +4279,7 @@ pub mod monster {
         "BOWLBUG_SILK",
         "BRUTE_RUBY_RAIDER",
         "BYGONE_EFFIGY",
+        "BYRDINE_MONSTER",
         "BYRDONIS",
         "BYRDPIP",
         "CALCIFIED_CULTIST",
@@ -3843,6 +4384,7 @@ pub mod monster {
         "VINE_SHAMBLER",
         "WATERFALL_GIANT",
         "WRIGGLER",
+        "WUPPY",
         "ZAPBOT",
     ];
     /// C# class names, indexed by id.
@@ -3862,6 +4404,7 @@ pub mod monster {
         "BowlbugSilk",
         "BruteRubyRaider",
         "BygoneEffigy",
+        "ByrdineMonster",
         "Byrdonis",
         "Byrdpip",
         "CalcifiedCultist",
@@ -3966,6 +4509,7 @@ pub mod monster {
         "VineShambler",
         "WaterfallGiant",
         "Wriggler",
+        "Wuppy",
         "Zapbot",
     ];
     pub const AEONGLASS: u16 = 0;
@@ -3983,111 +4527,113 @@ pub mod monster {
     pub const BOWLBUG_SILK: u16 = 12;
     pub const BRUTE_RUBY_RAIDER: u16 = 13;
     pub const BYGONE_EFFIGY: u16 = 14;
-    pub const BYRDONIS: u16 = 15;
-    pub const BYRDPIP: u16 = 16;
-    pub const CALCIFIED_CULTIST: u16 = 17;
-    pub const CEREMONIAL_BEAST: u16 = 18;
-    pub const CHOMPER: u16 = 19;
-    pub const CORPSE_SLUG: u16 = 20;
-    pub const CROSSBOW_RUBY_RAIDER: u16 = 21;
-    pub const CRUSHER: u16 = 22;
-    pub const CUBEX_CONSTRUCT: u16 = 23;
-    pub const DAMP_CULTIST: u16 = 24;
-    pub const DECIMILLIPEDE_SEGMENT_BACK: u16 = 25;
-    pub const DECIMILLIPEDE_SEGMENT_FRONT: u16 = 26;
-    pub const DECIMILLIPEDE_SEGMENT_MIDDLE: u16 = 27;
-    pub const DEPRECATED_MONSTER: u16 = 28;
-    pub const DEVOTED_SCULPTOR: u16 = 29;
-    pub const ENTOMANCER: u16 = 30;
-    pub const EXOSKELETON: u16 = 31;
-    pub const EYE_WITH_TEETH: u16 = 32;
-    pub const FABRICATOR: u16 = 33;
-    pub const FAKE_MERCHANT_MONSTER: u16 = 34;
-    pub const FAT_GREMLIN: u16 = 35;
-    pub const FLAIL_KNIGHT: u16 = 36;
-    pub const FLYCONID: u16 = 37;
-    pub const FOGMOG: u16 = 38;
-    pub const FOSSIL_STALKER: u16 = 39;
-    pub const FROG_KNIGHT: u16 = 40;
-    pub const FUZZY_WURM_CRAWLER: u16 = 41;
-    pub const GAS_BOMB: u16 = 42;
-    pub const GLOBE_HEAD: u16 = 43;
-    pub const GREMLIN_MERC: u16 = 44;
-    pub const GUARDBOT: u16 = 45;
-    pub const HAUNTED_SHIP: u16 = 46;
-    pub const HUNTER_KILLER: u16 = 47;
-    pub const INFESTED_PRISM: u16 = 48;
-    pub const INKLET: u16 = 49;
-    pub const KIN_FOLLOWER: u16 = 50;
-    pub const KIN_PRIEST: u16 = 51;
-    pub const KNOWLEDGE_DEMON: u16 = 52;
-    pub const LAGAVULIN_MATRIARCH: u16 = 53;
-    pub const LEAF_SLIME_M: u16 = 54;
-    pub const LEAF_SLIME_S: u16 = 55;
-    pub const LIVING_FOG: u16 = 56;
-    pub const LIVING_SHIELD: u16 = 57;
-    pub const LOUSE_PROGENITOR: u16 = 58;
-    pub const MAGI_KNIGHT: u16 = 59;
-    pub const MAWLER: u16 = 60;
-    pub const MECHA_KNIGHT: u16 = 61;
-    pub const MULTI_ATTACK_MOVE_MONSTER: u16 = 62;
-    pub const MYSTERIOUS_KNIGHT: u16 = 63;
-    pub const MYTE: u16 = 64;
-    pub const NIBBIT: u16 = 65;
-    pub const NOISEBOT: u16 = 66;
-    pub const ONE_HP_MONSTER: u16 = 67;
-    pub const OSTY: u16 = 68;
-    pub const OVICOPTER: u16 = 69;
-    pub const OWL_MAGISTRATE: u16 = 70;
-    pub const PAELS_LEGION: u16 = 71;
-    pub const PARAFRIGHT: u16 = 72;
-    pub const PHANTASMAL_GARDENER: u16 = 73;
-    pub const PHROG_PARASITE: u16 = 74;
-    pub const PUNCH_CONSTRUCT: u16 = 75;
-    pub const QUEEN: u16 = 76;
-    pub const ROCKET: u16 = 77;
-    pub const SCROLL_OF_BITING: u16 = 78;
-    pub const SEAPUNK: u16 = 79;
-    pub const SEWER_CLAM: u16 = 80;
-    pub const SHRINKER_BEETLE: u16 = 81;
-    pub const SINGLE_ATTACK_MOVE_MONSTER: u16 = 82;
-    pub const SKULKING_COLONY: u16 = 83;
-    pub const SLIMED_BERSERKER: u16 = 84;
-    pub const SLITHERING_STRANGLER: u16 = 85;
-    pub const SLUDGE_SPINNER: u16 = 86;
-    pub const SLUMBERING_BEETLE: u16 = 87;
-    pub const SNAPPING_JAXFRUIT: u16 = 88;
-    pub const SNEAKY_GREMLIN: u16 = 89;
-    pub const SOUL_FYSH: u16 = 90;
-    pub const SOUL_NEXUS: u16 = 91;
-    pub const SPECTRAL_KNIGHT: u16 = 92;
-    pub const SPINY_TOAD: u16 = 93;
-    pub const STABBOT: u16 = 94;
-    pub const TEN_HP_MONSTER: u16 = 95;
-    pub const TERROR_EEL: u16 = 96;
-    pub const TEST_SUBJECT: u16 = 97;
-    pub const THE_ADVERSARY_MK_ONE: u16 = 98;
-    pub const THE_ADVERSARY_MK_THREE: u16 = 99;
-    pub const THE_ADVERSARY_MK_TWO: u16 = 100;
-    pub const THE_FORGOTTEN: u16 = 101;
-    pub const THE_INSATIABLE: u16 = 102;
-    pub const THE_LOST: u16 = 103;
-    pub const THE_OBSCURA: u16 = 104;
-    pub const THIEVING_HOPPER: u16 = 105;
-    pub const TOADPOLE: u16 = 106;
-    pub const TORCH_HEAD_AMALGAM: u16 = 107;
-    pub const TOUGH_EGG: u16 = 108;
-    pub const TRACKER_RUBY_RAIDER: u16 = 109;
-    pub const TUNNELER: u16 = 110;
-    pub const TURRET_OPERATOR: u16 = 111;
-    pub const TWIG_SLIME_M: u16 = 112;
-    pub const TWIG_SLIME_S: u16 = 113;
-    pub const TWO_TAILED_RAT: u16 = 114;
-    pub const VANTOM: u16 = 115;
-    pub const VINE_SHAMBLER: u16 = 116;
-    pub const WATERFALL_GIANT: u16 = 117;
-    pub const WRIGGLER: u16 = 118;
-    pub const ZAPBOT: u16 = 119;
+    pub const BYRDINE_MONSTER: u16 = 15;
+    pub const BYRDONIS: u16 = 16;
+    pub const BYRDPIP: u16 = 17;
+    pub const CALCIFIED_CULTIST: u16 = 18;
+    pub const CEREMONIAL_BEAST: u16 = 19;
+    pub const CHOMPER: u16 = 20;
+    pub const CORPSE_SLUG: u16 = 21;
+    pub const CROSSBOW_RUBY_RAIDER: u16 = 22;
+    pub const CRUSHER: u16 = 23;
+    pub const CUBEX_CONSTRUCT: u16 = 24;
+    pub const DAMP_CULTIST: u16 = 25;
+    pub const DECIMILLIPEDE_SEGMENT_BACK: u16 = 26;
+    pub const DECIMILLIPEDE_SEGMENT_FRONT: u16 = 27;
+    pub const DECIMILLIPEDE_SEGMENT_MIDDLE: u16 = 28;
+    pub const DEPRECATED_MONSTER: u16 = 29;
+    pub const DEVOTED_SCULPTOR: u16 = 30;
+    pub const ENTOMANCER: u16 = 31;
+    pub const EXOSKELETON: u16 = 32;
+    pub const EYE_WITH_TEETH: u16 = 33;
+    pub const FABRICATOR: u16 = 34;
+    pub const FAKE_MERCHANT_MONSTER: u16 = 35;
+    pub const FAT_GREMLIN: u16 = 36;
+    pub const FLAIL_KNIGHT: u16 = 37;
+    pub const FLYCONID: u16 = 38;
+    pub const FOGMOG: u16 = 39;
+    pub const FOSSIL_STALKER: u16 = 40;
+    pub const FROG_KNIGHT: u16 = 41;
+    pub const FUZZY_WURM_CRAWLER: u16 = 42;
+    pub const GAS_BOMB: u16 = 43;
+    pub const GLOBE_HEAD: u16 = 44;
+    pub const GREMLIN_MERC: u16 = 45;
+    pub const GUARDBOT: u16 = 46;
+    pub const HAUNTED_SHIP: u16 = 47;
+    pub const HUNTER_KILLER: u16 = 48;
+    pub const INFESTED_PRISM: u16 = 49;
+    pub const INKLET: u16 = 50;
+    pub const KIN_FOLLOWER: u16 = 51;
+    pub const KIN_PRIEST: u16 = 52;
+    pub const KNOWLEDGE_DEMON: u16 = 53;
+    pub const LAGAVULIN_MATRIARCH: u16 = 54;
+    pub const LEAF_SLIME_M: u16 = 55;
+    pub const LEAF_SLIME_S: u16 = 56;
+    pub const LIVING_FOG: u16 = 57;
+    pub const LIVING_SHIELD: u16 = 58;
+    pub const LOUSE_PROGENITOR: u16 = 59;
+    pub const MAGI_KNIGHT: u16 = 60;
+    pub const MAWLER: u16 = 61;
+    pub const MECHA_KNIGHT: u16 = 62;
+    pub const MULTI_ATTACK_MOVE_MONSTER: u16 = 63;
+    pub const MYSTERIOUS_KNIGHT: u16 = 64;
+    pub const MYTE: u16 = 65;
+    pub const NIBBIT: u16 = 66;
+    pub const NOISEBOT: u16 = 67;
+    pub const ONE_HP_MONSTER: u16 = 68;
+    pub const OSTY: u16 = 69;
+    pub const OVICOPTER: u16 = 70;
+    pub const OWL_MAGISTRATE: u16 = 71;
+    pub const PAELS_LEGION: u16 = 72;
+    pub const PARAFRIGHT: u16 = 73;
+    pub const PHANTASMAL_GARDENER: u16 = 74;
+    pub const PHROG_PARASITE: u16 = 75;
+    pub const PUNCH_CONSTRUCT: u16 = 76;
+    pub const QUEEN: u16 = 77;
+    pub const ROCKET: u16 = 78;
+    pub const SCROLL_OF_BITING: u16 = 79;
+    pub const SEAPUNK: u16 = 80;
+    pub const SEWER_CLAM: u16 = 81;
+    pub const SHRINKER_BEETLE: u16 = 82;
+    pub const SINGLE_ATTACK_MOVE_MONSTER: u16 = 83;
+    pub const SKULKING_COLONY: u16 = 84;
+    pub const SLIMED_BERSERKER: u16 = 85;
+    pub const SLITHERING_STRANGLER: u16 = 86;
+    pub const SLUDGE_SPINNER: u16 = 87;
+    pub const SLUMBERING_BEETLE: u16 = 88;
+    pub const SNAPPING_JAXFRUIT: u16 = 89;
+    pub const SNEAKY_GREMLIN: u16 = 90;
+    pub const SOUL_FYSH: u16 = 91;
+    pub const SOUL_NEXUS: u16 = 92;
+    pub const SPECTRAL_KNIGHT: u16 = 93;
+    pub const SPINY_TOAD: u16 = 94;
+    pub const STABBOT: u16 = 95;
+    pub const TEN_HP_MONSTER: u16 = 96;
+    pub const TERROR_EEL: u16 = 97;
+    pub const TEST_SUBJECT: u16 = 98;
+    pub const THE_ADVERSARY_MK_ONE: u16 = 99;
+    pub const THE_ADVERSARY_MK_THREE: u16 = 100;
+    pub const THE_ADVERSARY_MK_TWO: u16 = 101;
+    pub const THE_FORGOTTEN: u16 = 102;
+    pub const THE_INSATIABLE: u16 = 103;
+    pub const THE_LOST: u16 = 104;
+    pub const THE_OBSCURA: u16 = 105;
+    pub const THIEVING_HOPPER: u16 = 106;
+    pub const TOADPOLE: u16 = 107;
+    pub const TORCH_HEAD_AMALGAM: u16 = 108;
+    pub const TOUGH_EGG: u16 = 109;
+    pub const TRACKER_RUBY_RAIDER: u16 = 110;
+    pub const TUNNELER: u16 = 111;
+    pub const TURRET_OPERATOR: u16 = 112;
+    pub const TWIG_SLIME_M: u16 = 113;
+    pub const TWIG_SLIME_S: u16 = 114;
+    pub const TWO_TAILED_RAT: u16 = 115;
+    pub const VANTOM: u16 = 116;
+    pub const VINE_SHAMBLER: u16 = 117;
+    pub const WATERFALL_GIANT: u16 = 118;
+    pub const WRIGGLER: u16 = 119;
+    pub const WUPPY: u16 = 120;
+    pub const ZAPBOT: u16 = 121;
 }
 
 pub mod encounter {

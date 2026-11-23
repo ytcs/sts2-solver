@@ -14,13 +14,14 @@ exec(src[src.index("def slugify"):src.index("def classes")], {"re": re, "os": os
 slugify = ns["slugify"]
 
 KIND = {"DamageVar": "Damage", "BlockVar": "Block", "CardsVar": "Cards", "EnergyVar": "Energy", "StarsVar": "Stars",
-        "RepeatVar": "Repeat", "HpLossVar": "HpLoss", "HealVar": "Heal", "SummonVar": "Summon", "ForgeVar": "Forge",
+        "RepeatVar": "Repeat", "HitCountVar": "Repeat", "HpLossVar": "HpLoss", "HealVar": "Heal", "SummonVar": "Summon", "ForgeVar": "Forge",
         "GoldVar": "Gold", "MaxHpVar": "MaxHp"}
 
 
 def strip_comments(s):
     s = re.sub(r"/\*.*?\*/", "", s, flags=re.S)
-    return re.sub(r"//[^\n]*", "", s)
+    s = re.sub(r"//[^\n]*", "", s)
+    return re.sub(r"\bbase\.(?=[A-Z])", "", s)  # ILSpy 9 qualifies inherited members with base.
 
 
 def match_paren(s, i):

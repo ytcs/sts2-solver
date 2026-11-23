@@ -185,11 +185,13 @@ impl Rng {
         (self.unit_f64() * max_exclusive as f64) as u64
     }
 
+    /// `ListExtensions.UnstableShuffle`: one draw seeds a child Rng that does the Fisher-Yates (v0.113).
     pub fn shuffle<T>(&mut self, list: &mut [T]) {
+        let mut r = Rng::new(self.next_u64());
         let mut i = list.len();
         while i > 1 {
             i -= 1;
-            let j = self.next_int(i as i32 + 1) as usize;
+            let j = r.next_int(i as i32 + 1) as usize;
             list.swap(i, j);
         }
     }

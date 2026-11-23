@@ -191,7 +191,7 @@ public sealed class Driver
     {
         var (player, run) = Setup.BuildRun(_sc);
         _player = player; _run = run;
-        _selScope = CardSelectCmd.PushSelector(_sel);
+        _selScope = MegaCrit.Sts2.Core.CardSelection.CardSelectorStack.SetTestSelector(_sel);
         int start = 0;
         while (start < _sc.Script.Count && _sc.Script[start].Kind == "choose") _sel.Scripted.Enqueue(_sc.Script[start++].Choose);
         _sel.RandomPolicy = RandomDriver;

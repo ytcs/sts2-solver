@@ -64,7 +64,7 @@ public sealed class RunReplay
         var acts = ActModel.GetRandomList(rng, unlock, isMultiplayer: false).ToList();
         var character = ModelDb.GetById<CharacterModel>(new ModelId("CHARACTER", charName));
         _player = Player.CreateForNewRun(character, unlock, 1UL);
-        _run = RunState.CreateForNewRun(new List<Player> { _player }, acts.Select(a => a.ToMutable()).ToList(), Array.Empty<ModifierModel>(), GameMode.Standard, asc, seed);
+        _run = RunState.CreateForNewRun(new List<Player> { _player }, acts.Select(a => a.ToMutable()).ToList(), Array.Empty<ModifierModel>(), GameMode.Standard, false, asc, seed);
         RunManager.Instance.SetUpNewSingleplayer(_run, shouldSave: false);
         Wait(Start(), "start run");
         Emit("start", new JsonObject
@@ -78,7 +78,7 @@ public sealed class RunReplay
             ["state"] = Dump.State(_player, _run, null),
         });
         foreach (var kv in _head["aliases"]?.AsObject() ?? new JsonObject()) _alias[kv.Key] = (string)kv.Value;
-        using var selScope = CardSelectCmd.PushSelector(_sel);
+        using var selScope = MegaCrit.Sts2.Core.CardSelection.CardSelectorStack.SetTestSelector(_sel);
         int i = 0;
         while (i < _steps.Count)
         {
@@ -249,7 +249,7 @@ public sealed class RunReplay
         string pick = (string)st["pick"];
         // NTreasureRoomRelicCollection.AnimateRelicAwards does the obtain in the real game.
         var obtained = new List<Task>();
-        void Award(List<MegaCrit.Sts2.Core.Entities.TreasureRelicPicking.RelicPickingResult> results)
+        void Award(List<MegaCrit.Sts2.Core.Entities.TreasureRelicPicking.RelicPickingResult> results, bool _)
         {
             foreach (var r in results.OrderBy(r => r.type))
                 if (r.type != MegaCrit.Sts2.Core.Entities.TreasureRelicPicking.RelicPickingResultType.Skipped)
@@ -300,7 +300,7 @@ public sealed class RunReplay
     private void DoShop(JsonObject st)
     {
         var room = _run.CurrentRoom as MerchantRoom ?? throw new OracleException("SHOP outside a merchant room: " + _run.CurrentRoom?.GetType().Name);
-        var inv = room.GetLocalInventory();
+        var inv = RunManager.Instance.MerchantSynchronizer.GetLocalInventory();
         var stock = new JsonArray(inv.AllEntries.Where(e => e.IsStocked).Select(e => (JsonNode)(e switch
         {
             MegaCrit.Sts2.Core.Entities.Merchant.MerchantCardEntry c => new JsonObject { ["card"] = c.CreationResult.Card.Id.Entry, ["cost"] = c.Cost, ["sale"] = c.IsOnSale },
@@ -312,7 +312,7 @@ public sealed class RunReplay
         var pk = st["pick"];
         string label = pk is JsonObject po ? "dp:" + (int)po["discard_potion"] : (string)pk;
         if (label.StartsWith("dp:")) Wait(PotionCmd.Discard(_player.PotionSlots[int.Parse(label[3..])]), "discard potion");
-        else if (label == "remove a card") Wait(inv.CardRemovalEntry.OnTryPurchaseWrapper(inv), "card removal");
+        else if (label == "remove a card") Wait(inv.CardRemovalEntry.OnTryPurchaseUnsynchronized(inv), "card removal");
         else if (label != "leave shop")
         {
             string id = NameToId(label);
@@ -323,7 +323,7 @@ public sealed class RunReplay
                 MegaCrit.Sts2.Core.Entities.Merchant.MerchantPotionEntry p => p.Model.Id.Entry == id,
                 _ => false,
             }) ?? throw new OracleException($"shop pick {id} not stocked: " + stock.ToJsonString());
-            var t = e.OnTryPurchaseWrapper(inv);
+            var t = e.OnTryPurchaseUnsynchronized(inv);
             Wait(t, "purchase " + id);
             if (!t.Result) throw new OracleException($"purchase {id} failed (gold {_player.Gold}, cost {e.Cost})");
         }

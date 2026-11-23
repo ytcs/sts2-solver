@@ -22,7 +22,7 @@ listener!(ReboundPower {
     }
 });
 
-listener!(AmbergrisPower {
+listener!(ExtraTurnPower {
     fn should_take_extra_turn(&self, cx: &Combat, me: Me) -> bool {
         cx.power_amount(me.owner, me.id) > 0 && me.owner == PLAYER
     }

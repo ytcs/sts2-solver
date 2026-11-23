@@ -47,6 +47,11 @@ pub mod bag_of_preparation {
     use super::*;
     pub const CARDS: i32 = 2;
 }
+pub mod bath_towel {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const HEAL: i32 = 8;
+}
 pub mod beating_remnant {
     #[allow(unused_imports)]
     use super::*;
@@ -141,7 +146,7 @@ pub mod bread {
 pub mod brilliant_scarf {
     #[allow(unused_imports)]
     use super::*;
-    pub const CARDS: i32 = 5;
+    pub const CARDS: i32 = 6;
 }
 pub mod brimstone {
     #[allow(unused_imports)]
@@ -158,6 +163,11 @@ pub mod burning_blood {
     #[allow(unused_imports)]
     use super::*;
     pub const HEAL: i32 = 6;
+}
+pub mod byrdpip {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const REPEAT: i32 = 6;
 }
 pub mod calling_bell {
     #[allow(unused_imports)]
@@ -291,6 +301,11 @@ pub mod eternal_feather {
     pub const CARDS: i32 = 5;
     pub const HEAL: i32 = 3;
 }
+pub mod exercise_mat {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const STRETCH_POWER: i32 = 6;
+}
 pub mod fake_anchor {
     #[allow(unused_imports)]
     use super::*;
@@ -336,6 +351,11 @@ pub mod fencing_manual {
     #[allow(unused_imports)]
     use super::*;
     pub const FORGE: i32 = 10;
+}
+pub mod fertilizer {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const STRENGTH_POWER: i32 = 1;
 }
 pub mod festive_popper {
     #[allow(unused_imports)]
@@ -576,6 +596,12 @@ pub mod metronome {
     pub const DAMAGE: i32 = 30;
     pub const ORB_COUNT: i32 = 7;
 }
+pub mod mighty_wings {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const DAMAGE_THRESHOLD: i32 = 30;
+    pub const STRENGTH_POWER: i32 = 2;
+}
 pub mod mini_regent {
     #[allow(unused_imports)]
     use super::*;
@@ -617,6 +643,11 @@ pub mod nutritious_oyster {
     #[allow(unused_imports)]
     use super::*;
     pub const MAX_HP: i32 = 11;
+}
+pub mod obsidian_vice {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const DAMAGE: i32 = 1;
 }
 pub mod oddly_smooth_stone {
     #[allow(unused_imports)]
@@ -929,6 +960,11 @@ pub mod snecko_skull {
     use super::*;
     pub const POISON_POWER: i32 = 1;
 }
+pub mod song_bow {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const AIM_POWER: i32 = 6;
+}
 pub mod sozu {
     #[allow(unused_imports)]
     use super::*;
@@ -960,6 +996,12 @@ pub mod stone_humidifier {
     #[allow(unused_imports)]
     use super::*;
     pub const MAX_HP: i32 = 5;
+}
+pub mod storyteller {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const AIM_POWER: i32 = 12;
+    pub const END_OF_TURN_AIM: i32 = 3;
 }
 pub mod strawberry {
     #[allow(unused_imports)]
@@ -1028,6 +1070,11 @@ pub mod toolbox {
     use super::*;
     pub const CARDS: i32 = 3;
 }
+pub mod tormentous_collar {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const WEAK_POWER: i32 = 2;
+}
 pub mod tough_bandages {
     #[allow(unused_imports)]
     use super::*;
@@ -1054,6 +1101,11 @@ pub mod tuning_fork {
     use super::*;
     pub const CARDS: i32 = 10;
     pub const BLOCK: i32 = 7;
+}
+pub mod twine {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const BLOCK: i32 = 4;
 }
 pub mod twisted_funnel {
     #[allow(unused_imports)]
@@ -1106,6 +1158,11 @@ pub mod whispering_earring {
     use super::*;
     pub const ENERGY: i32 = 1;
 }
+pub mod whittling_knife {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const AIM_POWER: i32 = 5;
+}
 pub mod wing_charm {
     #[allow(unused_imports)]
     use super::*;
@@ -1121,6 +1178,12 @@ pub mod wongos_mystery_ticket {
     use super::*;
     pub const REPEAT: i32 = 3;
     pub const REMAINING_COMBATS: i32 = 5;
+}
+pub mod wuppy {
+    #[allow(unused_imports)]
+    use super::*;
+    pub const MAX_HP: i32 = 0;
+    pub const CURRENT_HP: i32 = 0;
 }
 pub mod yummy_cookie {
     #[allow(unused_imports)]

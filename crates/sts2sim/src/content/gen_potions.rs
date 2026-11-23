@@ -3,19 +3,21 @@ use crate::defs::*;
 use crate::ids;
 use crate::types::*;
 
-pub static POTION_DEFS: [PotionDef; 65] = [
-    PotionDef::new(ids::potion::AMBERGRIS, PotionRarity::Event, PotionUsage::AnyTime, TargetType::AnyPlayer).vars(&[named_var(51, 50, 0)]),
+pub static POTION_DEFS: [PotionDef; 68] = [
+    PotionDef::new(ids::potion::AMBERGRIS, PotionRarity::Event, PotionUsage::AnyTime, TargetType::AnyPlayer).vars(&[named_var(57, 50, 0)]),
     PotionDef::new(ids::potion::ASHWATER, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyPlayer),
     PotionDef::new(ids::potion::ATTACK_POTION, PotionRarity::Common, PotionUsage::CombatOnly, TargetType::AnyPlayer),
-    PotionDef::new(ids::potion::BEETLE_JUICE, PotionRarity::Rare, PotionUsage::CombatOnly, TargetType::AnyEnemy).vars(&[named_var(49, 30, 0), var_p(VarKind::Repeat, 4, 0, 0)]),
+    PotionDef::new(ids::potion::BEETLE_JUICE, PotionRarity::Rare, PotionUsage::CombatOnly, TargetType::AnyEnemy).vars(&[named_var(54, 30, 0), var_p(VarKind::Repeat, 4, 0, 0)]),
     PotionDef::new(ids::potion::BLESSING_OF_THE_FORGE, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyPlayer),
     PotionDef::new(ids::potion::BLOCK_POTION, PotionRarity::Common, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[var_p(VarKind::Block, 12, 0, 4)]),
-    PotionDef::new(ids::potion::BLOOD_POTION, PotionRarity::Common, PotionUsage::AnyTime, TargetType::AnyPlayer).vars(&[named_var(51, 20, 0)]),
+    PotionDef::new(ids::potion::BLOOD_POTION, PotionRarity::Common, PotionUsage::AnyTime, TargetType::AnyPlayer).vars(&[named_var(57, 20, 0)]),
     PotionDef::new(ids::potion::BONE_BREW, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[var_p(VarKind::Summon, 15, 0, 0)]),
     PotionDef::new(ids::potion::BOTTLED_POTENTIAL, PotionRarity::Rare, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[var_p(VarKind::Cards, 5, 0, 0)]),
+    PotionDef::new(ids::potion::BOTTLED_SONG, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyPlayer),
     PotionDef::new(ids::potion::CLARITY, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[power_var(ids::power::CLARITY_POWER, 3, 0), var_p(VarKind::Cards, 1, 0, 0)]),
     PotionDef::new(ids::potion::COLORLESS_POTION, PotionRarity::Common, PotionUsage::CombatOnly, TargetType::AnyPlayer),
     PotionDef::new(ids::potion::COSMIC_CONCOCTION, PotionRarity::Rare, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[var_p(VarKind::Cards, 3, 0, 0)]),
+    PotionDef::new(ids::potion::CRYSTALLINE_EUPHORIA, PotionRarity::Rare, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[var_p(VarKind::Cards, 3, 0, 0)]),
     PotionDef::new(ids::potion::CUNNING_POTION, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[var_p(VarKind::Cards, 3, 0, 0)]),
     PotionDef::new(ids::potion::CURE_ALL, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[var_p(VarKind::Energy, 1, 0, 0), var_p(VarKind::Cards, 2, 0, 0)]),
     PotionDef::new(ids::potion::DEPRECATED_POTION, PotionRarity::None, PotionUsage::CombatOnly, TargetType::AnyEnemy),
@@ -52,8 +54,9 @@ pub static POTION_DEFS: [PotionDef; 65] = [
     PotionDef::new(ids::potion::POTION_OF_DOOM, PotionRarity::Common, PotionUsage::CombatOnly, TargetType::AnyEnemy).vars(&[power_var(ids::power::DOOM_POWER, 33, 0)]),
     PotionDef::new(ids::potion::POTION_SHAPED_ROCK, PotionRarity::Token, PotionUsage::CombatOnly, TargetType::AnyEnemy).vars(&[var_p(VarKind::Damage, 15, 0, 4)]),
     PotionDef::new(ids::potion::POT_OF_GHOULS, PotionRarity::Rare, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[var_p(VarKind::Cards, 2, 0, 0)]),
-    PotionDef::new(ids::potion::POWDERED_DEMISE, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyEnemy).vars(&[named_var(52, 9, 0)]),
+    PotionDef::new(ids::potion::POWDERED_DEMISE, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyEnemy).vars(&[named_var(58, 9, 0)]),
     PotionDef::new(ids::potion::POWER_POTION, PotionRarity::Common, PotionUsage::CombatOnly, TargetType::AnyPlayer),
+    PotionDef::new(ids::potion::PRECISION_POTION, PotionRarity::Common, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[power_var(ids::power::AIM_POWER, 21, 0)]),
     PotionDef::new(ids::potion::RADIANT_TINCTURE, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[var_p(VarKind::Energy, 1, 0, 0), power_var(ids::power::RADIANCE_POWER, 3, 0)]),
     PotionDef::new(ids::potion::REGEN_POTION, PotionRarity::Uncommon, PotionUsage::CombatOnly, TargetType::AnyPlayer).vars(&[power_var(ids::power::REGEN_POWER, 5, 0)]).not_generated_in_combat(),
     PotionDef::new(ids::potion::SHACKLING_POTION, PotionRarity::Rare, PotionUsage::CombatOnly, TargetType::AllEnemies).vars(&[power_var(ids::power::STRENGTH_POWER, 7, 0)]),
