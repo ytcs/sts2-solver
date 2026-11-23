@@ -33,7 +33,7 @@ In: deck, relics, potions, HP, encounter (A10). Out: play maximising the fight o
 - **Bit identity.** `bash tools/gate.sh` passes unchanged: `searchprof` and `envprof` checksums, cargo tests `sts2diff/regression`, `sts2sim/{observe,rng_golden,sync}`, `sts2env/lookahead_cache`. A deliberate behaviour change updates the checksum in the same commit. Net-side speedups are bitwise or switchable and adopted after a statistical equivalence check.
 - **Look-ahead cache key exactness** (`crates/sts2sim/src/engine/monster.rs`): 8-way set-associative LRU per search root. Exact key = digest of every creature (machine state, powers, HP, block, presence) + turn position (`look_key_of`); relaxed key (enemy HP alive/dead, no block) only for projections that read no enemy starting HP/block (`Creature::pristine`, `look_dep`). Player state enters the key only via `LOOK_PLAYER_HOOKS`, `LOOK_READ_POWERS`, `LOOK_READ_RELICS`: any new read inside a projection must extend these or record a `look_dep`. Check: `STS2_LOOK_VERIFY=1` with `envprof`/`searchprof`, and `crates/sts2env/tests/lookahead_cache.rs`.
 - **`Combat::clone_from` copies only live state** (`state.rs`): never read past `n_cards`/`len`; a new slot must be fully written.
-- **Hook snapshots** (`dispatch.rs` `snapshot_into`): listener order stays the game's; never cache snapshots across state changes.
+- **Hook snapshots** (`dispatch.rs` `snapshot_into`): listener order stays the game's; never cache snapshots across state changes (a read-only pass may share one: `observe` builds `mod_snaps` once for every damage / block preview).
 - Content registry tables are compile-time `const fn` matches.
 
 ## Where time goes
