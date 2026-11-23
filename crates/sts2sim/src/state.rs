@@ -3,9 +3,9 @@ use crate::rng::Rng;
 use crate::types::*;
 use crate::util::{ArrayVec, SmallVec};
 
-pub const MAX_CARDS: usize = 160;
+pub const MAX_CARDS: usize = 224;
 pub const MAX_CREATURES: usize = 12;
-pub const MAX_POWERS: usize = 16;
+pub const MAX_POWERS: usize = 24;
 pub const MAX_RELICS: usize = 40;
 pub const OBS_RELICS: usize = 24;
 pub const MAX_POTIONS: usize = if cfg!(feature = "obs_v4") { 9 } else { 8 };
@@ -490,7 +490,7 @@ pub struct History {
     /// `MelodyCmd`: song tags (`tag::WAH | CHO | KI`) among this turn's finished plays, and the count of finished plays with any.
     pub melody_finished_this_turn: u16,
     pub melody_cards_finished_this_turn: i16,
-    pub finished_cards: [u64; 3],
+    pub finished_cards: [u64; MAX_CARDS.div_ceil(64)],
     pub play_amounts: ArrayVec<PlayAmount, 32>,
 }
 

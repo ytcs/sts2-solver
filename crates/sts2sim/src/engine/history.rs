@@ -2,7 +2,7 @@ use crate::hooks::CardPlay;
 use crate::state::*;
 use crate::types::*;
 
-pub const HIST_CAP: usize = 160;
+pub const HIST_CAP: usize = 224;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(u8)]
