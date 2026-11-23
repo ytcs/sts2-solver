@@ -23,6 +23,8 @@ public static class Main
 
     private static bool _setup;
 
+    static bool _selectorSet;
+
     internal static void EnsureSelector()
     {
         if (!_setup)
@@ -31,7 +33,11 @@ public static class Main
             try { MegaCrit.Sts2.Core.Saves.SaveManager.Instance.SetFtuesEnabled(enabled: false); } catch { }
             try { MegaCrit.Sts2.Core.Saves.SaveManager.Instance.PrefsSave.FastMode = MegaCrit.Sts2.Core.Settings.FastModeType.Instant; } catch { }
         }
-        if (CardSelectCmd.Selector != AgentSelector.Instance)
-            CardSelectCmd.PushSelector(AgentSelector.Instance);
+        if (!_selectorSet)
+        {
+            // v0.113: the game's static fallback selector (used whenever no per-player stacked selector is active)
+            try { MegaCrit.Sts2.Core.CardSelection.CardSelectorStack.SetTestSelector(AgentSelector.Instance); } catch (System.InvalidOperationException) { }
+            _selectorSet = true;
+        }
     }
 }

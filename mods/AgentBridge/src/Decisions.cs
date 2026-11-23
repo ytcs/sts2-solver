@@ -547,7 +547,7 @@ public static class Decisions
                 if (!e.EnoughGold) return "not enough gold";
                 if (e is MerchantPotionEntry && !me.HasOpenPotionSlots) return "potion slots full (a dp <slot> first)";
                 if (!inv.IsOpen) open();
-                Fire(e.OnTryPurchaseWrapper(inv.Inventory));
+                Fire(RunManager.Instance.MerchantSynchronizer.PurchaseLocalEntry(e));
                 return null;
             });
         }
