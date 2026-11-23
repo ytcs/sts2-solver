@@ -8,7 +8,7 @@ What makes each fight hard. Reason out whether the deck answers each gimmick (`s
 - Lagavulin Matriarch `[hyp]`: sleeps early, then scales.
 - Soul Fysh (221 HP) `[code]`: Beckon cards (6 HP loss if in hand at end of turn), Fade = Intangible 2, Scream 15 + Vulnerable.
 - The Insatiable (341 HP) `[code]`: Sandpit 4 counts down to your death; Frantic Escape cards push it back (`[hyp]` each costs 1 more per play).
-- Kaiser Crab (219 + 209 HP) `[code]`: the crab behind you deals x1.5; when one dies the other gains +6 Str and 99 block; Laser 35.
+- Kaiser Crab (219 + 209 HP) `[code]`: the crab behind you deals x1.5; when one dies the other gains +6 Str and 99 block; Rocket Claw 35.
 - Aeonglass (535 HP) `[code]`: Artifact 3, Wither card every 6 cards played, Ebb 26 + 33 block; `[hyp]` Wither deals 6 if held at end of turn, Increasing Intensity +4 Str.
 - Queen (419 HP) `[code]`: Torch Head Amalgam beside her.
 - Test Subject (111 -> 212 -> 313 HP) `[code]` (glory_b.rs ts_respawn): a death revives it on its next turn, which deals no damage; the revive strips its Strength / Enrage and its debuffs. Phase 2: Painful Stabs (your unblocked hits on it add Wounds), Multi Claw 11 x (3, 4, 5 ...) one more hit per turn. Phase 3: Nemesis (Intangible every other turn), Big Pounce 45, Burning Growl (+5 Burns, +3 Str).

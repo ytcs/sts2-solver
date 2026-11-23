@@ -24,7 +24,9 @@ pub static CEREMONIAL_BEAST_DEF: MonsterDef = MonsterDef {
             |cx, me| {
                 let d = a9(cx, 20, 18);
                 atk(cx, me, d);
-                power_self(cx, me, ids::power::STRENGTH_POWER, 2);
+                if cx.has_power(me, ids::power::PLOW_POWER) {
+                    power_self(cx, me, ids::power::STRENGTH_POWER, 2);
+                }
             },
             &[attack(|cx, _| a9(cx, 20, 18)), Intent::Buff],
             PLOW,

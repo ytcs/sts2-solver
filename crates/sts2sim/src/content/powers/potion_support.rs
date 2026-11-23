@@ -144,7 +144,7 @@ listener!(ShrinkPower {
     }
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {
         let applier = cx.cr(me.owner).power(me.id).map_or(NO, |p| p.applier);
-        if !was_removal_prevented && creature == applier {
+        if !was_removal_prevented && creature == applier && creature != PLAYER {
             cx.remove_power(me.owner, me.idx);
         }
     }

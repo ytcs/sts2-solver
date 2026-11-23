@@ -28,7 +28,7 @@ pub fn axebot_uppercut(cx: &Combat) -> i32 {
 
 pub static AXEBOT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::AXEBOT,
-    hp: |a| hp(a, (76, 86), (70, 78)),
+    hp: |a| hp(a, (80, 80), (70, 70)),
     initial: 3,
     on_spawn: Some(|cx, me| {
         let stock = axebot_stock(cx, me);

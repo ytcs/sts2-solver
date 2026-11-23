@@ -155,9 +155,6 @@ listener!(Entomancer {});
 fn prism_jab(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 17, 15)
 }
-fn prism_radiate(cx: &Combat, _: Cid) -> i32 {
-    a9(cx, 13, 11)
-}
 fn prism_whirlwind(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 6, 5)
 }
@@ -186,14 +183,12 @@ pub static INFESTED_PRISM_DEF: MonsterDef = MonsterDef {
             1,
         ),
         mv(
-            "RADIATE_MOVE",
+            "JAB_MOVE_2",
             |cx, me| {
-                let d = prism_radiate(cx, me);
-                atk(cx, me, d);
-                let b = a9(cx, 13, 11);
-                block(cx, me, b);
+                let d = prism_jab(cx, me);
+                atk(cx, me, d)
             },
-            &[attack(prism_radiate), Intent::Defend],
+            &[attack(prism_jab)],
             2,
         ),
         mv(
@@ -210,12 +205,11 @@ pub static INFESTED_PRISM_DEF: MonsterDef = MonsterDef {
             |cx, me| {
                 let d = prism_pulsate(cx, me);
                 atk(cx, me, d);
-                let b = a8(cx, 22, 20);
-                block(cx, me, b);
+                power_player(cx, me, ids::power::VULNERABLE_POWER, 1);
                 let n = vital_spark_amount(cx);
                 power_self(cx, me, ids::power::VITAL_SPARK_POWER, n);
             },
-            &[attack(prism_pulsate), Intent::Buff, Intent::Defend],
+            &[attack(prism_pulsate), Intent::Debuff, Intent::Buff],
             0,
         ),
     ],
@@ -287,13 +281,13 @@ pub static CRUSHER_DEF: MonsterDef = MonsterDef {
 };
 listener!(Crusher {});
 
-fn rocket_reticle(cx: &Combat, _: Cid) -> i32 {
+fn rocket_calculating(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 4, 3)
 }
-fn rocket_beam(cx: &Combat, _: Cid) -> i32 {
+fn rocket_precise_smash(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 20, 18)
 }
-fn rocket_laser(cx: &Combat, _: Cid) -> i32 {
+fn rocket_claw(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 35, 31)
 }
 pub static ROCKET_DEF: MonsterDef = MonsterDef {
@@ -310,21 +304,21 @@ pub static ROCKET_DEF: MonsterDef = MonsterDef {
     }),
     nodes: &[
         mv(
-            "TARGETING_RETICLE_MOVE",
+            "CALCULATING_MOVE",
             |cx, me| {
-                let d = rocket_reticle(cx, me);
+                let d = rocket_calculating(cx, me);
                 atk(cx, me, d)
             },
-            &[attack(rocket_reticle)],
+            &[attack(rocket_calculating)],
             1,
         ),
         mv(
-            "PRECISION_BEAM_MOVE",
+            "PRECISE_SMASH_MOVE",
             |cx, me| {
-                let d = rocket_beam(cx, me);
+                let d = rocket_precise_smash(cx, me);
                 atk(cx, me, d)
             },
-            &[attack(rocket_beam)],
+            &[attack(rocket_precise_smash)],
             2,
         ),
         mv(
@@ -337,12 +331,12 @@ pub static ROCKET_DEF: MonsterDef = MonsterDef {
             3,
         ),
         mv(
-            "LASER_MOVE",
+            "ROCKET_CLAW_MOVE",
             |cx, me| {
-                let d = rocket_laser(cx, me);
+                let d = rocket_claw(cx, me);
                 atk(cx, me, d)
             },
-            &[attack(rocket_laser)],
+            &[attack(rocket_claw)],
             4,
         ),
         mv("RECHARGE_MOVE", nothing, &[Intent::Sleep], 0),
