@@ -23,7 +23,9 @@ impl Combat {
             1 => &p::SILENT,
             2 => &p::DEFECT,
             3 => &p::NECROBINDER,
-            _ => &p::REGENT,
+            4 => &p::REGENT,
+            5 => &p::FOOL,
+            c => unreachable!("unknown character {c} (Scenario::validate rejects it)"),
         }
     }
 

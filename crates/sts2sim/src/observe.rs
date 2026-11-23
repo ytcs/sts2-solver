@@ -252,6 +252,7 @@ impl Combat {
             pw::SLOW_POWER => aux * 10,
             pw::TAG_TEAM_POWER => 1,
             pw::SURROUNDED_POWER => aux + 1,
+            pw::IMPALED_POWER => aux,
             _ => 0,
         }
     }
