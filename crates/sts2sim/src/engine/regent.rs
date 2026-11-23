@@ -46,7 +46,7 @@ impl Combat {
     /// Damage.BaseValue growth kept in `counter[0]` (Sovereign Blade forges, Kingly Punch draws).
     pub fn card_damage_counter(&self, c: CardIdx) -> i32 {
         let card = &self.cards[c as usize];
-        if card.id == ids::card::SOVEREIGN_BLADE || card.id == ids::card::KINGLY_PUNCH { card.counter[0] as i32 } else { 0 }
+        if matches!(card.id, ids::card::SOVEREIGN_BLADE | ids::card::KINGLY_PUNCH | ids::card::THE_BALL) { card.counter[0] as i32 } else { 0 }
     }
 
     pub fn card_base_damage(&self, c: CardIdx) -> i32 {
