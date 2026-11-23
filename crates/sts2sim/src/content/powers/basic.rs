@@ -14,7 +14,7 @@ listener!(StrengthPower {
         if me.owner != q.dealer || !q.props.is_powered() {
             return Dec::ZERO;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
 });
 
@@ -30,7 +30,7 @@ listener!(DexterityPower {
         if !q.props.is_powered() {
             return Dec::ZERO;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
 });
 

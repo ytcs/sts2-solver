@@ -431,6 +431,14 @@ pub struct Choice {
     pub cards: ArrayVec<CardIdx, 16>,
 }
 
+/// A power instance removed from its owner: hook passes snapshotted before the removal still call it, and the game's
+/// model then reads its own unchanged `Amount` (`PowerModel.RemoveInternal` keeps it).
+#[derive(Clone, Copy, Default, Debug)]
+pub struct RemovedPower {
+    pub owner: Cid,
+    pub p: Power,
+}
+
 #[derive(Clone, Copy)]
 pub struct SuspPass {
     pub bit: u32,
@@ -542,6 +550,7 @@ pub struct Combat {
     pub allies: ArrayVec<Cid, 6>,
     pub enemies: ArrayVec<Cid, MAX_CREATURES>,
     pub next_power_uid: u16,
+    pub removed_powers: ArrayVec<RemovedPower, 8>,
     pub listen: Mask,
     pub listen_cards: Mask,
 
@@ -680,6 +689,7 @@ impl Clone for Combat {
             allies,
             enemies,
             next_power_uid,
+            removed_powers,
             listen,
             listen_cards,
             player,
@@ -754,6 +764,7 @@ impl Clone for Combat {
         allies.copy_from(&src.allies);
         enemies.copy_from(&src.enemies);
         *next_power_uid = src.next_power_uid;
+        removed_powers.copy_from(&src.removed_powers);
         *listen = src.listen;
         *listen_cards = src.listen_cards;
         player.copy_from(&src.player);

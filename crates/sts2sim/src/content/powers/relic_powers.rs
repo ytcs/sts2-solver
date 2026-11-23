@@ -29,7 +29,7 @@ listener!(WuppysLoyaltyPower {
 listener!(SelfFormingClayPower {
     fn after_block_cleared(&self, cx: &mut Combat, me: Me, creature: Cid) {
         if creature == me.owner {
-            let amount = cx.power_amount(me.owner, me.id);
+            let amount = cx.my_amount(me);
             cx.gain_block(me.owner, Dec::int(amount as i64), ValueProp::UNPOWERED, NO);
             cx.remove_power(me.owner, me.idx);
         }
@@ -40,13 +40,13 @@ fn temp_before_applied(cx: &mut Combat, base: u16, target: Cid, amount: Dec, app
     cx.apply_power(base, target, amount, applier, card);
 }
 fn temp_after_changed(cx: &mut Combat, me: Me, base: u16, power_id: u16, amount: i32) {
-    if power_id == me.id && cx.cr(me.owner).power(me.id).map_or(false, |p| p.amount != amount) {
+    if power_id == me.id && cx.my_amount(me) != amount {
         cx.apply_power(base, me.owner, Dec::int(amount as i64), me.owner, NO);
     }
 }
 fn temp_end_of_turn(cx: &mut Combat, me: Me, base: u16, side: Side) {
     if cx.cr(me.owner).side == side {
-        let amount = cx.power_amount(me.owner, me.id);
+        let amount = cx.my_amount(me);
         cx.remove_power(me.owner, me.idx);
         cx.apply_power(base, me.owner, Dec::int(-(amount as i64)), me.owner, NO);
     }

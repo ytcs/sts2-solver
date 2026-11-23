@@ -32,14 +32,14 @@ listener!(FastenPower {
         if q.card != NO && cx.card_def(q.card).tags & tag::DEFEND == 0 {
             return Dec::ZERO;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
 });
 
 listener!(PrepTimePower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if on_side(cx, &me, side) {
-            let a = cx.power_amount(me.owner, me.id);
+            let a = cx.my_amount(me);
             cx.apply_power(ids::power::VIGOR_POWER, me.owner, Dec::int(a as i64), me.owner, NO);
         }
     }
@@ -47,41 +47,41 @@ listener!(PrepTimePower {
 
 listener!(AutomationPower {
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, _card: CardIdx, _from_hand_draw: bool) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
+        let Some(_) = cx.my_power(me) else { return };
         let (amount, n) = {
-            let p = &mut cx.cr_mut(me.owner).powers[i];
+            let Some(p) = cx.my_power_mut(me) else { return };
             p.aux += 1;
             (p.amount, p.aux)
         };
         if n >= 10 {
             cx.gain_energy(amount);
-            cx.cr_mut(me.owner).powers[i].aux = 0;
+            if let Some(p) = cx.my_power_mut(me) { p.aux = 0; }
         }
     }
 });
 
 listener!(PanachePower {
     fn after_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let aux = cx.cr(me.owner).powers[i].aux;
+        let Some(_) = cx.my_power(me) else { return };
+        let aux = cx.my_power(me).unwrap_or_default().aux;
         let mut n = aux & 0xFF;
         if aux & 0x100 != 0 {
             n += 1;
             if n >= 5 {
-                let amount = cx.cr(me.owner).powers[i].amount;
+                let amount = cx.my_power(me).unwrap_or_default().amount;
                 let enemies = cx.hittable_enemies();
                 cx.damage(enemies.as_slice(), Dec::int(amount as i64), ValueProp::UNPOWERED, me.owner, NO);
                 n = 0;
             }
         }
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux = 0x100 | n;
+        if cx.my_power(me).is_some() {
+            if let Some(p) = cx.my_power_mut(me) { p.aux = 0x100 | n; }
         }
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if on_side(cx, &me, side) {
-            if let Some(i) = cx.power_idx(me.owner, me.idx) {
-                cx.cr_mut(me.owner).powers[i].aux &= !0xFF;
+            if cx.my_power(me).is_some() {
+                if let Some(p) = cx.my_power_mut(me) { p.aux &= !0xFF; }
             }
         }
     }
@@ -94,7 +94,7 @@ listener!(RollingBoulderPower {
         if me.owner != PLAYER {
             return;
         }
-        let Some(amount) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).map(|p| p.amount) else { return };
+        let Some(amount) = cx.my_power(me).map(|p| p.amount) else { return };
         let enemies = cx.hittable_enemies();
         cx.damage(enemies.as_slice(), Dec::int(amount as i64), ValueProp::UNPOWERED, me.owner, NO);
         cx.set_power_amount(me.owner, me.idx, amount + ROLLING_BOULDER_INCREMENT);
@@ -106,7 +106,7 @@ listener!(TheBombPower {
         if !on_side(cx, &me, side) {
             return;
         }
-        let Some(p) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).copied() else { return };
+        let Some(p) = cx.my_power(me) else { return };
         if p.amount > 1 {
             cx.decrement_power(me.owner, me.idx);
             return;
@@ -156,11 +156,11 @@ listener!(KnockdownPower {
         if q.target != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        let applier = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).map_or(NO, |p| p.applier);
+        let applier = cx.my_power(me).map_or(NO, |p| p.applier);
         if q.dealer == applier {
             return Dec::ONE;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if on_side(cx, &me, side) {
@@ -174,7 +174,7 @@ listener!(TagTeamPower {
         if cx.card_def(card).ctype != CardType::Attack {
             return count;
         }
-        let applier = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).map_or(NO, |p| p.applier);
+        let applier = cx.my_power(me).map_or(NO, |p| p.applier);
         if applier == PLAYER {
             return count;
         }
@@ -185,7 +185,7 @@ listener!(TagTeamPower {
         if !matches!(tt, TargetType::AnyEnemy | TargetType::AllEnemies) {
             return count;
         }
-        count + cx.power_amount(me.owner, me.id)
+        count + cx.my_amount(me)
     }
     fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, _card: CardIdx) {
         cx.remove_power(me.owner, me.idx);
@@ -197,8 +197,8 @@ listener!(CalamityPower {
         if cx.card_def(play.card).ctype != CardType::Attack {
             return;
         }
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            let a = cx.cr(me.owner).powers[i].amount;
+        if cx.my_power(me).is_some() {
+            let a = cx.my_power(me).unwrap_or_default().amount;
             cx.play_amount_add(me.idx, play.card, a);
         }
     }
@@ -219,7 +219,7 @@ listener!(NostalgiaPower {
             return loc;
         }
         let started = cx.plays_this_turn(|e| matches!(cx.card_def(e.card).ctype, CardType::Attack | CardType::Skill)) as i32;
-        if started >= cx.power_amount(me.owner, me.id) {
+        if started >= cx.my_amount(me) {
             return loc;
         }
         CardLocation::new(PileType::Draw, CardPilePosition::Top)
@@ -229,7 +229,7 @@ listener!(NostalgiaPower {
 listener!(MayhemPower {
     fn after_auto_pre_play_phase_entered(&self, cx: &mut Combat, me: Me) {
         if me.owner == PLAYER {
-            let a = cx.power_amount(me.owner, me.id);
+            let a = cx.my_amount(me);
             cx.auto_play_from_draw_pile(a, CardPilePosition::Top, false);
         }
     }
@@ -245,7 +245,7 @@ listener!(EntropyPower {
         if me.owner != PLAYER {
             return;
         }
-        let n = cx.power_amount(me.owner, me.id).clamp(0, 16) as u8;
+        let n = cx.my_amount(me).clamp(0, 16) as u8;
         match cx.ask_hand(ids::card::ENTROPY, n, n, |_, _| true) {
             crate::engine::Ask::Resolved(cards) => entropy_transform(cx, cards.as_slice()),
             crate::engine::Ask::Pending => {
@@ -265,7 +265,7 @@ listener!(StratagemPower {
         if me.owner != PLAYER {
             return;
         }
-        let n = cx.power_amount(me.owner, me.id).clamp(0, 16) as u8;
+        let n = cx.my_amount(me).clamp(0, 16) as u8;
         match cx.ask_pile(ids::card::STRATAGEM, PileType::Draw, n, n, |_, _| true) {
             crate::engine::Ask::Resolved(cards) => {
                 for &c in cards.iter() {

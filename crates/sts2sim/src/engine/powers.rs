@@ -16,6 +16,44 @@ impl Combat {
         self.cr_mut(c).powers.as_mut_slice().iter_mut().find(|p| p.uid == uid)
     }
 
+    /// The listener power's own `Amount` (game: `base.Amount` of the instance). Hook passes iterate a snapshot, so a
+    /// power removed earlier in the pass is still called and reads the amount it had when removed.
+    pub fn my_amount(&self, me: impl core::borrow::Borrow<Me>) -> i32 {
+        let me = *me.borrow();
+        self.my_power(me).map_or(me.amount, |p| p.amount)
+    }
+
+    /// `my_amount` for the instance's private field (`Power::aux`).
+    pub fn my_aux(&self, me: impl core::borrow::Borrow<Me>) -> i32 {
+        self.my_power(me).map_or(0, |p| p.aux)
+    }
+
+    /// The listener's power instance: attached, or detached by a removal earlier in the current hook pass (the game
+    /// still runs the detached model's hook body with its last fields).
+    pub fn my_power(&self, me: impl core::borrow::Borrow<Me>) -> Option<Power> {
+        let me = *me.borrow();
+        match self.power_idx(me.owner, me.idx) {
+            Some(i) => Some(self.cr(me.owner).powers[i]),
+            None => self.removed_powers.iter().rev().find(|r| r.owner == me.owner && r.p.uid == me.idx).map(|r| r.p),
+        }
+    }
+
+    /// `my_power` for writes to the instance's own fields.
+    pub fn my_power_mut(&mut self, me: impl core::borrow::Borrow<Me>) -> Option<&mut Power> {
+        let me = *me.borrow();
+        match self.power_idx(me.owner, me.idx) {
+            Some(i) => Some(&mut self.cr_mut(me.owner).powers.as_mut_slice()[i]),
+            None => self.removed_powers.as_mut_slice().iter_mut().rev().find(|r| r.owner == me.owner && r.p.uid == me.idx).map(|r| &mut r.p),
+        }
+    }
+
+    pub(crate) fn record_removed_power(&mut self, owner: Cid, p: &Power) {
+        if self.removed_powers.len() == 8 {
+            self.removed_powers.remove(0);
+        }
+        self.removed_powers.push(RemovedPower { owner, p: *p });
+    }
+
     pub fn power_aux(&self, c: Cid, uid: u16) -> i32 {
         self.power_idx(c, uid).map_or(0, |i| self.cr(c).powers[i].aux)
     }
@@ -249,6 +287,7 @@ impl Combat {
         if let Some(i) = self.power_idx(c, uid) {
             let p = self.cr_mut(c).powers.remove(i);
             self.sync_secondary(c);
+            self.record_removed_power(c, &p);
             let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
             content::listener(&me).after_removed(self, me, c);
         }

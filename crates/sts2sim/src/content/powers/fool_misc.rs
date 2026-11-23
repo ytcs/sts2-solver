@@ -7,10 +7,10 @@ use crate::state::*;
 use crate::types::*;
 
 fn aux(cx: &Combat, me: &Me) -> i32 {
-    cx.power_aux(me.owner, me.idx)
+    cx.my_aux(me)
 }
 fn amount(cx: &Combat, me: &Me) -> i32 {
-    cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount)
+    cx.my_amount(me)
 }
 
 fn add_to_hand(cx: &mut Combat, id: u16, upgrade: u8) {
@@ -112,7 +112,7 @@ listener!(MythicFormPower {
 // aux = the Show Off card + 1 (`ShowOffInstance`, 0 = none).
 listener!(ShowOffPower {
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, _was_removal_prevented: bool) {
-        if cx.power_idx(me.owner, me.idx).is_none() || cx.cr(creature).side == cx.cr(me.owner).side || !cx.all_powers_trigger_fatal(creature) {
+        if cx.my_power(me).is_none() || cx.cr(creature).side == cx.cr(me.owner).side || !cx.all_powers_trigger_fatal(creature) {
             return;
         }
         let card = aux(cx, &me);

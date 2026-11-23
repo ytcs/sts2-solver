@@ -7,15 +7,15 @@ use crate::state::*;
 use crate::types::*;
 
 fn aux(cx: &Combat, me: &Me) -> i32 {
-    cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].aux)
+    cx.my_power(me).map_or(0, |p| p.aux)
 }
 fn set_aux(cx: &mut Combat, me: &Me, v: i32) {
-    if let Some(i) = cx.power_idx(me.owner, me.idx) {
-        cx.cr_mut(me.owner).powers[i].aux = v;
+    if cx.my_power(me).is_some() {
+        if let Some(p) = cx.my_power_mut(me) { p.aux = v; }
     }
 }
 fn amount(cx: &Combat, me: &Me) -> i32 {
-    cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount)
+    cx.my_amount(me)
 }
 
 fn temp_strength_before_applied(cx: &mut Combat, sign: i64, target: Cid, amt: Dec, applier: Cid, card: CardIdx) {
@@ -256,7 +256,7 @@ listener!(ForegoneConclusionPower {
 
 listener!(TyrannyPower {
     fn modify_hand_draw(&self, cx: &Combat, me: Me, count: Dec) -> Dec {
-        count + Dec::int(cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount) as i64)
+        count + Dec::int(cx.my_amount(me) as i64)
     }
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
         let a = amount(cx, &me).clamp(0, 255) as u8;

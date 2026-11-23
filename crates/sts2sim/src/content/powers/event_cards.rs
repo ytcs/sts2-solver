@@ -19,7 +19,7 @@ listener!(FeedingFrenzyPower {
 
 listener!(HelloWorldPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
-        let n = cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].amount_on_turn_start);
+        let n = cx.my_power(me).map_or(0, |p| p.amount_on_turn_start);
         if n < 1 {
             return;
         }
@@ -36,7 +36,7 @@ listener!(ToricToughnessPower {
         if creature != me.owner {
             return;
         }
-        let block = cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].aux);
+        let block = cx.my_power(me).map_or(0, |p| p.aux);
         cx.gain_block(me.owner, Dec::frac(block as i64, 4), ValueProp::UNPOWERED, NO);
         cx.decrement_power(me.owner, me.idx);
     }
@@ -47,13 +47,13 @@ listener!(CuriousPower {
         if cx.card_def(card).ctype != CardType::Power || cost <= Dec::ZERO {
             return None;
         }
-        Some((cost - Dec::int(cx.power_amount(me.owner, me.id) as i64)).max(Dec::ZERO))
+        Some((cost - Dec::int(cx.my_amount(me) as i64)).max(Dec::ZERO))
     }
 });
 
 listener!(ImprovementPower {
     fn after_combat_end(&self, cx: &mut Combat, me: Me) {
-        let amount = cx.power_amount(me.owner, me.id);
+        let amount = cx.my_amount(me);
         let mut list: crate::util::ArrayVec<u8, 80> = crate::util::ArrayVec::new();
         for i in 0..cx.deck_len {
             if cx.deck_upgrade[i as usize] < crate::content::card_def(cx.cards[i as usize].id).max_upgrade {
@@ -73,11 +73,11 @@ listener!(ImprovementPower {
 
 listener!(GodByrdPower {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
-        let start = cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].amount_on_turn_start);
+        let start = cx.my_power(me).map_or(0, |p| p.amount_on_turn_start);
         if me.owner != PLAYER || start == 0 {
             return;
         }
-        let amt = cx.power_amount(me.owner, me.id);
+        let amt = cx.my_amount(me);
         let h = cx.hittable_enemies();
         cx.damage(h.as_slice(), Dec::int(amt as i64), ValueProp::UNPOWERED, me.owner, NO);
         cx.remove_power(me.owner, me.idx);

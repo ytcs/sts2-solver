@@ -28,13 +28,13 @@ listener!(ConstrictPower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_side(cx, me, side) {
             // still called (with its last Amount) when its applier's death removed it earlier in this hook pass
-            let amount = cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount);
+            let amount = cx.my_amount(me);
             cx.damage(&[me.owner], Dec::int(amount as i64), ValueProp::UNPOWERED, me.owner, NO);
         }
     }
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            if !was_removal_prevented && cx.cr(me.owner).powers[i].applier == creature {
+        if cx.my_power(me).is_some() {
+            if !was_removal_prevented && cx.my_power(me).unwrap_or_default().applier == creature {
                 cx.remove_power(me.owner, me.idx);
             }
         }
@@ -72,7 +72,7 @@ listener!(TangledPower {
         if cx.card_affliction(card) != Some(ids::affliction::ENTANGLED) {
             return None;
         }
-        Some(cost + Dec::int(cx.power_amount(me.owner, me.id) as i64))
+        Some(cost + Dec::int(cx.my_amount(me) as i64))
     }
 });
 
@@ -113,21 +113,21 @@ listener!(RingingPower {
 
 listener!(SlowPower {
     fn after_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux += 1;
+        if cx.my_power(me).is_some() {
+            if let Some(p) = cx.my_power_mut(me) { p.aux += 1; }
         }
     }
     fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.target != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        let aux = cx.cr(me.owner).power(me.id).map_or(0, |p| p.aux);
+        let aux = cx.my_aux(me);
         Dec::ONE + Dec::frac(aux as i64, 1)
     }
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_side(cx, me, side) {
-            if let Some(i) = cx.power_idx(me.owner, me.idx) {
-                cx.cr_mut(me.owner).powers[i].aux = 0;
+            if cx.my_power(me).is_some() {
+                if let Some(p) = cx.my_power_mut(me) { p.aux = 0; }
             }
         }
     }
@@ -136,7 +136,7 @@ listener!(SlowPower {
 listener!(TerritorialPower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_side(cx, me, side) {
-            let amount = cx.power_amount(me.owner, me.id);
+            let amount = cx.my_amount(me);
             cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(amount as i64), me.owner, NO);
         }
     }
@@ -158,7 +158,7 @@ listener!(InfestedPower {
 
 listener!(PlowPower {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
-        if target != me.owner || unblocked <= 0 || cx.cr(target).hp() > cx.power_amount(me.owner, me.id) {
+        if target != me.owner || unblocked <= 0 || cx.cr(target).hp() > cx.my_amount(me) {
             return;
         }
         let mut ids_to_remove: crate::util::ArrayVec<u16, MAX_POWERS> = crate::util::ArrayVec::new();
@@ -208,8 +208,8 @@ listener!(IllusionPower {
         if creature != me.owner || was_removal_prevented {
             return;
         }
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux = 1;
+        if cx.my_power(me).is_some() {
+            if let Some(p) = cx.my_power_mut(me) { p.aux = 1; }
         }
         let mid = cx.cr(me.owner).monster.id;
         if let Some(node) = crate::content::node_by_name(mid, "REVIVE_MOVE") {
@@ -221,7 +221,7 @@ listener!(IllusionPower {
         if creature != me.owner {
             return true;
         }
-        cx.cr(me.owner).power(me.id).map_or(true, |p| p.aux == 0)
+        cx.my_aux(me) == 0
     }
     fn should_creature_be_removed_from_combat_after_death(&self, _cx: &Combat, me: Me, creature: Cid) -> bool {
         creature != me.owner

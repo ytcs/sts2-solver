@@ -24,7 +24,7 @@ listener!(ReboundPower {
 
 listener!(ExtraTurnPower {
     fn should_take_extra_turn(&self, cx: &Combat, me: Me) -> bool {
-        cx.power_amount(me.owner, me.id) > 0 && me.owner == PLAYER
+        cx.my_amount(me) > 0 && me.owner == PLAYER
     }
     fn after_taking_extra_turn(&self, cx: &mut Combat, me: Me) {
         if me.owner == PLAYER {
@@ -50,7 +50,7 @@ listener!(VoidFormPower {
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if me.owner == PLAYER && !play.is_auto && play.play_index + 1 == play.play_count {
-            let v = cx.power_aux(me.owner, me.idx);
+            let v = cx.my_aux(me);
             cx.set_power_aux(me.owner, me.idx, v.saturating_add(1));
         }
     }
@@ -63,5 +63,5 @@ listener!(VoidFormPower {
 
 fn void_form_skip(cx: &Combat, me: Me, card: CardIdx) -> bool {
     let in_hand_or_play = matches!(cx.card_pile_type(card), PileType::Hand | PileType::Play);
-    !in_hand_or_play || cx.power_aux(me.owner, me.idx) >= cx.power_amount(me.owner, me.id)
+    !in_hand_or_play || cx.my_aux(me) >= cx.my_amount(me)
 }

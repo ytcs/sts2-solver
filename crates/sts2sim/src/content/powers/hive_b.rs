@@ -15,7 +15,7 @@ listener!(PersonalHivePower {
         if target != me.owner || dealer == NO || !props.is_powered() {
             return;
         }
-        let n = cx.power_amount(me.owner, me.id);
+        let n = cx.my_amount(me);
         cx.add_status_cards_as(ids::card::DAZED, PileType::Draw, n, CardPilePosition::Random, false);
     }
 });
@@ -41,7 +41,7 @@ listener!(ReattachPower {
         if creature != me.owner {
             return true;
         }
-        cx.power_aux(me.owner, me.idx) == 0
+        cx.my_aux(me) == 0
     }
     fn should_creature_be_removed_from_combat_after_death(&self, _cx: &Combat, me: Me, creature: Cid) -> bool {
         creature != me.owner
@@ -76,7 +76,7 @@ fn tainted_cards_matching(cx: &Combat, tainted: bool) -> crate::util::ArrayVec<C
 
 listener!(VitalSparkPower {
     fn before_combat_start(&self, cx: &mut Combat, me: Me) {
-        let amount = cx.power_amount(me.owner, me.id);
+        let amount = cx.my_amount(me);
         let cards = tainted_cards_matching(cx, false);
         for &c in cards.iter() {
             cx.afflict_card(c, ids::affliction::TAINTED, amount);
@@ -84,13 +84,13 @@ listener!(VitalSparkPower {
     }
     fn after_card_entered_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {
         if cx.card_affliction(card).is_none() && cx.card_def(card).ctype == CardType::Skill {
-            let amount = cx.power_amount(me.owner, me.id);
+            let amount = cx.my_amount(me);
             cx.afflict_card(card, ids::affliction::TAINTED, amount);
         }
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_affliction(play.card) == Some(ids::affliction::TAINTED) {
-            let amount = cx.power_amount(me.owner, me.id);
+            let amount = cx.my_amount(me);
             cx.apply_power(ids::power::TAINTED_POWER, PLAYER, Dec::int(amount as i64), NO, NO);
         }
     }
@@ -104,7 +104,7 @@ listener!(VitalSparkPower {
         if ch.uid != me.idx {
             return;
         }
-        let amount = cx.power_amount(me.owner, me.id);
+        let amount = cx.my_amount(me);
         let cards = tainted_cards_matching(cx, true);
         for &c in cards.iter() {
             cx.cards[c as usize].affliction_amount = amount as i16;
@@ -117,7 +117,7 @@ listener!(TaintedPower {
         if q.target != me.owner || !q.props.is_powered() {
             return Dec::ZERO;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Enemy {
@@ -147,7 +147,7 @@ listener!(SurroundedPower {
         if q.dealer == NO || q.target != me.owner {
             return Dec::ONE;
         }
-        let behind = if cx.power_aux(me.owner, me.idx) == 0 { ids::power::BACK_ATTACK_LEFT_POWER } else { ids::power::BACK_ATTACK_RIGHT_POWER };
+        let behind = if cx.my_aux(me) == 0 { ids::power::BACK_ATTACK_LEFT_POWER } else { ids::power::BACK_ATTACK_RIGHT_POWER };
         if !cx.has_power(q.dealer, behind) {
             return Dec::ONE;
         }
@@ -180,7 +180,7 @@ listener!(SurroundedPower {
 });
 
 fn surrounded_update_direction(cx: &mut Combat, me: Me, target: Cid) {
-    let facing = cx.power_aux(me.owner, me.idx);
+    let facing = cx.my_aux(me);
     if facing == 0 && cx.has_power(target, ids::power::BACK_ATTACK_LEFT_POWER) {
         cx.set_power_aux(me.owner, me.idx, 1);
     } else if facing == 1 && cx.has_power(target, ids::power::BACK_ATTACK_RIGHT_POWER) {
@@ -212,7 +212,7 @@ listener!(SandpitPower {
 listener!(DisintegrationPower {
     fn after_side_turn_end_late(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_side(cx, me, side) {
-            let amount = cx.power_amount(me.owner, me.id);
+            let amount = cx.my_amount(me);
             cx.damage(&[me.owner], Dec::int(amount as i64), ValueProp::UNPOWERED, me.owner, NO);
         }
     }
@@ -223,17 +223,17 @@ listener!(MindRotPower {
         if me.owner != PLAYER {
             return count;
         }
-        (count - Dec::int(cx.power_amount(me.owner, me.id) as i64)).max(Dec::ZERO)
+        (count - Dec::int(cx.my_amount(me) as i64)).max(Dec::ZERO)
     }
 });
 
 listener!(SlothPower {
     fn should_play(&self, cx: &Combat, me: Me, _card: CardIdx) -> bool {
-        cx.power_aux(me.owner, me.idx) < cx.power_amount(me.owner, me.id)
+        cx.my_aux(me) < cx.my_amount(me)
     }
     fn before_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
         if me.owner == PLAYER {
-            let a = cx.power_aux(me.owner, me.idx);
+            let a = cx.my_aux(me);
             cx.set_power_aux(me.owner, me.idx, a + 1);
         }
     }
@@ -249,6 +249,6 @@ listener!(WasteAwayPower {
         if me.owner != PLAYER {
             return amount;
         }
-        amount - Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        amount - Dec::int(cx.my_amount(me) as i64)
     }
 });

@@ -8,7 +8,7 @@ use crate::state::*;
 use crate::types::*;
 
 fn amount(cx: &Combat, me: &Me) -> i32 {
-    cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount)
+    cx.my_amount(me)
 }
 
 fn percent_bonus(cx: &Combat, me: &Me) -> Dec {
@@ -63,7 +63,7 @@ listener!(QuietusPower {
         cx.set_arrow_destroy_after_impaled(arrow, true);
     }
     fn before_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
-        if attack.dealer != me.owner || !powered_arrow(attack.props) || cx.power_aux(me.owner, me.idx) != 0 {
+        if attack.dealer != me.owner || !powered_arrow(attack.props) || cx.my_aux(me) != 0 {
             return;
         }
         cx.set_power_aux(me.owner, me.idx, claim_of(attack.card));
@@ -72,14 +72,14 @@ listener!(QuietusPower {
         if q.dealer != me.owner || !powered_arrow(q.props) {
             return Dec::ONE;
         }
-        let x = cx.power_aux(me.owner, me.idx);
+        let x = cx.my_aux(me);
         if x != 0 && q.card != NO && claim_of(q.card) != x {
             return Dec::ONE;
         }
         Dec::int(amount(cx, &me) as i64)
     }
     fn after_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
-        let x = cx.power_aux(me.owner, me.idx);
+        let x = cx.my_aux(me);
         if x != 0 && claim_of(attack.card) == x {
             cx.remove_power(me.owner, me.idx);
         }
@@ -103,7 +103,7 @@ listener!(ArcheryPower {
 // aux = `triggeredThisTurn`.
 listener!(YahPower {
     fn after_arrow_dislodged(&self, cx: &mut Combat, me: Me, _target: Cid, _power_uid: u16, _arrow: u8, _source: CardIdx) {
-        if me.owner != PLAYER || cx.power_aux(me.owner, me.idx) != 0 {
+        if me.owner != PLAYER || cx.my_aux(me) != 0 {
             return;
         }
         cx.set_power_aux(me.owner, me.idx, 1);

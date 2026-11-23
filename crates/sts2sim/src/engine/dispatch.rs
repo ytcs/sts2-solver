@@ -102,6 +102,10 @@ impl Combat {
         m.has(bit)
     }
 
+    /// `CombatState.Contains`, which `CombatState.IterateHookListeners` applies to each snapshotted listener as it is
+    /// yielded: a power removed from a creature still in combat is still called (it reads its own last Amount,
+    /// `my_amount`); a removed creature's powers / monster, a dead player's models, a used potion, a card removed from
+    /// combat and an enchantment / affliction no longer on its card are skipped.
     #[inline]
     pub fn still_live(&self, me: &Me) -> bool {
         match me.kind {
@@ -110,9 +114,16 @@ impl Combat {
                 o.in_combat && (!o.is_player || self.player_hooks_active)
             }
             Kind::Monster => self.creatures[me.owner as usize].in_combat,
-            Kind::Relic | Kind::Potion | Kind::Orb => self.player_hooks_active,
-            Kind::Card | Kind::Enchantment | Kind::Affliction => {
-                self.player_hooks_active && self.cards[me.idx as usize].flags & cflag::REMOVED == 0
+            Kind::Relic | Kind::Orb => self.player_hooks_active,
+            Kind::Potion => self.player_hooks_active && self.player.potions.get(me.idx as usize).is_some_and(|p| p.is_some_and(|p| p.id == me.id)),
+            Kind::Card => self.player_hooks_active && self.cards[me.idx as usize].flags & cflag::REMOVED == 0,
+            Kind::Enchantment => {
+                let c = &self.cards[me.idx as usize];
+                self.player_hooks_active && c.flags & cflag::REMOVED == 0 && c.enchant as u16 == me.id + 1
+            }
+            Kind::Affliction => {
+                let c = &self.cards[me.idx as usize];
+                self.player_hooks_active && c.flags & cflag::REMOVED == 0 && c.affliction as u16 == me.id + 1
             }
         }
     }

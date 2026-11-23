@@ -13,7 +13,7 @@ fn on_side(cx: &Combat, owner: Cid, side: Side) -> bool {
 
 #[inline]
 fn amount_of(cx: &Combat, me: Me) -> i32 {
-    cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).map_or(me.amount, |p| p.amount)
+    cx.my_amount(me)
 }
 
 listener!(DieForYouPower {
@@ -62,7 +62,7 @@ listener!(NecroMasteryPower {
 
 listener!(SummonNextTurnPower {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
-        let Some(p) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).copied() else { return };
+        let Some(p) = cx.my_power(me) else { return };
         if p.amount_on_turn_start != 0 {
             cx.summon(p.amount);
             cx.remove_power(me.owner, me.idx);
@@ -75,7 +75,7 @@ listener!(SicEmPower {
         if dealer == NO || !cx.cr(dealer).is_pet || cx.cr(dealer).monster.id != ids::monster::OSTY || target != me.owner {
             return;
         }
-        let Some(p) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).copied() else { return };
+        let Some(p) = cx.my_power(me) else { return };
         if p.applier != NO && cx.cr(dealer).owner == p.applier {
             cx.summon(p.amount);
         }
@@ -281,7 +281,7 @@ listener!(OblivionPower {
         cx.play_amount_add(me.idx, play.card, amt);
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let Some(p) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).copied() else { return };
+        let Some(p) = cx.my_power(me) else { return };
         if let Some(value) = cx.play_amount_take(me.idx, play.card) {
             cx.apply_power(ids::power::DOOM_POWER, me.owner, Dec::int(value as i64), p.applier, NO);
         }
@@ -383,10 +383,10 @@ listener!(ForbiddenGrimoirePower {});
 
 listener!(CacophonyPower {
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, _card: CardIdx, _from_hand_draw: bool) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        cx.cr_mut(me.owner).powers[i].aux += 1;
-        if cx.cr(me.owner).powers[i].aux >= 33 {
-            cx.cr_mut(me.owner).powers[i].aux = 0;
+        let Some(_) = cx.my_power(me) else { return };
+        if let Some(p) = cx.my_power_mut(me) { p.aux += 1; }
+        if cx.my_power(me).unwrap_or_default().aux >= 33 {
+            if let Some(p) = cx.my_power_mut(me) { p.aux = 0; }
             let amt = amount_of(cx, me);
             if let Some(t) = cx.random_hittable_enemy() {
                 cx.damage(&[t], Dec::int(amt as i64), ValueProp::UNPOWERED, me.owner, NO);
@@ -400,15 +400,15 @@ listener!(SoulboundPower {
         if !added_by_player || !cx.is_card(card, ids::card::SOUL) {
             return;
         }
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        if cx.cr(me.owner).powers[i].aux != 0 {
+        let Some(_) = cx.my_power(me) else { return };
+        if cx.my_power(me).unwrap_or_default().aux != 0 {
             return;
         }
-        cx.cr_mut(me.owner).powers[i].aux = 1;
+        if let Some(p) = cx.my_power_mut(me) { p.aux = 1; }
         let n = amount_of(cx, me);
         cx.add_souls_to_draw_pile(n, false);
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux = 0;
+        if cx.my_power(me).is_some() {
+            if let Some(p) = cx.my_power_mut(me) { p.aux = 0; }
         }
     }
 });

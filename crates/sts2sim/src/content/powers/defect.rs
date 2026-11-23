@@ -11,7 +11,7 @@ listener!(FocusPower {
         if me.owner != PLAYER {
             return value;
         }
-        (value + Dec::int(cx.power_amount(me.owner, me.id) as i64)).max(Dec::ZERO)
+        (value + Dec::int(cx.my_amount(me) as i64)).max(Dec::ZERO)
     }
 });
 
@@ -20,7 +20,7 @@ fn temp_before_applied(cx: &mut Combat, sign: i32, target: Cid, amount: Dec, app
 }
 
 fn temp_after_changed(cx: &mut Combat, me: Me, sign: i32, ch: &PowerChange) {
-    if ch.uid != me.idx || ch.target != me.owner || ch.amount == cx.power_amount(me.owner, me.id) {
+    if ch.uid != me.idx || ch.target != me.owner || ch.amount == cx.my_amount(me) {
         return;
     }
     cx.apply_power(ids::power::FOCUS_POWER, me.owner, Dec::int((sign * ch.amount) as i64), ch.applier, ch.card);
@@ -30,7 +30,7 @@ fn temp_side_turn_end(cx: &mut Combat, me: Me, sign: i32, side: Side) {
     if side != Side::Player {
         return;
     }
-    let amount = cx.power_amount(me.owner, me.id);
+    let amount = cx.my_amount(me);
     cx.remove_power(me.owner, me.idx);
     cx.apply_power(ids::power::FOCUS_POWER, me.owner, Dec::int((-sign * amount) as i64), me.owner, NO);
 }
@@ -86,7 +86,7 @@ listener!(HyperbeamFocusDownPower {
 listener!(BiasedCognitionPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player {
-            let a = cx.power_amount(me.owner, me.id);
+            let a = cx.my_amount(me);
             cx.apply_power(ids::power::FOCUS_POWER, me.owner, Dec::int(-(a as i64)), me.owner, NO);
         }
     }
@@ -104,7 +104,7 @@ listener!(LoopPower {
         if cx.orb_count() == 0 {
             return;
         }
-        let n = cx.power_amount(me.owner, me.id);
+        let n = cx.my_amount(me);
         for _ in 0..n {
             if let Some(front) = cx.player.orbs.first() {
                 cx.orb_passive(front, NO, false);
@@ -116,7 +116,7 @@ listener!(LoopPower {
 listener!(CoolantPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player {
-            let n = cx.distinct_orb_types() * cx.power_amount(me.owner, me.id);
+            let n = cx.distinct_orb_types() * cx.my_amount(me);
             cx.gain_block(PLAYER, Dec::int(n as i64), ValueProp::UNPOWERED, NO);
         }
     }
@@ -125,7 +125,7 @@ listener!(CoolantPower {
 listener!(ConsumingShadowPower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player && cx.orb_count() != 0 {
-            let n = cx.power_amount(me.owner, me.id);
+            let n = cx.my_amount(me);
             for _ in 0..n {
                 cx.evoke_last(true);
             }
@@ -141,7 +141,7 @@ listener!(HailstormPower {
         let frost = cx.player.orbs.iter().filter(|o| o.kind == ids::orb::FROST_ORB).count() as i32;
         if frost >= 1 {
             let targets = cx.hittable_enemies();
-            let a = cx.power_amount(me.owner, me.id);
+            let a = cx.my_amount(me);
             cx.damage(targets.as_slice(), Dec::int(a as i64), ValueProp::UNPOWERED, me.owner, NO);
         }
     }
@@ -155,7 +155,7 @@ listener!(HibernatePower {
 
 listener!(SpinnerPower {
     fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
-        let n = cx.power_amount(me.owner, me.id);
+        let n = cx.my_amount(me);
         for _ in 0..n {
             cx.channel_orb(ids::orb::GLASS_ORB);
         }
@@ -173,7 +173,7 @@ listener!(ThunderPower {
                 living.push(t);
             }
         }
-        let a = cx.power_amount(me.owner, me.id);
+        let a = cx.my_amount(me);
         cx.damage(living.as_slice(), Dec::int(a as i64), ValueProp::UNPOWERED, me.owner, NO);
     }
 });
@@ -181,7 +181,7 @@ listener!(ThunderPower {
 listener!(TrashToTreasurePower {
     fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx, added_by_player: bool) {
         if cx.card_def(card).ctype == CardType::Status && added_by_player && me.owner == PLAYER {
-            let n = cx.power_amount(me.owner, me.id);
+            let n = cx.my_amount(me);
             for _ in 0..n {
                 let i = cx.rng.combat_orbs.next_int_range(0, VALID_ORBS.len() as i32) as usize;
                 cx.channel_orb(VALID_ORBS[i]);
@@ -194,7 +194,7 @@ listener!(SmokestackPower {
     fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx, added_by_player: bool) {
         if cx.card_def(card).ctype == CardType::Status && added_by_player && me.owner == PLAYER {
             let targets = cx.hittable_enemies();
-            let a = cx.power_amount(me.owner, me.id);
+            let a = cx.my_amount(me);
             cx.damage(targets.as_slice(), Dec::int(a as i64), ValueProp::UNPOWERED, me.owner, NO);
         }
     }
@@ -204,7 +204,7 @@ fn remember_power_card_play(cx: &mut Combat, me: Me, play: &CardPlay) {
     if cx.card_def(play.card).ctype != CardType::Power {
         return;
     }
-    let amount = cx.power_amount(me.owner, me.id);
+    let amount = cx.my_amount(me);
     cx.play_amount_add(me.idx, play.card, amount);
 }
 
@@ -257,7 +257,7 @@ listener!(FreePowerPower {
 
 listener!(MachineLearningPower {
     fn modify_hand_draw(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
-        amount + Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        amount + Dec::int(cx.my_amount(me) as i64)
     }
 });
 
@@ -265,7 +265,7 @@ listener!(IterationPower {
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, card: CardIdx, _from_hand_draw: bool) {
         if cx.card_def(card).ctype == CardType::Status
             && cx.hist_count_this_turn(HKind::CardDrawn, |e| crate::content::card_def(e.id).ctype == CardType::Status) <= 1 {
-            let n = cx.power_amount(me.owner, me.id);
+            let n = cx.my_amount(me);
             cx.draw_cards(n, false);
         }
     }
@@ -273,7 +273,7 @@ listener!(IterationPower {
 
 listener!(CreativeAiPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
-        let n = cx.power_amount(me.owner, me.id);
+        let n = cx.my_amount(me);
         for _ in 0..n {
             let pool = cx.character_pool();
             let cards = cx.get_distinct_for_combat(pool, 1, |d| d.ctype == CardType::Power);
@@ -301,14 +301,14 @@ listener!(OneForAllPower {
         if spent != 0 {
             return Dec::ZERO;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
 });
 
 listener!(EchoFormPower {
     fn modify_card_play_count(&self, cx: &Combat, me: Me, _card: CardIdx, _target: Cid, count: i32) -> i32 {
         let first_series = cx.hist_count_this_turn(HKind::CardPlayStarted, |e| e.flags & 2 != 0) as i32;
-        if first_series >= cx.power_amount(me.owner, me.id) {
+        if first_series >= cx.my_amount(me) {
             count
         } else {
             count + 1
@@ -331,29 +331,29 @@ listener!(SignalBoostPower {
 listener!(FeralPower {
     fn after_applied(&self, cx: &mut Combat, me: Me) {
         let n = cx.hist_count_this_turn(HKind::CardPlayStarted, |e| e.aux == 0 && cx.card_def(e.card).ctype == CardType::Attack) as i32;
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux = n;
+        if cx.my_power(me).is_some() {
+            if let Some(p) = cx.my_power_mut(me) { p.aux = n; }
         }
     }
     fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, _is_auto: bool, energy_value: i32, loc: CardLocation) -> CardLocation {
         if cx.card_def(card).ctype != CardType::Attack || energy_value > 0 || cx.cards[card as usize].flags & cflag::IS_DUPE != 0 {
             return loc;
         }
-        let used = cx.cr(me.owner).power(me.id).map_or(0, |p| p.aux);
-        if used >= cx.power_amount(me.owner, me.id) {
+        let used = cx.my_aux(me);
+        if used >= cx.my_amount(me) {
             return loc;
         }
         CardLocation::new(PileType::Hand, CardPilePosition::Top)
     }
     fn after_modifying_card_play_result_location(&self, cx: &mut Combat, me: Me, _card: CardIdx, _loc: CardLocation) {
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux += 1;
+        if cx.my_power(me).is_some() {
+            if let Some(p) = cx.my_power_mut(me) { p.aux += 1; }
         }
     }
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player {
-            if let Some(i) = cx.power_idx(me.owner, me.idx) {
-                cx.cr_mut(me.owner).powers[i].aux = 0;
+            if cx.my_power(me).is_some() {
+                if let Some(p) = cx.my_power_mut(me) { p.aux = 0; }
             }
         }
     }

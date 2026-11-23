@@ -19,7 +19,7 @@ listener!(AccuracyPower {
         if cx.card_def(q.card).tags & tag::SHIV == 0 {
             return Dec::ZERO;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
 });
 
@@ -28,7 +28,7 @@ listener!(FanOfKnivesPower {});
 listener!(EnvenomPower {
     fn after_damage_given(&self, cx: &mut Combat, me: Me, dealer: Cid, target: Cid, unblocked: i32, props: ValueProp) {
         if dealer == me.owner && props.is_powered() && unblocked > 0 {
-            let amt = cx.power_amount(me.owner, me.id);
+            let amt = cx.my_amount(me);
             cx.apply_power(ids::power::POISON_POWER, target, Dec::int(amt as i64), me.owner, NO);
         }
     }
@@ -36,7 +36,7 @@ listener!(EnvenomPower {
 
 listener!(AfterimagePower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let amount = cx.power_amount(me.owner, me.id);
+        let amount = cx.my_amount(me);
         cx.hist.remember_play(me.idx, play.card, amount);
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
@@ -53,13 +53,13 @@ listener!(AnticipatePower {
         cx.apply_power(ids::power::DEXTERITY_POWER, target, amount, applier, card);
     }
     fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
-        if ch.power_id == me.id && ch.target == me.owner && ch.amount != cx.power_amount(me.owner, me.id) {
+        if ch.power_id == me.id && ch.target == me.owner && ch.amount != cx.my_amount(me) {
             cx.apply_power(ids::power::DEXTERITY_POWER, me.owner, Dec::int(ch.amount as i64), me.owner, NO);
         }
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_on(cx, me, side) {
-            let amt = cx.power_amount(me.owner, me.id);
+            let amt = cx.my_amount(me);
             cx.remove_power(me.owner, me.idx);
             cx.apply_power(ids::power::DEXTERITY_POWER, me.owner, Dec::int(-(amt as i64)), me.owner, NO);
         }
@@ -99,7 +99,7 @@ listener!(CorrosiveWavePower {
         if me.owner != PLAYER {
             return;
         }
-        let amt = cx.power_amount(me.owner, me.id);
+        let amt = cx.my_amount(me);
         cx.apply_power_to_hittable_enemies(ids::power::POISON_POWER, Dec::int(amt as i64), me.owner, NO);
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
@@ -114,11 +114,11 @@ listener!(FlankingPower {
         if q.target != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        let applier = cx.power_idx(me.owner, me.idx).map_or(NO, |i| cx.cr(me.owner).powers[i].applier);
+        let applier = cx.my_power(me).map_or(NO, |p| p.applier);
         if q.dealer == applier {
             return Dec::ONE;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_on(cx, me, side) {

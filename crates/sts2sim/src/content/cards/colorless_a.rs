@@ -746,7 +746,7 @@ listener!(TagTeam {
 
 listener!(TheBall {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let dmg = cx.card_var(p.card, VarKind::Damage) + cx.cards[p.card as usize].counter[0] as i32;
+        let dmg = cx.card_base_damage(p.card);
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         let inc = cx.card_named_var(p.card, var_name::INCREASE);
         cx.cards[p.card as usize].counter[0] += inc as i16;

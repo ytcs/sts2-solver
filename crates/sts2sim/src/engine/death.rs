@@ -191,6 +191,7 @@ impl Combat {
                 kept.push(*p);
             } else {
                 removed.push(*p);
+                self.record_removed_power(c, p);
             }
         }
         self.cr_mut(c).powers = kept;
@@ -240,6 +241,10 @@ impl Combat {
         self.dislodge_on_escape(c);
         let held = self.cr(c).power_amount(crate::ids::power::SWIPE_POWER).max(0);
         self.cards_escaped = self.cards_escaped.saturating_add(held as u8);
+        let all = self.cr(c).powers;
+        for p in all.iter() {
+            self.record_removed_power(c, p);
+        }
         self.cr_mut(c).powers.clear();
         self.sync_secondary(c);
         let me = Me { kind: Kind::Monster, owner: c, idx: 0, id: self.cr(c).monster.id, amount: 0 };

@@ -890,6 +890,12 @@ impl Combat {
     }
 
     fn after_action(&mut self) {
+        // An end-turn signal set inside the action resumes the turn loop when the action leaves the queue, before
+        // ActionExecutor's CheckWinCondition: with a pending loss/victory IsInProgress is still true, so
+        // EndPlayerTurnPhaseOneInternal runs with every hook skipped (ShouldSkipCombatEffect) and leaves Phase = End.
+        if self.is_ending() {
+            self.consume_end_turn_request();
+        }
         self.check_win_condition();
         self.consume_end_turn_request();
     }

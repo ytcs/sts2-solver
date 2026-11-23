@@ -6,7 +6,7 @@ use crate::state::*;
 use crate::types::*;
 
 fn amount(cx: &Combat, me: &Me) -> i32 {
-    cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount)
+    cx.my_amount(me)
 }
 
 /// `MotifPower` / `LostLutePower`: song tags of `play` for which it is this turn's only started play with the tag
@@ -108,7 +108,7 @@ listener!(LullabyPower {
         }
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
-        if me.owner != PLAYER || !cx.in_progress || cx.power_aux(me.owner, me.idx) != 0 || !all_melodies_this_turn(cx) {
+        if me.owner != PLAYER || !cx.in_progress || cx.my_aux(me) != 0 || !all_melodies_this_turn(cx) {
             return;
         }
         cx.set_power_aux(me.owner, me.idx, 1);
@@ -142,13 +142,13 @@ listener!(EncorePower {
             return true;
         }
         let being_played = cx.hist.play_amounts.iter().filter(|e| e.uid == me.idx).count() as i32;
-        cx.power_aux(me.owner, me.idx) + being_played < amount(cx, &me)
+        cx.my_aux(me) + being_played < amount(cx, &me)
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if me.owner != PLAYER || cx.play_amount_take(me.idx, play.card).is_none() {
             return;
         }
-        let n = cx.power_aux(me.owner, me.idx);
+        let n = cx.my_aux(me);
         cx.set_power_aux(me.owner, me.idx, n + 1);
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {

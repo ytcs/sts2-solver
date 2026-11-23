@@ -43,9 +43,9 @@ fn the_fool_pick(cx: &mut Combat) -> Option<CardIdx> {
 
 listener!(TheFool {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        let n = cx.card_var(p.card, VarKind::Cards);
         let mut i = phase as i32;
-        while i < n {
+        // the loop bound reads DynamicVars.Cards each pass: an autoplayed Apotheosis upgrades The Fool mid-loop
+        while i < cx.card_var(p.card, VarKind::Cards) {
             if let Some(c) = the_fool_pick(cx) {
                 if cx.auto_play(c, NO, AutoPlayType::Default, false) == RunResult::Suspended {
                     return Flow::Suspend((i + 1) as u8);
