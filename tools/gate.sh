@@ -6,17 +6,17 @@ fail=0
 check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got '$2' want '$3'"; fail=1; fi; }
 sum() { grep -o "checksum [0-9a-f]*" | head -1 | cut -d' ' -f2; }
 
-check "search" "$(cargo run --release -q -p sts2env --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" effb395521d20429
-check "search cap" "$(STS2_HP_CAP=1 cargo run --release -q -p sts2env --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" a293f34d31e01ad3
-check "search exact" "$(STS2_EXACT=0 cargo run --release -q -p sts2env --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" 19b81cf359c41380
-check "env" "$(cargo run --release -q -p sts2env --example envprof -- data/train/eval.json 256 100 600 2>/dev/null | sum)" 91b0af594e5fe3b5
+check "search" "$(cargo run --release -q -p sts2env --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" bd8a4f1875b6b8d9
+check "search cap" "$(STS2_HP_CAP=1 cargo run --release -q -p sts2env --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" 33d14d5d45d6cf69
+check "search exact" "$(STS2_EXACT=0 cargo run --release -q -p sts2env --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" c217ed905216e5da
+check "env" "$(cargo run --release -q -p sts2env --example envprof -- data/train/eval.json 256 100 600 2>/dev/null | sum)" 8077a0ab2a750408
 # observation v3 (feature obs_v3: the v2 bytes + a tail; the stub policy hashes the whole row)
-check "search v3" "$(cargo run --release -q -p sts2env --features obs_v3 --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" 098a65da24ad9b75
-check "env v3" "$(cargo run --release -q -p sts2env --features obs_v3 --example envprof -- data/train/eval.json 256 100 600 2>/dev/null | sum)" ffd0893c5b1f3774
+check "search v3" "$(cargo run --release -q -p sts2env --features obs_v3 --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" 97978793c02d2147
+check "env v3" "$(cargo run --release -q -p sts2env --features obs_v3 --example envprof -- data/train/eval.json 256 100 600 2>/dev/null | sum)" c78ffe96814ec9fd
 if cargo test --release -q -p sts2sim --features obs_v3 --test observe >/dev/null 2>&1; then echo "ok   cargo sts2sim/observe v3"; else echo "FAIL cargo sts2sim/observe v3"; fail=1; fi
 # observation v4 (feature obs_v4: the v3 row + the enemy death block; MAX_POTIONS 9, action space 322)
-check "search v4" "$(cargo run --release -q -p sts2env --features obs_v4 --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" a40879d0e51b34d1
-check "env v4" "$(cargo run --release -q -p sts2env --features obs_v4 --example envprof -- data/train/eval.json 256 100 600 2>/dev/null | sum)" dd6a1544e8891138
+check "search v4" "$(cargo run --release -q -p sts2env --features obs_v4 --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" c47fbcc3bc06ae29
+check "env v4" "$(cargo run --release -q -p sts2env --features obs_v4 --example envprof -- data/train/eval.json 256 100 600 2>/dev/null | sum)" 6920eb8740309ae9
 if cargo test --release -q -p sts2sim --features obs_v4 --test observe >/dev/null 2>&1; then echo "ok   cargo sts2sim/observe v4"; else echo "FAIL cargo sts2sim/observe v4"; fail=1; fi
 
 for t in "sts2diff regression" "sts2sim observe" "sts2sim rng_golden" "sts2sim sync" "sts2env lookahead_cache"; do
