@@ -168,6 +168,13 @@
    ],
    "note": "AfterCardChangedPiles(Deck): duplicates cards added to deck (no deck adds in combat)"
   },
+  "BIZARRE_LAMP": {
+   "class": "combat",
+   "hooks": [
+    "BeforeHandDraw"
+   ],
+   "note": "BizarreLamp.cs; Fool pool, not ported (The Fool not modelled)"
+  },
   "BLACK_BLOOD": {
    "class": "combat",
    "hooks": [
@@ -429,6 +436,14 @@
    ],
    "note": "CloakClasp.cs: BeforeSideTurnEnd; sim shared_play.rs"
   },
+  "CONDUCTORS_BATON": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnStart",
+    "AfterCardPlayed"
+   ],
+   "note": "ConductorsBaton.cs; Fool pool, not ported (The Fool not modelled)"
+  },
   "CRACKED_CORE": {
    "class": "combat",
    "hooks": [
@@ -618,6 +633,13 @@
    ],
    "note": "AfterRoomEntered(RestSite): heal"
   },
+  "EXERCISE_MAT": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "ExerciseMat.cs; Fool pool, not ported (The Fool not modelled)"
+  },
   "FAKE_ANCHOR": {
    "class": "combat",
    "hooks": [
@@ -697,6 +719,13 @@
     "AfterSideTurnStart"
    ],
    "note": "FencingManual.cs: AfterSideTurnStart; sim pets_forge.rs"
+  },
+  "FERTILIZER": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardGeneratedForCombat"
+   ],
+   "note": "Fertilizer.cs; Fool pool, not ported (The Fool not modelled)"
   },
   "FESTIVE_POPPER": {
    "class": "combat",
@@ -1338,6 +1367,13 @@
    ],
    "note": "BeforeSideTurnEnd: 1 damage per card in hand to a random enemy"
   },
+  "OCARINA": {
+   "class": "combat",
+   "hooks": [
+    "BeforeHandDraw"
+   ],
+   "note": "Ocarina.cs; Fool pool, not ported (The Fool not modelled)"
+  },
   "ODDLY_SMOOTH_STONE": {
    "class": "combat",
    "hooks": [
@@ -1407,9 +1443,9 @@
     "AfterTakingExtraTurn",
     "BeforeCardPlayed",
     "BeforeSideTurnEndEarly",
-    "ShouldTakeExtraTurn"
+    "ShouldTakeExtraTurnEarly"
    ],
-   "note": "PaelsEye.cs: AfterCombatEnd, AfterObtained, AfterSideTurnStart, AfterTakingExtraTurn, BeforeCardPlayed, BeforeSideTurnEndEarly, ShouldTakeExtraTurn; sim pets_forge.rs"
+   "note": "PaelsEye.cs: AfterCombatEnd, AfterObtained, AfterSideTurnStart, AfterTakingExtraTurn, BeforeCardPlayed, BeforeSideTurnEndEarly, ShouldTakeExtraTurnEarly; sim pets_forge.rs"
   },
   "PAELS_FLESH": {
    "class": "combat",
@@ -1751,9 +1787,9 @@
   "RINGING_TRIANGLE": {
    "class": "combat",
    "hooks": [
-    "ShouldFlush"
+    "AfterRoomEntered"
    ],
-   "note": "RingingTriangle.cs: ShouldFlush; sim shared_start.rs"
+   "note": "RingingTriangle.cs: AfterRoomEntered (Retain Hand power); sim shared_start.rs"
   },
   "RING_OF_THE_DRAKE": {
    "class": "combat",
@@ -1945,6 +1981,13 @@
    ],
    "note": "SneckoSkull.cs: AfterModifyingPowerAmountGiven, ModifyPowerAmountGivenAdditive; sim shared_damage.rs"
   },
+  "SONG_BOW": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "SongBow.cs: Fool starter; not ported"
+  },
   "SOZU": {
    "class": "potion_linked",
    "also": [
@@ -2002,6 +2045,14 @@
     "AfterObtained"
    ],
    "note": "AfterObtained: adds Brightest Flame"
+  },
+  "STORYTELLER": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered",
+    "BeforeSideTurnEnd"
+   ],
+   "note": "Storyteller.cs: Fool starter (Aim); not ported"
   },
   "STRAWBERRY": {
    "class": "macro_only",
@@ -2189,6 +2240,13 @@
    ],
    "note": "TuningFork.cs: AfterCardPlayed; sim shared_play.rs"
   },
+  "TWINE": {
+   "class": "combat",
+   "hooks": [
+    "AfterArrowDislodged"
+   ],
+   "note": "Twine.cs; Fool pool, not ported (The Fool not modelled)"
+  },
   "TWISTED_FUNNEL": {
    "class": "combat",
    "hooks": [
@@ -2328,6 +2386,13 @@
     "TryModifyRewards"
    ],
    "note": "TryModifyRewards: elite boss-card reward"
+  },
+  "WHITTLING_KNIFE": {
+   "class": "combat",
+   "hooks": [
+    "AfterShuffle"
+   ],
+   "note": "WhittlingKnife.cs; Fool pool, not ported (The Fool not modelled)"
   },
   "WINGED_BOOTS": {
    "class": "macro_only",

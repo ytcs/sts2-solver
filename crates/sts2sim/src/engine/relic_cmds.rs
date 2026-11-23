@@ -73,15 +73,7 @@ impl Combat {
     }
 
     pub fn stable_shuffle_selection(&mut self, list: &mut [CardIdx]) {
-        let cards = &self.cards;
-        crate::sort::intro_sort(list, |a, b| {
-            let (ca, cb) = (&cards[*a as usize], &cards[*b as usize]);
-            if ca.id != cb.id {
-                return if ca.id < cb.id { -1 } else { 1 };
-            }
-            (ca.upgrade as i32 - cb.upgrade as i32).signum()
-        });
-        self.rng.combat_card_selection.shuffle(list);
+        self.stable_shuffle_cards(list, crate::state::RngStream::CombatCardSelection);
     }
 
     pub fn select_item(&mut self, items: &[CardIdx]) -> Option<CardIdx> {

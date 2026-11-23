@@ -47,7 +47,7 @@ listener!(BeatDown {
                     list.push(c);
                 }
             }
-            cx.stable_shuffle_cards(list.as_mut_slice(), RngStream::Shuffle);
+            cx.stable_shuffle_cards(list.as_mut_slice(), RngStream::CombatCardSelection);
             let n = cx.card_var(p.card, VarKind::Cards) as usize;
             let mut packed = [0u8; 4];
             for (i, &c) in list.iter().take(n.min(4)).enumerate() {
@@ -71,14 +71,14 @@ listener!(Catastrophe {
                     playable.push(c);
                 }
             }
-            cx.stable_shuffle_cards(playable.as_mut_slice(), RngStream::Shuffle);
+            cx.stable_shuffle_cards(playable.as_mut_slice(), RngStream::CombatCardSelection);
             let mut chosen = playable.first();
             if chosen.is_none() {
                 let mut all: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
                 for &c in cx.player.draw.iter() {
                     all.push(c);
                 }
-                cx.stable_shuffle_cards(all.as_mut_slice(), RngStream::Shuffle);
+                cx.stable_shuffle_cards(all.as_mut_slice(), RngStream::CombatCardSelection);
                 chosen = all.first();
             }
             if let Some(c) = chosen {

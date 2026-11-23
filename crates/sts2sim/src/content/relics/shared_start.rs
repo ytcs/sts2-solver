@@ -488,8 +488,8 @@ listener!(Fiddle {
 });
 
 listener!(RingingTriangle {
-    fn should_flush(&self, cx: &Combat, _me: Me) -> bool {
-        cx.turn_number() > 1
+    fn after_room_entered(&self, cx: &mut Combat, _me: Me) {
+        self_power(cx, ids::power::RETAIN_HAND_POWER, 1);
     }
 });
 

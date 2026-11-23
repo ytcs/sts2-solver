@@ -198,7 +198,7 @@ listener!(StampedePower {
                 }
             }
             if !items.is_empty() {
-                let k = cx.rng.shuffle.next_int_range(0, items.len() as i32) as usize;
+                let k = cx.rng.combat_card_selection.next_int_range(0, items.len() as i32) as usize;
                 if cx.auto_play(items[k], NO, AutoPlayType::Default, false) == RunResult::Suspended || cx.stage == Stage::AwaitChoice {
                     return;
                 }

@@ -179,7 +179,7 @@ listener!(JeweledMask {
         }
         let list = if non_innate.is_empty() { powers } else { non_innate };
         if let Some(c) = cx.select_item(list.as_slice()) {
-            cx.set_to_free_this_turn(c);
+            cx.set_to_free_this_combat(c);
             cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
         }
     }
@@ -191,13 +191,21 @@ listener!(PowerCell {
             return;
         }
         let draw = cx.player.draw;
-        let mut list: ArrayVec<CardIdx, MAX_CARDS> = ArrayVec::new();
+        let (mut list, mut innate): (ArrayVec<CardIdx, MAX_CARDS>, ArrayVec<CardIdx, MAX_CARDS>) = (ArrayVec::new(), ArrayVec::new());
         for &c in draw.iter() {
             if !cx.card_def(c).x_cost && cx.card_cost(c, false) == 0 {
-                list.push(c);
+                if cx.card_keywords(c) & kw::INNATE == 0 {
+                    list.push(c);
+                } else {
+                    innate.push(c);
+                }
             }
         }
         cx.stable_shuffle_selection(list.as_mut_slice());
+        cx.stable_shuffle_selection(innate.as_mut_slice());
+        for &c in innate.iter() {
+            list.push(c);
+        }
         for &c in list.iter().take(g::power_cell::CARDS as usize) {
             cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
         }

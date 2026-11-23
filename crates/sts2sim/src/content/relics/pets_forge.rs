@@ -53,7 +53,7 @@ listener!(PaelsEye {
             cx.rel_mut(me).set_flag(1, true);
         }
     }
-    fn should_take_extra_turn(&self, cx: &Combat, me: Me) -> bool {
+    fn should_take_extra_turn_early(&self, cx: &Combat, me: Me) -> bool {
         paels_eye_ready(cx, me)
     }
     fn before_side_turn_end_early(&self, cx: &mut Combat, me: Me, side: Side) {
@@ -85,6 +85,10 @@ listener!(PaelsLegion {
     }
     fn modify_block_multiplicative(&self, cx: &Combat, me: Me, q: &BlockQ) -> Dec {
         if !q.props.has(ValueProp::MOVE) || q.card == NO || cx.rel(me).counter > 0 {
+            return Dec::ONE;
+        }
+        let aux = cx.rel(me).aux;
+        if aux != 0 && cx.play_stack.iter().rev().find(|c| c.play.card == q.card).map(|c| play_ident(q.card, c.play.play_index)) != Some(aux) {
             return Dec::ONE;
         }
         Dec::int(2)

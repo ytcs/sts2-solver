@@ -365,6 +365,9 @@ pub trait Listener: Sync {
     fn should_take_extra_turn(&self, cx: &Combat, me: Me) -> bool {
         false
     }
+    fn should_take_extra_turn_early(&self, cx: &Combat, me: Me) -> bool {
+        false
+    }
 
     fn should_power_be_removed_after_owner_death(&self, cx: &Combat, me: Me) -> bool {
         true
@@ -611,6 +614,7 @@ pub mod hookbit {
         modify_gold_gained,
         after_gold_gained,
         calculated_value,
+        should_take_extra_turn_early,
     );
     const _: () = assert!(COUNT <= 253, "too many hooks: the `meta_*` pseudo bits start at 253");
     pub const meta_initial: u32 = 253;

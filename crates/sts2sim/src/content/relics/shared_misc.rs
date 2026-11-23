@@ -280,7 +280,7 @@ listener!(LavaLamp {
 
 listener!(BookRepairKnife {
     fn after_died_to_doom(&self, cx: &mut Combat, _me: Me, creatures: &[Cid]) {
-        let n = creatures.iter().filter(|&&c| c != PLAYER && cx.all_powers_trigger_fatal(c)).count() as i32;
+        let n = creatures.iter().filter(|&&c| cx.cr(c).side == Side::Enemy && cx.all_powers_trigger_fatal(c)).count() as i32;
         if n != 0 {
             cx.heal(PLAYER, Dec::int((g::book_repair_knife::HEAL * n) as i64));
         }

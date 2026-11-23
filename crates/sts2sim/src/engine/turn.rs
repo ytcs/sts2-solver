@@ -401,11 +401,16 @@ impl Combat {
         self.flush_player_hand();
         self.dispatch_g(hookbit::after_side_turn_end, |cx, me, l| l.after_side_turn_end(cx, me, Side::Player));
         self.dispatch_g(hookbit::after_side_turn_end_late, |cx, me, l| l.after_side_turn_end_late(cx, me, Side::Player));
-        self.extra_turn = self.any_true_g(hookbit::should_take_extra_turn, |cx, me, l| l.should_take_extra_turn(cx, me));
-        let extra = self.extra_turn;
+        // Hook.ShouldTakeExtraTurn: every Early listener before any normal one; only that source gets AfterTakingExtraTurn
+        let source = self
+            .first_veto_g(hookbit::should_take_extra_turn_early, |cx, me, l| !l.should_take_extra_turn_early(cx, me))
+            .or_else(|| self.first_veto_g(hookbit::should_take_extra_turn, |cx, me, l| !l.should_take_extra_turn(cx, me)));
+        self.extra_turn = source.is_some();
         self.flip_sides();
-        if extra {
-            self.dispatch_g(hookbit::after_taking_extra_turn, |cx, me, l| l.after_taking_extra_turn(cx, me));
+        if let Some(me) = source {
+            if self.still_live(&me) {
+                crate::content::listener(&me).after_taking_extra_turn(self, me);
+            }
         }
         self.continue_after_switch();
     }

@@ -264,6 +264,8 @@ pub struct RngSet {
     pub monster_ai: Rng,
     pub niche: Rng,
     pub combat_orbs: Rng,
+    // PlayerRngSet.NonCombatGeneration (player seed = run seed + slot 0); not one of the trace's 9 streams
+    pub non_combat_generation: Rng,
 }
 
 impl RngSet {
@@ -278,6 +280,7 @@ impl RngSet {
             monster_ai: Rng::named(seed, "monster_ai"),
             niche: Rng::named(seed, "niche"),
             combat_orbs: Rng::named(seed, "combat_orbs"),
+            non_combat_generation: Rng::named(seed, "non_combat_generation"),
         }
     }
 }

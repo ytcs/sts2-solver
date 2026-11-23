@@ -121,7 +121,9 @@ impl Combat {
 
     pub fn create_random_potion(&mut self, in_combat: bool) -> Option<u16> {
         let options = self.potion_options(in_combat);
-        let f = self.rng.combat_potion_generation.next_float();
+        // CreateRandomPotionInCombat callers pass CombatPotionGeneration, OutOfCombat callers PlayerRng.NonCombatGeneration
+        let rng = if in_combat { &mut self.rng.combat_potion_generation } else { &mut self.rng.non_combat_generation };
+        let f = rng.next_float();
         let rarity = if f <= 0.1f32 {
             PotionRarity::Rare
         } else if f <= 0.35f32 {
@@ -138,7 +140,8 @@ impl Combat {
         if bucket.is_empty() {
             return None;
         }
-        let i = self.rng.combat_potion_generation.next_int_range(0, bucket.len() as i32) as usize;
+        let rng = if in_combat { &mut self.rng.combat_potion_generation } else { &mut self.rng.non_combat_generation };
+        let i = rng.next_int_range(0, bucket.len() as i32) as usize;
         Some(bucket[i])
     }
 

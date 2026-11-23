@@ -201,7 +201,7 @@ listener!(Synthesis {
 });
 
 fn stable_shuffle_first(cx: &mut Combat, mut list: crate::util::ArrayVec<CardIdx, MAX_CARDS>) -> Option<CardIdx> {
-    cx.stable_shuffle_cards(list.as_mut_slice(), RngStream::Shuffle);
+    cx.stable_shuffle_cards(list.as_mut_slice(), RngStream::CombatCardSelection);
     list.first()
 }
 
