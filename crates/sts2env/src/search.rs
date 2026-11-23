@@ -1206,7 +1206,7 @@ struct XNode {
 struct XFrame {
     node: u32,
     world: u32,
-    cx: Combat,
+    cx: Box<Combat>,
     acts: Vec<Action>,
     next: usize,
 }
@@ -1230,6 +1230,8 @@ struct Exact {
     roll: bool,
     redo: bool,
     deaths0: u16,
+    // Spare states: a copy is `clone_from` into one (live state only) instead of a full `Combat` memcpy.
+    pool: Vec<Box<Combat>>,
 }
 
 struct Fx(u64);
@@ -1251,7 +1253,9 @@ impl Exact {
     fn reset(&mut self) {
         self.nodes.clear();
         self.index.clear();
-        self.stack.clear();
+        for f in self.stack.drain(..) {
+            self.pool.push(f.cx);
+        }
         self.pending.clear();
         self.root.clear();
         self.ks.clear();
@@ -1265,6 +1269,16 @@ impl Exact {
         let (ks, turn, best, gain, pots0, deaths0) = (std::mem::take(&mut self.ks), self.turn, self.best, self.gain, self.pots0, self.deaths0);
         self.reset();
         (self.ks, self.turn, self.best, self.gain, self.pots0, self.deaths0, self.roll) = (ks, turn, best, gain, pots0, deaths0, true);
+    }
+
+    fn copy_of(pool: &mut Vec<Box<Combat>>, src: &Combat) -> Box<Combat> {
+        match pool.pop() {
+            Some(mut b) => {
+                (*b).clone_from(src);
+                b
+            }
+            None => Box::new(src.clone()),
+        }
     }
 
     fn leaf(&mut self, v: f32, n: u32) -> u32 {
@@ -1336,13 +1350,14 @@ impl Exact {
         }
     }
 
-    fn end_turn(&mut self, node: u32, mut cx: Combat, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) {
+    fn end_turn(&mut self, node: u32, mut cx: Box<Combat>, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) {
         if cx.step(Action::EndTurn) {
             self.score(node, &mut cx, cfg, w, out, st);
         } else {
             st.illegal += 1;
             self.nodes[node as usize].v += if w.table { w.u[0] } else { cfg.loss };
         }
+        self.pool.push(cx);
     }
 
     fn key(&mut self, cx: &Combat, world: u32) -> u64 {
@@ -1397,17 +1412,20 @@ impl Exact {
     }
 
     // None: over the state cap or the depth cap.
-    fn add(&mut self, mut cx: Combat, world: u32, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) -> Option<u32> {
+    fn add(&mut self, mut cx: Box<Combat>, world: u32, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) -> Option<u32> {
         if terminal(&cx, 0, u32::MAX, cfg).is_some() || cx.player.turn_number != self.turn {
             let id = self.leaf(0.0, 1);
             self.score(id, &mut cx, cfg, w, out, st);
+            self.pool.push(cx);
             return Some(id);
         }
         let k = self.key(&cx, world);
         if let Some(&id) = self.index.get(&k) {
+            self.pool.push(cx);
             return Some(id);
         }
         if self.index.len() >= cfg.exact.cap || self.stack.len() >= MAX_DEPTH {
+            self.pool.push(cx);
             return None;
         }
         let mut buf = ActionBuf::new();
@@ -1452,7 +1470,9 @@ impl Exact {
             let Some(f) = self.stack.last_mut() else { return Some(true) };
             let chance = self.nodes[f.node as usize].kind == X_CHANCE;
             if f.next == if chance { dets } else { f.acts.len() } {
-                self.stack.pop();
+                if let Some(f) = self.stack.pop() {
+                    self.pool.push(f.cx);
+                }
                 continue;
             }
             if self.pending.len() + self.rolls.len() + dets > budget {
@@ -1461,12 +1481,14 @@ impl Exact {
             let (node, world, i) = (f.node, f.world, f.next);
             f.next += 1;
             let a = f.acts[if chance { 0 } else { i }];
-            let mut c = f.cx.clone();
+            let mut c = Self::copy_of(&mut self.pool, &f.cx);
             if chance {
                 det_world(&self.ks, &mut c, cfg, i);
                 if c.step(a) {
                     let kid = self.add(c, i as u32, cfg, w, out, st)?;
                     self.nodes[node as usize].kids.push(kid);
+                } else {
+                    self.pool.push(c);
                 }
                 continue;
             }
@@ -1474,10 +1496,11 @@ impl Exact {
                 let leaf = self.leaf(0.0, if world == NONE { dets as u32 } else { 1 });
                 if world == NONE {
                     for d in 0..dets {
-                        let mut e = c.clone();
+                        let mut e = Self::copy_of(&mut self.pool, &c);
                         det_world(&self.ks, &mut e, cfg, d);
                         self.end_turn(leaf, e, cfg, w, out, st);
                     }
+                    self.pool.push(c);
                 } else {
                     self.end_turn(leaf, c, cfg, w, out, st);
                 }
@@ -1485,12 +1508,14 @@ impl Exact {
             } else {
                 let sig = hidden_sig(&c);
                 if !c.step(a) {
+                    self.pool.push(c);
                     continue;
                 }
                 if world == NONE && (hidden_sig(&c) != sig || shows_draw_pile(&c)) {
                     let id = self.nodes.len() as u32;
                     self.nodes.push(XNode { kind: X_CHANCE, v: f32::NEG_INFINITY, n: 0, kids: Vec::new() });
-                    let pre = self.stack.last().expect("the expanding frame").cx.clone();
+                    let pre = Self::copy_of(&mut self.pool, &self.stack.last().expect("the expanding frame").cx);
+                    self.pool.push(c);
                     self.stack.push(XFrame { node: id, world: NONE, cx: pre, acts: vec![a], next: 0 });
                     id
                 } else {
@@ -1562,7 +1587,7 @@ impl Block {
         ex.gain = self.gain;
         ex.pots0 = root_of(&self.main);
         ex.deaths0 = self.main.held_deaths;
-        let root = self.main.clone();
+        let root = Exact::copy_of(&mut ex.pool, &self.main);
         let ok = ex.add(root, NONE, cfg, &sh.worth[self.scen as usize], out, &mut self.stats) == Some(0);
         self.stats.cy_exact += tsc() - t0;
         self.ex = Some(ex);
@@ -1596,7 +1621,8 @@ impl Block {
         let mut r = ex.run(cfg, w, out, &mut self.stats, slots(cfg));
         if ex.redo && r == Some(true) {
             ex.rolled();
-            r = match ex.add(self.main.clone(), NONE, cfg, w, out, &mut self.stats) {
+            let root = Exact::copy_of(&mut ex.pool, &self.main);
+            r = match ex.add(root, NONE, cfg, w, out, &mut self.stats) {
                 Some(0) => ex.run(cfg, w, out, &mut self.stats, slots(cfg)),
                 _ => None,
             };
