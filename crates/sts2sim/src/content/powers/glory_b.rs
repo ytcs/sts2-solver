@@ -11,12 +11,12 @@ fn owner_side(cx: &Combat, me: Me, side: Side) -> bool {
 }
 #[inline]
 fn aux_of(cx: &Combat, me: &Me) -> i32 {
-    cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).map_or(0, |p| p.aux)
+    cx.my_power(me).map_or(0, |p| p.aux)
 }
 #[inline]
 fn set_aux(cx: &mut Combat, me: &Me, v: i32) {
-    if let Some(i) = cx.power_idx(me.owner, me.idx) {
-        cx.cr_mut(me.owner).powers[i].aux = v;
+    if cx.my_power(me).is_some() {
+        if let Some(p) = cx.my_power_mut(me) { p.aux = v; }
     }
 }
 
@@ -28,7 +28,7 @@ listener!(HexPower {
         keywords | kw::ETHEREAL
     }
     fn after_applied(&self, cx: &mut Combat, me: Me) {
-        let amount = cx.cr(me.owner).power(me.id).map_or(1, |p| p.amount);
+        let amount = cx.my_amount(me);
         let cards = cx.all_combat_cards();
         for &c in cards.iter() {
             if cx.card_affliction(c).is_none() {
@@ -38,13 +38,13 @@ listener!(HexPower {
     }
     fn after_card_entered_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {
         if cx.card_affliction(card).is_none() {
-            let amount = cx.cr(me.owner).power(me.id).map_or(1, |p| p.amount);
+            let amount = cx.my_amount(me);
             cx.afflict_card(card, ids::affliction::HEXED, amount);
         }
     }
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            if !was_removal_prevented && cx.cr(me.owner).powers[i].applier == creature {
+        if cx.my_power(me).is_some() {
+            if !was_removal_prevented && cx.my_power(me).unwrap_or_default().applier == creature {
                 cx.remove_power(me.owner, me.idx);
             }
         }
@@ -132,7 +132,7 @@ listener!(ChainsOfBindingPower {
         }
         let bound = ids::affliction::BOUND as i16;
         let n = cx.hist_count_this_turn(crate::engine::HKind::CardAfflicted, |e| e.actor == me.owner && e.val == bound);
-        let amount = cx.cr(me.owner).power(me.id).map_or(0, |p| p.amount);
+        let amount = cx.my_amount(me);
         if (n as i32) < amount {
             cx.afflict_card(card, ids::affliction::BOUND, amount);
         }
@@ -170,7 +170,7 @@ listener!(ChainsOfBindingPower {
 listener!(EnragePower {
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_def(play.card).ctype == CardType::Skill {
-            let a = cx.cr(me.owner).power(me.id).map_or(0, |p| p.amount);
+            let a = cx.my_amount(me);
             cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(a as i64), me.owner, NO);
         }
     }
@@ -191,7 +191,7 @@ listener!(PainfulStabsPower {
             return;
         }
         let n = cx.attack_player_hits as i32;
-        let amount = cx.cr(me.owner).power(me.id).map_or(0, |p| p.amount);
+        let amount = cx.my_amount(me);
         if n > 0 {
             cx.add_status_cards(ids::card::WOUND, PileType::Discard, amount * n, CardPilePosition::Bottom);
         }

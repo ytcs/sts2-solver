@@ -8,13 +8,13 @@ use crate::state::*;
 use crate::types::*;
 
 fn aux(cx: &Combat, me: &Me) -> i32 {
-    cx.power_aux(me.owner, me.idx)
+    cx.my_aux(me)
 }
 fn amount(cx: &Combat, me: &Me) -> i32 {
-    cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount)
+    cx.my_amount(me)
 }
 fn applier(cx: &Combat, me: &Me) -> Cid {
-    cx.power_idx(me.owner, me.idx).map_or(NO, |i| cx.cr(me.owner).powers[i].applier)
+    cx.my_power(me).map_or(NO, |p| p.applier)
 }
 
 // aux = HitCounter; the arrow list is on the player's arrow slots (`ArrowSlot::impaled`).

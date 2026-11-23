@@ -10,7 +10,7 @@ listener!(AggressionPower {
         if cx.cr(me.owner).side != side {
             return;
         }
-        let n = cx.power_amount(me.owner, me.id);
+        let n = cx.my_amount(me);
         let mut attacks: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
         for &c in cx.player.discard.iter() {
             if cx.card_def(c).ctype == CardType::Attack {
@@ -79,9 +79,9 @@ listener!(CorruptionPower {
 
 listener!(CrimsonMantlePower {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
-        let dmg = cx.power_mut(me.owner, me.idx).map_or(0, |p| p.aux);
+        let dmg = cx.my_power_mut(me).map_or(0, |p| p.aux);
         cx.damage(&[me.owner], Dec::int(dmg as i64), ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED), me.owner, NO);
-        let amt = cx.power_amount(me.owner, me.id);
+        let amt = cx.my_amount(me);
         cx.gain_block(me.owner, Dec::int(amt as i64), ValueProp::UNPOWERED, NO);
     }
 });
@@ -91,20 +91,20 @@ listener!(CrueltyPower {});
 listener!(DarkEmbracePower {
     fn after_card_exhausted(&self, cx: &mut Combat, me: Me, _card: CardIdx, by_ethereal: bool) {
         if by_ethereal {
-            if let Some(p) = cx.power_mut(me.owner, me.idx) {
+            if let Some(p) = cx.my_power_mut(me) {
                 p.aux += 1;
             }
         } else {
-            let n = cx.power_amount(me.owner, me.id);
+            let n = cx.my_amount(me);
             cx.draw_cards(n, false);
         }
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if cx.cr(me.owner).side == side {
-            let n = cx.power_amount(me.owner, me.id);
-            let k = cx.power_mut(me.owner, me.idx).map_or(0, |p| p.aux);
+            let n = cx.my_amount(me);
+            let k = cx.my_power_mut(me).map_or(0, |p| p.aux);
             cx.draw_cards(n * k, false);
-            if let Some(p) = cx.power_mut(me.owner, me.idx) {
+            if let Some(p) = cx.my_power_mut(me) {
                 p.aux = 0;
             }
         }
@@ -114,7 +114,7 @@ listener!(DarkEmbracePower {
 listener!(DemonFormPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if cx.cr(me.owner).side == side {
-            let n = cx.power_amount(me.owner, me.id);
+            let n = cx.my_amount(me);
             cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(n as i64), me.owner, NO);
         }
     }
@@ -122,7 +122,7 @@ listener!(DemonFormPower {
 
 listener!(FeelNoPainPower {
     fn after_card_exhausted(&self, cx: &mut Combat, me: Me, _card: CardIdx, _by_ethereal: bool) {
-        let n = cx.power_amount(me.owner, me.id);
+        let n = cx.my_amount(me);
         cx.gain_block(me.owner, Dec::int(n as i64), ValueProp::UNPOWERED, NO);
     }
 });
@@ -130,7 +130,7 @@ listener!(FeelNoPainPower {
 listener!(FlameBarrierPower {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, _unblocked: i32, props: ValueProp, dealer: Cid) {
         if target == me.owner && dealer != NO && props.is_powered() {
-            let n = cx.power_amount(me.owner, me.id);
+            let n = cx.my_amount(me);
             cx.damage(&[dealer], Dec::int(n as i64), ValueProp::UNPOWERED, me.owner, NO);
         }
     }

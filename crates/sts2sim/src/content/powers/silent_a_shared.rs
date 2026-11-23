@@ -14,8 +14,8 @@ listener!(PoisonPower {
         if !owner_on(cx, me, side) {
             return;
         }
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let amount = cx.cr(me.owner).powers[i].amount;
+        let Some(p) = cx.my_power(me) else { return };
+        let amount = p.amount;
         let mut accelerant = 0;
         let owner_side = cx.cr(me.owner).side;
         for c in 0..MAX_CREATURES {
@@ -25,17 +25,15 @@ listener!(PoisonPower {
             }
         }
         let iterations = amount.min(1 + accelerant);
-        let mut cur = amount;
         for _ in 0..iterations {
-            if let Some(i) = cx.power_idx(me.owner, me.idx) {
-                cur = cx.cr(me.owner).powers[i].amount;
-            }
+            let cur = cx.my_amount(me);
             cx.damage(&[me.owner], Dec::int(cur as i64), ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED), NO, NO);
             if cx.cr(me.owner).is_alive() {
                 if cx.power_idx(me.owner, me.idx).is_some() {
                     cx.decrement_power(me.owner, me.idx);
-                } else {
-                    cur -= 1;
+                } else if let Some(p) = cx.my_power_mut(me) {
+                    // PowerCmd.Decrement on the detached instance still lowers its Amount
+                    p.amount -= 1;
                 }
             }
         }
@@ -46,7 +44,7 @@ listener!(ThornsPower {
     fn before_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, _amount: Dec, props: ValueProp, dealer: Cid) {
         let omnislice = cx.dmg_card != NO && cx.cards[cx.dmg_card as usize].id == ids::card::OMNISLICE;
         if target == me.owner && dealer != NO && (props.is_powered() || omnislice) {
-            let amt = cx.power_amount(me.owner, me.id);
+            let amt = cx.my_amount(me);
             cx.damage(&[dealer], Dec::int(amt as i64), ValueProp::UNPOWERED.or(ValueProp::SKIP_HURT_ANIM), me.owner, NO);
         }
     }
@@ -55,7 +53,7 @@ listener!(ThornsPower {
 listener!(BlockNextTurnPower {
     fn after_block_cleared(&self, cx: &mut Combat, me: Me, creature: Cid) {
         if creature == me.owner {
-            let amt = cx.power_amount(me.owner, me.id);
+            let amt = cx.my_amount(me);
             cx.gain_block(me.owner, Dec::int(amt as i64), ValueProp::UNPOWERED, NO);
             cx.remove_power(me.owner, me.idx);
         }
@@ -64,7 +62,7 @@ listener!(BlockNextTurnPower {
 
 listener!(EnergyNextTurnPower {
     fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
-        let amt = cx.power_amount(me.owner, me.id);
+        let amt = cx.my_amount(me);
         cx.gain_energy(amt);
         cx.remove_power(me.owner, me.idx);
     }

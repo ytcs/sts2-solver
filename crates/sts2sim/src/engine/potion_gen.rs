@@ -208,7 +208,7 @@ impl Combat {
         if ch.target != me.owner || ch.uid != me.idx {
             return;
         }
-        if ch.amount == self.power_amount(me.owner, me.id) {
+        if ch.amount == self.my_amount(me) {
             return;
         }
         self.apply_power(inner, me.owner, crate::dec::Dec::int((sign * ch.amount) as i64), ch.applier, ch.card);
@@ -218,7 +218,7 @@ impl Combat {
         if self.cr(me.owner).side != side {
             return;
         }
-        let amount = self.power_amount(me.owner, me.id);
+        let amount = self.my_amount(me);
         self.remove_power(me.owner, me.idx);
         self.apply_power(inner, me.owner, crate::dec::Dec::int((-sign * amount) as i64), me.owner, NO);
     }

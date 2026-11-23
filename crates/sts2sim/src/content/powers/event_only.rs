@@ -8,7 +8,7 @@ listener!(BattlewornDummyTimeLimitPower {
         if cx.cr(me.owner).side != side {
             return;
         }
-        if cx.power_amount(me.owner, me.id) > 1 {
+        if cx.my_amount(me) > 1 {
             cx.decrement_power(me.owner, me.idx);
             return;
         }

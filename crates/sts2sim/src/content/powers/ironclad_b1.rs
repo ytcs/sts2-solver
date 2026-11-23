@@ -8,14 +8,14 @@ use crate::types::*;
 
 listener!(InfernoPower {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
-        let dmg = cx.cr(me.owner).power(me.id).map_or(0, |p| p.aux);
+        let dmg = cx.my_aux(me);
         cx.damage(&[me.owner], Dec::int(dmg as i64), ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED), me.owner, NO);
     }
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
         if target != me.owner || unblocked <= 0 || cx.side != cx.cr(me.owner).side {
             return;
         }
-        let amount = cx.power_amount(me.owner, me.id);
+        let amount = cx.my_amount(me);
         let targets = cx.hittable_enemies();
         cx.damage(targets.as_slice(), Dec::int(amount as i64), ValueProp::UNPOWERED, me.owner, NO);
     }
@@ -32,7 +32,7 @@ listener!(JuggernautPower {
         }
         let i = cx.rng.combat_targets.next_int_range(0, hittable.len() as i32) as usize;
         let target = hittable[i];
-        let n = cx.power_amount(me.owner, me.id);
+        let n = cx.my_amount(me);
         cx.damage(&[target], Dec::int(n as i64), ValueProp::UNPOWERED, me.owner, NO);
     }
 });
@@ -40,32 +40,32 @@ listener!(JuggernautPower {
 listener!(JugglingPower {
     fn after_applied(&self, cx: &mut Combat, me: Me) {
         let n = cx.hist.attacks_played_this_turn as i32;
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux = n;
+        if cx.my_power(me).is_some() {
+            if let Some(p) = cx.my_power_mut(me) { p.aux = n; }
         }
     }
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_def(play.card).ctype != CardType::Attack {
             return;
         }
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
+        let Some(_) = cx.my_power(me) else { return };
         // aux: attacks played this turn (low 16 bits) | card to clone + 1 (high bits)
-        let aux = cx.cr(me.owner).powers[i].aux;
+        let aux = cx.my_power(me).unwrap_or_default().aux;
         let n = (aux & 0xFFFF) + 1;
         let mut card = aux >> 16;
         if n == 3 {
             card = play.card as i32 + 1;
         }
-        cx.cr_mut(me.owner).powers[i].aux = n | card << 16;
+        if let Some(p) = cx.my_power_mut(me) { p.aux = n | card << 16; }
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let aux = cx.cr(me.owner).powers[i].aux;
+        let Some(_) = cx.my_power(me) else { return };
+        let aux = cx.my_power(me).unwrap_or_default().aux;
         if aux >> 16 != play.card as i32 + 1 {
             return;
         }
-        cx.cr_mut(me.owner).powers[i].aux = aux & 0xFFFF;
-        let amount = cx.cr(me.owner).powers[i].amount;
+        if let Some(p) = cx.my_power_mut(me) { p.aux = aux & 0xFFFF; }
+        let amount = cx.my_power(me).unwrap_or_default().amount;
         for _ in 0..amount {
             if let Some(c) = cx.clone_card(play.card) {
                 cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
@@ -76,8 +76,8 @@ listener!(JugglingPower {
         if side != cx.cr(me.owner).side {
             return;
         }
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux &= !0xFFFF;
+        if cx.my_power(me).is_some() {
+            if let Some(p) = cx.my_power_mut(me) { p.aux &= !0xFFFF; }
         }
     }
 });
@@ -87,7 +87,7 @@ fn temp_strength_before_applied(cx: &mut Combat, target: Cid, amount: Dec, appli
 }
 
 fn temp_strength_amount_changed(cx: &mut Combat, me: Me, ch: &PowerChange, sign: i64) {
-    if ch.power_id != me.id || ch.target != me.owner || ch.amount == cx.power_amount(me.owner, me.id) {
+    if ch.power_id != me.id || ch.target != me.owner || ch.amount == cx.my_amount(me) {
         return;
     }
     cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(sign * ch.amount as i64), ch.applier, ch.card);
@@ -97,7 +97,7 @@ fn temp_strength_turn_end(cx: &mut Combat, me: Me, side: Side, sign: i64) {
     if side != cx.cr(me.owner).side {
         return;
     }
-    let amount = cx.power_amount(me.owner, me.id);
+    let amount = cx.my_amount(me);
     cx.remove_power(me.owner, me.idx);
     cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(-sign * amount as i64), me.owner, NO);
 }
@@ -148,14 +148,14 @@ listener!(PyrePower {
         if me.owner != PLAYER {
             return amount;
         }
-        amount + Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        amount + Dec::int(cx.my_amount(me) as i64)
     }
 });
 
 listener!(RagePower {
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if me.owner == PLAYER && cx.card_def(play.card).ctype == CardType::Attack {
-            let n = cx.power_amount(me.owner, me.id);
+            let n = cx.my_amount(me);
             cx.gain_block(me.owner, Dec::int(n as i64), ValueProp::UNPOWERED, NO);
         }
     }
@@ -178,7 +178,7 @@ listener!(RupturePower {
         if target != me.owner || unblocked <= 0 || cx.side != cx.cr(me.owner).side {
             return;
         }
-        let amount = cx.power_amount(me.owner, me.id);
+        let amount = cx.my_amount(me);
         if card != NO {
             if let Some(acc) = cx.hist.play_entry(me.idx, card) {
                 *acc += amount;
@@ -197,13 +197,13 @@ listener!(RupturePower {
 listener!(StampedePower {
     fn after_auto_post_play_phase_entered(&self, cx: &mut Combat, me: Me) {
         loop {
-            let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-            let done = cx.cr(me.owner).powers[i].aux;
-            if done >= cx.cr(me.owner).powers[i].amount {
-                cx.cr_mut(me.owner).powers[i].aux = 0;
+            let Some(_) = cx.my_power(me) else { return };
+            let done = cx.my_power(me).unwrap_or_default().aux;
+            if done >= cx.my_power(me).unwrap_or_default().amount {
+                if let Some(p) = cx.my_power_mut(me) { p.aux = 0; }
                 return;
             }
-            cx.cr_mut(me.owner).powers[i].aux = done + 1;
+            if let Some(p) = cx.my_power_mut(me) { p.aux = done + 1; }
             let mut items: crate::util::ArrayVec<CardIdx, 16> = crate::util::ArrayVec::new();
             for &c in cx.player.hand.iter() {
                 if cx.card_def(c).ctype == CardType::Attack && cx.card_keywords(c) & kw::UNPLAYABLE == 0 {
@@ -225,12 +225,12 @@ listener!(PlatingPower {
         if side != Side::Player || me.owner == PLAYER || cx.round > 1 {
             return;
         }
-        let n = cx.power_amount(me.owner, me.id);
+        let n = cx.my_amount(me);
         cx.gain_block(me.owner, Dec::int(n as i64), ValueProp::UNPOWERED, NO);
     }
     fn before_side_turn_end_early(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == cx.cr(me.owner).side {
-            let n = cx.power_amount(me.owner, me.id);
+            let n = cx.my_amount(me);
             cx.gain_block(me.owner, Dec::int(n as i64), ValueProp::UNPOWERED, NO);
         }
     }
@@ -268,7 +268,7 @@ listener!(UnmovablePower {
         let n = cx.hist_count_this_turn(HKind::BlockGained, |e| {
             e.flags & 1 != 0 && ValueProp(e.props).has(ValueProp::MOVE) && !(in_play && e.id == serial)
         }) as i32;
-        if n >= cx.power_amount(me.owner, me.id) { Dec::ONE } else { Dec::int(2) }
+        if n >= cx.my_amount(me) { Dec::ONE } else { Dec::int(2) }
     }
 });
 
@@ -291,7 +291,7 @@ listener!(ViciousPower {
         if ch.amount <= 0 || ch.applier != me.owner || ch.power_id != ids::power::VULNERABLE_POWER {
             return;
         }
-        let n = cx.power_amount(me.owner, me.id);
+        let n = cx.my_amount(me);
         cx.draw_cards(n, false);
     }
 });

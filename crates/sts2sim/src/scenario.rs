@@ -203,6 +203,7 @@ impl Combat {
             allies,
             enemies,
             next_power_uid,
+            removed_powers,
             listen,
             listen_cards,
             player,
@@ -277,6 +278,7 @@ impl Combat {
         allies.clear();
         enemies.clear();
         *next_power_uid = 1;
+        removed_powers.clear();
         *listen = Mask::EMPTY;
         *listen_cards = Mask::EMPTY;
         *n_cards = 0;
@@ -478,6 +480,7 @@ impl Combat {
             allies: ArrayVec::new(),
             enemies: ArrayVec::new(),
             next_power_uid: 1,
+            removed_powers: ArrayVec::new(),
             listen: Mask::EMPTY,
             listen_cards: Mask::EMPTY,
             player: player_state,

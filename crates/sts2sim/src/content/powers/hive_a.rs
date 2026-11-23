@@ -44,15 +44,15 @@ listener!(HardToKillPower {
         if q.target != me.owner {
             return Dec::MAX;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
 });
 
 listener!(TenderPower {
     fn after_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        cx.cr_mut(me.owner).powers[i].aux += 1;
-        let applier = cx.cr(me.owner).powers[i].applier;
+        let Some(_) = cx.my_power(me) else { return };
+        if let Some(p) = cx.my_power_mut(me) { p.aux += 1; }
+        let applier = cx.my_power(me).unwrap_or_default().applier;
         cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(-1), applier, NO);
         cx.apply_power(ids::power::DEXTERITY_POWER, me.owner, Dec::int(-1), applier, NO);
     }
@@ -60,9 +60,9 @@ listener!(TenderPower {
         if !owner_side(cx, me, side) {
             return;
         }
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let n = cx.cr(me.owner).powers[i].aux;
-        let applier = cx.cr(me.owner).powers[i].applier;
+        let Some(_) = cx.my_power(me) else { return };
+        let n = cx.my_power(me).unwrap_or_default().aux;
+        let applier = cx.my_power(me).unwrap_or_default().applier;
         cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(n as i64), applier, NO);
         cx.apply_power(ids::power::DEXTERITY_POWER, me.owner, Dec::int(n as i64), applier, NO);
         cx.set_power_aux(me.owner, me.idx, 0);
@@ -78,19 +78,19 @@ listener!(CurlUpPower {
         if card == NO {
             return;
         }
-        let cur = cx.power_aux(me.owner, me.idx);
+        let cur = cx.my_aux(me);
         if cur != 0 && card as i32 != cur - 1 {
             return;
         }
         cx.set_power_aux(me.owner, me.idx, card as i32 + 1);
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let cur = cx.power_aux(me.owner, me.idx);
+        let cur = cx.my_aux(me);
         if cur == 0 || play.card as i32 != cur - 1 {
             return;
         }
         cx.set_power_aux(me.owner, me.idx, 0);
-        let amount = cx.power_amount(me.owner, me.id);
+        let amount = cx.my_amount(me);
         cx.gain_block(me.owner, Dec::int(amount as i64), ValueProp::UNPOWERED, NO);
         if cx.cr(me.owner).monster.id == ids::monster::LOUSE_PROGENITOR {
             cx.creatures[me.owner as usize].monster.vars[0] = 1;
@@ -113,7 +113,7 @@ listener!(SlumberPower {
             return;
         }
         cx.decrement_power(me.owner, me.idx);
-        if cx.power_amount(me.owner, me.id) <= 0 {
+        if cx.my_amount(me) <= 0 {
             crate::content::monsters::hive_a::beetle_wake_up_stun(cx, me.owner);
         }
     }
@@ -122,7 +122,7 @@ listener!(SlumberPower {
             return;
         }
         cx.decrement_power(me.owner, me.idx);
-        if cx.power_amount(me.owner, me.id) <= 0 {
+        if cx.my_amount(me) <= 0 {
             crate::content::monsters::hive_a::beetle_wake_up(cx, me.owner);
         }
     }
@@ -140,7 +140,7 @@ listener!(FlutterPower {
             return;
         }
         cx.decrement_power(me.owner, me.idx);
-        if cx.power_amount(me.owner, me.id) <= 0 {
+        if cx.my_amount(me) <= 0 {
             let last = cx.last_logged_move(me.owner);
             let def = crate::content::monster_def(cx.cr(me.owner).monster.id);
             let next = match &def.nodes[last as usize] {
@@ -156,7 +156,7 @@ listener!(SwipePower {});
 
 listener!(EscapeArtistPower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if owner_side(cx, me, side) && cx.power_amount(me.owner, me.id) > 1 {
+        if owner_side(cx, me, side) && cx.my_amount(me) > 1 {
             cx.decrement_power(me.owner, me.idx);
         }
     }

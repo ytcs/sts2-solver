@@ -15,7 +15,7 @@ listener!(StockPower {
         if was_removal_prevented || creature != me.owner {
             return;
         }
-        let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
+        let amount = cx.my_amount(me);
         if amount > 0 {
             let slot = cx.cr(me.owner).slot;
             cx.summon_enemy(ids::monster::AXEBOT, slot, [amount, 0]);
@@ -31,7 +31,7 @@ listener!(RampartPower {
         if side != Side::Player || cx.extra_turn {
             return;
         }
-        let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
+        let amount = cx.my_amount(me);
         let list: crate::util::ArrayVec<Cid, MAX_CREATURES> = {
             let mut l = crate::util::ArrayVec::new();
             for &e in cx.enemies.iter() {
@@ -50,7 +50,7 @@ listener!(RampartPower {
 listener!(PaperCutsPower {
     fn after_damage_given(&self, cx: &mut Combat, me: Me, dealer: Cid, target: Cid, unblocked: i32, props: ValueProp) {
         if dealer == me.owner && cx.cr(target).is_player && props.is_powered() && unblocked > 0 {
-            let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
+            let amount = cx.my_amount(me);
             cx.lose_max_hp(target, Dec::int(amount as i64), NO);
         }
     }
@@ -58,7 +58,7 @@ listener!(PaperCutsPower {
 
 listener!(GalvanicPower {
     fn before_combat_start(&self, cx: &mut Combat, me: Me) {
-        let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
+        let amount = cx.my_amount(me);
         let cards = cx.all_combat_cards();
         for &c in cards.iter() {
             if cx.card_def(c).ctype == CardType::Power {
@@ -68,13 +68,13 @@ listener!(GalvanicPower {
     }
     fn after_card_entered_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {
         if cx.card_affliction(card).is_none() && cx.card_def(card).ctype == CardType::Power {
-            let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
+            let amount = cx.my_amount(me);
             cx.afflict_card(card, ids::affliction::GALVANIZED, amount);
         }
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_affliction(play.card) == Some(ids::affliction::GALVANIZED) {
-            let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
+            let amount = cx.my_amount(me);
             cx.damage(&[PLAYER], Dec::int(amount as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), NO, NO);
         }
     }
@@ -94,7 +94,7 @@ listener!(PossessStrengthPower {
         if ch.applier != me.owner || !cx.cr(ch.target).is_player || ch.power_id != ids::power::STRENGTH_POWER || ch.amount >= 0 {
             return;
         }
-        if let Some(p) = cx.power_mut(me.owner, me.idx) {
+        if let Some(p) = cx.my_power_mut(me) {
             p.aux += ch.amount;
         }
     }
@@ -102,7 +102,7 @@ listener!(PossessStrengthPower {
         if was_removal_prevented || creature != me.owner {
             return;
         }
-        let stolen = cx.cr(me.owner).power(me.id).map_or(0, |p| p.aux);
+        let stolen = cx.my_aux(me);
         if stolen != 0 {
             cx.apply_power(ids::power::STRENGTH_POWER, PLAYER, Dec::int(-(stolen as i64)), NO, NO);
         }
@@ -114,7 +114,7 @@ listener!(PossessSpeedPower {
         if ch.applier != me.owner || !cx.cr(ch.target).is_player || ch.power_id != ids::power::DEXTERITY_POWER || ch.amount >= 0 {
             return;
         }
-        if let Some(p) = cx.power_mut(me.owner, me.idx) {
+        if let Some(p) = cx.my_power_mut(me) {
             p.aux += ch.amount;
         }
     }
@@ -122,7 +122,7 @@ listener!(PossessSpeedPower {
         if was_removal_prevented || creature != me.owner {
             return;
         }
-        let stolen = cx.cr(me.owner).power(me.id).map_or(0, |p| p.aux);
+        let stolen = cx.my_aux(me);
         if stolen != 0 {
             cx.apply_power(ids::power::DEXTERITY_POWER, PLAYER, Dec::int(-(stolen as i64)), NO, NO);
         }
@@ -132,7 +132,7 @@ listener!(PossessSpeedPower {
 listener!(HighVoltagePower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_side(cx, me, side) {
-            let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
+            let amount = cx.my_amount(me);
             cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(amount as i64), me.owner, NO);
         }
     }

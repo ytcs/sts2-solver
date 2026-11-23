@@ -20,7 +20,7 @@ fn add_keyword(cx: &mut Combat, c: CardIdx, k: u8) {
 
 listener!(InfiniteBladesPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
-        let amt = cx.power_amount(me.owner, me.id);
+        let amt = cx.my_amount(me);
         cx.create_shivs_in_hand(amt);
     }
 });
@@ -46,16 +46,16 @@ listener!(PhantomBladesPower {
         if cx.hist.shivs_finished_this_turn > 0 {
             return Dec::ZERO;
         }
-        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        Dec::int(cx.my_amount(me) as i64)
     }
 });
 
 listener!(ToolsOfTheTradePower {
     fn modify_hand_draw(&self, cx: &Combat, me: Me, count: Dec) -> Dec {
-        count + Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        count + Dec::int(cx.my_amount(me) as i64)
     }
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
-        let a = cx.power_amount(me.owner, me.id).clamp(0, 255) as u8;
+        let a = cx.my_amount(me).clamp(0, 255) as u8;
         match cx.ask_hand(ids::card::TOOLS_OF_THE_TRADE, a, a, |_, _| true) {
             Ask::Resolved(cards) => {
                 if !cards.is_empty() {
@@ -103,9 +103,9 @@ listener!(MasterPlannerPower {
 
 listener!(NightmarePower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let stored = cx.cr(me.owner).powers[i].aux;
-        let amt = cx.cr(me.owner).powers[i].amount;
+        let Some(_) = cx.my_power(me) else { return };
+        let stored = cx.my_power(me).unwrap_or_default().aux;
+        let amt = cx.my_power(me).unwrap_or_default().amount;
         if stored > 0 {
             for _ in 0..amt {
                 if let Some(c) = cx.clone_card((stored - 1) as CardIdx) {
@@ -119,7 +119,7 @@ listener!(NightmarePower {
 
 listener!(SerpentFormPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let amount = cx.power_amount(me.owner, me.id);
+        let amount = cx.my_amount(me);
         cx.hist.play_amounts.push(PlayAmount { uid: me.idx, card: play.card, amount });
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
@@ -137,11 +137,11 @@ listener!(SerpentFormPower {
 
 listener!(StranglePower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        if cx.cr(me.owner).powers[i].applier == NO {
+        let Some(_) = cx.my_power(me) else { return };
+        if cx.my_power(me).unwrap_or_default().applier == NO {
             return;
         }
-        let amount = cx.cr(me.owner).powers[i].amount;
+        let amount = cx.my_power(me).unwrap_or_default().amount;
         cx.hist.play_amounts.push(PlayAmount { uid: me.idx, card: play.card, amount });
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
@@ -159,7 +159,7 @@ listener!(StranglePower {
 listener!(SpeedsterPower {
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, _card: CardIdx, from_hand_draw: bool) {
         if !from_hand_draw && cx.side == cx.cr(me.owner).side {
-            let amt = cx.power_amount(me.owner, me.id);
+            let amt = cx.my_amount(me);
             let h = cx.hittable_enemies();
             cx.damage(h.as_slice(), Dec::int(amt as i64), ValueProp::UNPOWERED, me.owner, NO);
         }
@@ -169,7 +169,7 @@ listener!(SpeedsterPower {
 listener!(NoxiousFumesPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_on(cx, me, side) {
-            let amt = cx.power_amount(me.owner, me.id);
+            let amt = cx.my_amount(me);
             cx.apply_power_to_hittable_enemies(ids::power::POISON_POWER, Dec::int(amt as i64), me.owner, NO);
         }
     }
@@ -195,7 +195,7 @@ listener!(TrackingPower {
         if q.target == NO || !cx.has_power(q.target, ids::power::WEAK_POWER) {
             return Dec::ONE;
         }
-        Dec::ONE + Dec::frac(cx.power_amount(me.owner, me.id) as i64, 2)
+        Dec::ONE + Dec::frac(cx.my_amount(me) as i64, 2)
     }
 });
 
@@ -216,7 +216,7 @@ listener!(DoubleDamagePower {
 listener!(ShadowStepPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_on(cx, me, side) {
-            let amt = cx.power_amount(me.owner, me.id);
+            let amt = cx.my_amount(me);
             cx.apply_power(ids::power::DOUBLE_DAMAGE_POWER, me.owner, Dec::int(amt as i64), me.owner, NO);
             cx.remove_power(me.owner, me.idx);
         }
@@ -228,7 +228,7 @@ listener!(ShadowmeldPower {
         if q.target != me.owner {
             return Dec::ONE;
         }
-        Dec::int(1i64 << cx.power_amount(me.owner, me.id).clamp(0, 40))
+        Dec::int(1i64 << cx.my_amount(me).clamp(0, 40))
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_on(cx, me, side) {
@@ -240,7 +240,7 @@ listener!(ShadowmeldPower {
 listener!(WraithFormPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_on(cx, me, side) {
-            let amt = cx.power_amount(me.owner, me.id);
+            let amt = cx.my_amount(me);
             cx.apply_power(ids::power::DEXTERITY_POWER, me.owner, Dec::int(-(amt as i64)), me.owner, NO);
         }
     }
@@ -257,7 +257,7 @@ listener!(TheHuntPower {});
 listener!(SneakyPower {});
 
 fn amount_on_turn_start(cx: &Combat, me: Me) -> i32 {
-    cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].amount_on_turn_start)
+    cx.my_power(me).map_or(0, |p| p.amount_on_turn_start)
 }
 
 listener!(DrawCardsNextTurnPower {
@@ -265,7 +265,7 @@ listener!(DrawCardsNextTurnPower {
         if amount_on_turn_start(cx, me) == 0 {
             return count;
         }
-        count + Dec::int(cx.power_amount(me.owner, me.id) as i64)
+        count + Dec::int(cx.my_amount(me) as i64)
     }
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if cx.is_turn_participant(side, me.owner) && amount_on_turn_start(cx, me) != 0 {

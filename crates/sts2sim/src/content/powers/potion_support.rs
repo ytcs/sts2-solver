@@ -55,8 +55,8 @@ listener!(BufferPower {
 listener!(RitualPower {
     fn after_applied(&self, cx: &mut Combat, me: Me) {
         if cx.cr(me.owner).side == Side::Enemy {
-            if let Some(i) = cx.power_idx(me.owner, me.idx) {
-                cx.cr_mut(me.owner).powers[i].aux = 1;
+            if cx.my_power(me).is_some() {
+                if let Some(p) = cx.my_power_mut(me) { p.aux = 1; }
             }
         }
     }
@@ -64,12 +64,12 @@ listener!(RitualPower {
         if cx.cr(me.owner).side != side {
             return;
         }
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        if cx.cr(me.owner).powers[i].aux != 0 {
-            cx.cr_mut(me.owner).powers[i].aux = 0;
+        let Some(_) = cx.my_power(me) else { return };
+        if cx.my_power(me).unwrap_or_default().aux != 0 {
+            if let Some(p) = cx.my_power_mut(me) { p.aux = 0; }
             return;
         }
-        let a = cx.power_amount(me.owner, me.id);
+        let a = cx.my_amount(me);
         cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(a as i64), me.owner, NO);
     }
 });
@@ -77,7 +77,7 @@ listener!(RitualPower {
 listener!(RegenPower {
     fn before_side_turn_end_early(&self, cx: &mut Combat, me: Me, side: Side) {
         if cx.cr(me.owner).side == side && !cx.cr(me.owner).is_dead() {
-            let a = cx.power_amount(me.owner, me.id);
+            let a = cx.my_amount(me);
             cx.heal(me.owner, Dec::int(a as i64));
             cx.decrement_power(me.owner, me.idx);
         }
@@ -124,7 +124,7 @@ listener!(DuplicationPower {
 listener!(DemisePower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if cx.cr(me.owner).side == side {
-            let a = cx.power_amount(me.owner, me.id);
+            let a = cx.my_amount(me);
             cx.damage(&[me.owner], Dec::int(a as i64), ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED), NO, NO);
         }
     }
@@ -138,7 +138,7 @@ listener!(ShrinkPower {
         Dec::frac(7, 1)
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.is_turn_participant(side, me.owner) && cx.power_amount(me.owner, me.id) >= 0 {
+        if cx.is_turn_participant(side, me.owner) && cx.my_amount(me) >= 0 {
             cx.decrement_power(me.owner, me.idx);
         }
     }
@@ -158,26 +158,26 @@ listener!(GigantificationPower {
         if cx.card_def(attack.card).ctype != CardType::Attack {
             return;
         }
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        if cx.cr(me.owner).powers[i].aux == 0 {
-            cx.cr_mut(me.owner).powers[i].aux = attack.card as i32 + 1;
+        let Some(_) = cx.my_power(me) else { return };
+        if cx.my_power(me).unwrap_or_default().aux == 0 {
+            if let Some(p) = cx.my_power_mut(me) { p.aux = attack.card as i32 + 1; }
         }
     }
     fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.card == NO || me.owner != PLAYER || !q.props.is_powered() {
             return Dec::ONE;
         }
-        let aux = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).map_or(0, |p| p.aux);
+        let aux = cx.my_power(me).map_or(0, |p| p.aux);
         if aux == 0 || q.card as i32 + 1 == aux {
             return Dec::int(3);
         }
         Dec::ONE
     }
     fn after_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let aux = cx.cr(me.owner).powers[i].aux;
+        let Some(_) = cx.my_power(me) else { return };
+        let aux = cx.my_power(me).unwrap_or_default().aux;
         if aux != 0 && attack.card != NO && attack.card as i32 + 1 == aux {
-            cx.cr_mut(me.owner).powers[i].aux = 0;
+            if let Some(p) = cx.my_power_mut(me) { p.aux = 0; }
             cx.decrement_power(me.owner, me.idx);
         }
     }
