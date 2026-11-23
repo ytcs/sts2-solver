@@ -173,7 +173,7 @@
    "hooks": [
     "BeforeHandDraw"
    ],
-   "note": "BizarreLamp.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "BizarreLamp.cs: BeforeHandDraw turn 1 Joy + Sadness; sim fool_pool.rs"
   },
   "BLACK_BLOOD": {
    "class": "combat",
@@ -444,7 +444,7 @@
     "BeforeSideTurnStart",
     "AfterCardPlayed"
    ],
-   "note": "ConductorsBaton.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "ConductorsBaton.cs: 3 melodies in a turn -> ConductorsBatonPower (x0.75 powered attack damage taken until next turn); unsaved per-turn flag; sim fool_pool.rs"
   },
   "CRACKED_CORE": {
    "class": "combat",
@@ -640,7 +640,7 @@
    "hooks": [
     "AfterSideTurnStart"
    ],
-   "note": "ExerciseMat.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "ExerciseMat.cs: AfterSideTurnStart turn 1 Stretch; sim fool_pool.rs"
   },
   "FAKE_ANCHOR": {
    "class": "combat",
@@ -727,7 +727,7 @@
    "hooks": [
     "AfterCardGeneratedForCombat"
    ],
-   "note": "Fertilizer.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "Fertilizer.cs: Strength when the owner generates a Sadness; sim fool_pool.rs"
   },
   "FESTIVE_POPPER": {
    "class": "combat",
@@ -1374,7 +1374,7 @@
    "hooks": [
     "BeforeHandDraw"
    ],
-   "note": "Ocarina.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "Ocarina.cs: BeforeHandDraw turn 1 a random melody card; sim fool_pool.rs"
   },
   "ODDLY_SMOOTH_STONE": {
    "class": "combat",
@@ -1988,7 +1988,7 @@
    "hooks": [
     "AfterRoomEntered"
    ],
-   "note": "SongBow.cs: Fool starter; not ported"
+   "note": "SongBow.cs: Fool starter, AfterRoomEntered Aim; sim fool.rs"
   },
   "SOZU": {
    "class": "potion_linked",
@@ -2247,7 +2247,7 @@
    "hooks": [
     "AfterArrowDislodged"
    ],
-   "note": "Twine.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "Twine.cs: block when an arrow is dislodged; sim fool_pool.rs"
   },
   "TWISTED_FUNNEL": {
    "class": "combat",
@@ -2394,7 +2394,7 @@
    "hooks": [
     "AfterShuffle"
    ],
-   "note": "WhittlingKnife.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "WhittlingKnife.cs: AfterShuffle Aim; sim fool_pool.rs"
   },
   "WINGED_BOOTS": {
    "class": "macro_only",
