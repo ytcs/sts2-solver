@@ -43,10 +43,14 @@ impl Combat {
         self.dispatch_g(hookbit::after_forge, |cx, me, l| l.after_forge(cx, me, Dec::int(amount as i64)));
     }
 
-    pub fn card_base_damage(&self, c: CardIdx) -> i32 {
+    /// Damage.BaseValue growth kept in `counter[0]` (Sovereign Blade forges, Kingly Punch draws).
+    pub fn card_damage_counter(&self, c: CardIdx) -> i32 {
         let card = &self.cards[c as usize];
-        let extra = if card.id == ids::card::SOVEREIGN_BLADE || card.id == ids::card::KINGLY_PUNCH { card.counter[0] as i32 } else { 0 };
-        self.card_var(c, crate::defs::VarKind::Damage) + extra
+        if card.id == ids::card::SOVEREIGN_BLADE || card.id == ids::card::KINGLY_PUNCH { card.counter[0] as i32 } else { 0 }
+    }
+
+    pub fn card_base_damage(&self, c: CardIdx) -> i32 {
+        self.card_var(c, crate::defs::VarKind::Damage) + self.card_damage_counter(c)
     }
 
     pub fn player_combat_cards(&self) -> crate::util::ArrayVec<CardIdx, MAX_CARDS> {

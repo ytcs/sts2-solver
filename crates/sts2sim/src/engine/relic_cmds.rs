@@ -69,7 +69,7 @@ impl Combat {
         if !d.x_cost && self.card_cost(c, true) > 0 {
             return true;
         }
-        self.card_star_cost(c) > 0
+        !self.card_has_star_cost_x(c) && self.card_star_cost(c) > 0
     }
 
     pub fn stable_shuffle_selection(&mut self, list: &mut [CardIdx]) {

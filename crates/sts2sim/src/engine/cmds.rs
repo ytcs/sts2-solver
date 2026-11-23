@@ -156,6 +156,7 @@ impl Combat {
 
     pub fn clone_card(&mut self, c: CardIdx) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
+            self.overflow |= crate::state::ov::CARDS;
             return None;
         }
         // CardModel.CreateClone clones a dupe's original

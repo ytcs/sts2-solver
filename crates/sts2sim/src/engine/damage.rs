@@ -9,7 +9,7 @@ use crate::types::*;
 use crate::util::ArrayVec;
 
 pub type Mods = ArrayVec<Me, 24>;
-pub type Results = ArrayVec<DamageResult, 64>;
+pub type Results = ArrayVec<DamageResult, 128>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Targeting {

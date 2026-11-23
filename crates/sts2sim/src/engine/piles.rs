@@ -342,8 +342,8 @@ impl Combat {
             }
         }
         if d.vars.iter().any(|v| v.kind == crate::defs::VarKind::Damage) {
-            let x = self.card_damage_dec(*a) + crate::dec::Dec::int(self.card_var_extra(*a, crate::defs::VarKind::Damage) as i64);
-            let y = self.card_damage_dec(*b) + crate::dec::Dec::int(self.card_var_extra(*b, crate::defs::VarKind::Damage) as i64);
+            let x = self.card_damage_dec(*a) + crate::dec::Dec::int((self.card_var_extra(*a, crate::defs::VarKind::Damage) + self.card_damage_counter(*a)) as i64);
+            let y = self.card_damage_dec(*b) + crate::dec::Dec::int((self.card_var_extra(*b, crate::defs::VarKind::Damage) + self.card_damage_counter(*b)) as i64);
             if x != y {
                 return if x < y { -1 } else { 1 };
             }

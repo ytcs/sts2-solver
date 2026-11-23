@@ -81,6 +81,15 @@ def implemented():
     return have, props
 
 
+FOOL_TOKENS = {"JOY", "SADNESS", "AMNESIA", "DEATH", "JUDGEMENT", "JUSTICE", "STRENGTH", "TEMPERANCE", "WHEEL_OF_FORTUNE"}
+
+
+def fool_only(cat):
+    """The Fool's pool, its tarot tokens (TOKEN THE_*), Joy/Sadness and Dread's Amnesia: excluded until The Fool is ported."""
+    return ({c["id"] for c in cat["cards"].get("FOOL", [])} | FOOL_TOKENS
+            | {c["id"] for c in cat["cards"].get("TOKEN", []) if c["id"].startswith("THE_")})
+
+
 def multiplayer_only():
     cat = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "catalog.json")))
     return {c["id"] for pool in cat["cards"].values() for c in pool if c.get("multiplayer_only")}
@@ -90,8 +99,8 @@ class Gen:
     def __init__(self, catalog_path):
         self.cat = json.load(open(catalog_path))
         self.have, self.relic_props = implemented()
-        mp = multiplayer_only()
-        self.cards = {k: [c for c in v if c["id"] in self.have["card"] and c["id"] not in mp] for k, v in self.cat["cards"].items()}
+        mp = multiplayer_only() | fool_only(self.cat) | fool_only(json.load(open(os.path.join(ROOT, "data", "catalog.json"))))
+        self.cards = {k: [c for c in v if c["id"] in self.have["card"] and c["id"] not in mp] for k, v in self.cat["cards"].items() if k != "FOOL"}
         self.relics = {k: [r for r in v if r["id"] in self.have["relic"]] for k, v in self.cat["relics"].items()}
         self.potions = {k: [p for p in v if p["id"] in self.have["potion"]] for k, v in self.cat["potions"].items()}
         self.encs = [e for e in self.cat["encounters"] if e["id"] in self.have["encounter"]]
@@ -303,7 +312,7 @@ class Gen:
             have = {x if isinstance(x, str) else x["id"] for x in relics}
             relics = [x for x in a.force_relics.split(",") if x not in have] + relics
         return {
-            "name": f"fm_{idx}", "ascension": 10, "encounter": enc["id"], "character": ch, "hp": hp, "max_hp": max_hp,
+            "name": f"fm_{idx}", "ascension": getattr(a, "ascension", 10), "encounter": enc["id"], "character": ch, "hp": hp, "max_hp": max_hp,
             "max_energy": energy, "base_orb_slots": orbs, "max_potion_slots": 2, "gold": r.choice([0, 50, 99, 150, 300, 800]),
             "seed": f"fm{seed}-{idx}", "total_floor": floor, "act": act, "deck": deck, "relics": relics, "potions": potions,
             "policy": policy, "meta": {"mode": mode, "focus": focus},
@@ -377,6 +386,7 @@ def main():
     ap.add_argument("--cross", type=float, default=0.3, help="probability that a deck gets 1-4 cards from another character's pool")
     ap.add_argument("--cross-w", type=float, default=15, help="weight of the random focus `cross` (vs mix 30, colorless 20, ...)")
     ap.add_argument("--enchant", type=float, default=0.04, help="probability that an Attack/Skill card carries an enchantment")
+    ap.add_argument("--ascension", type=int, default=10)
     ap.add_argument("--mode", choices=["uniform", "greedy", "stall", "deep"])
     ap.add_argument("--relics", default="3-8")
     ap.add_argument("--force-potions", help="comma list (max 2) used instead of random potions")
