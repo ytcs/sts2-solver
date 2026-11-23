@@ -199,7 +199,7 @@ impl Combat {
     }
 
     pub fn stars_gained_this_turn(&self) -> i32 {
-        self.hist_log.iter().filter(|e| e.kind == HKind::StarsModified && self.hist_this_turn(e) && e.val > 0).map(|e| e.val as i32).sum()
+        self.hist_this_turn_iter().filter(|e| e.kind == HKind::StarsModified && e.val > 0).map(|e| e.val as i32).sum()
     }
 
     pub fn x_value(&self, c: CardIdx) -> i32 {

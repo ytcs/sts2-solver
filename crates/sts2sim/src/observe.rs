@@ -111,8 +111,10 @@ impl W<'_> {
     fn n(&mut self, v: i32) {
         self.f(v as f32)
     }
+    // Every slot is written exactly once, in order (`f` or `zeros`): no separate clearing pass over the row.
     #[inline(always)]
     fn zeros(&mut self, n: usize) {
+        self.out[self.i..self.i + n].fill(0.0);
         self.i += n;
     }
 }
@@ -145,6 +147,12 @@ pub struct CardPreview {
     pub osty_damage: Option<i32>,
 }
 
+/// The damage / block modifier snapshots of one read-only state, shared by every preview of an observation.
+pub struct ModSnaps {
+    dmg: crate::engine::Snapshot,
+    block: crate::engine::Snapshot,
+}
+
 pub mod source_kind {
     pub const CARD: i32 = 1;
     pub const POTION: i32 = 2;
@@ -155,6 +163,27 @@ pub mod source_kind {
 impl Combat {
     pub fn intent_damage(&self, monster: Cid, base: i32) -> i32 {
         self.modify_damage_value(PLAYER, monster, Dec::int(base as i64), ValueProp::MOVE, NO).trunc().max(0)
+    }
+
+    fn intent_damage_with(&self, monster: Cid, base: i32, s: &ModSnaps) -> i32 {
+        self.dmg_with(s, PLAYER, monster, Dec::int(base as i64), ValueProp::MOVE, NO).trunc().max(0)
+    }
+
+    pub fn mod_snaps(&self) -> ModSnaps {
+        let mut s = ModSnaps { dmg: crate::engine::Snapshot::new(), block: crate::engine::Snapshot::new() };
+        self.snapshot_into(crate::engine::DMG_MODIFY_MASK, &mut s.dmg);
+        self.snapshot_into(crate::engine::BLOCK_MODIFY_MASK, &mut s.block);
+        s
+    }
+
+    #[inline]
+    fn dmg_with(&self, s: &ModSnaps, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
+        self.modify_damage_with(&s.dmg, target, dealer, amount, props, card, &mut crate::engine::Mods::new(), crate::engine::DMG_HOOKS_ALL)
+    }
+
+    #[inline]
+    fn block_with(&self, s: &ModSnaps, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
+        self.modify_block_with(&s.block, target, amount, props, card, &mut crate::engine::Mods::new())
     }
 
     fn obs_star_cost(&self, c: CardIdx) -> i32 {
@@ -168,6 +197,10 @@ impl Combat {
     }
 
     pub fn card_preview(&self, c: CardIdx) -> CardPreview {
+        self.card_preview_with(c, &self.mod_snaps())
+    }
+
+    pub fn card_preview_with(&self, c: CardIdx, s: &ModSnaps) -> CardPreview {
         let d = self.card_def(c);
         let mut p = CardPreview::default();
         let osty = self.osty();
@@ -176,26 +209,26 @@ impl Combat {
         for v in d.vars.iter() {
             let props = ValueProp(v.props);
             match v.kind {
-                VarKind::Damage => p.damage = self.modify_damage_value(NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), props, c).trunc(),
-                VarKind::Block => p.block = self.modify_block(PLAYER, Dec::int(self.card_var(c, VarKind::Block) as i64), props, c).trunc(),
+                VarKind::Damage => p.damage = self.dmg_with(s, NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), props, c).trunc(),
+                VarKind::Block => p.block = self.block_with(s, PLAYER, Dec::int(self.card_var(c, VarKind::Block) as i64), props, c).trunc(),
                 VarKind::OstyDamage => {
                     if let Some(o) = osty {
-                        p.osty_damage = Some(self.modify_damage_value(NO, o, Dec::int(self.card_var(c, VarKind::OstyDamage) as i64), props, c).trunc());
+                        p.osty_damage = Some(self.dmg_with(s, NO, o, Dec::int(self.card_var(c, VarKind::OstyDamage) as i64), props, c).trunc());
                     }
                 }
                 VarKind::CalcDamage => {
                     let Some(base) = li.calculated_damage(self, c, NO) else { continue };
                     if d.tags & tag::OSTY_ATTACK != 0 {
                         if let Some(o) = osty {
-                            p.osty_damage = Some(self.modify_damage_value(NO, o, base, props, c).trunc().max(0));
+                            p.osty_damage = Some(self.dmg_with(s, NO, o, base, props, c).trunc().max(0));
                         }
                     } else {
-                        p.damage = self.modify_damage_value(NO, PLAYER, base, props, c).trunc().max(0);
+                        p.damage = self.dmg_with(s, NO, PLAYER, base, props, c).trunc().max(0);
                     }
                 }
                 VarKind::CalcBlock => {
                     if let Some(base) = li.calculated_value(self, c, NO) {
-                        p.block = self.modify_block(PLAYER, base, props, c).trunc();
+                        p.block = self.block_with(s, PLAYER, base, props, c).trunc();
                     }
                 }
                 _ => {}
@@ -211,6 +244,10 @@ impl Combat {
 
     /// The card's damage preview against target `t` (its Vulnerable, Intangible, ... apply); 0 for a card without a damage number.
     pub fn card_damage_vs(&self, c: CardIdx, t: Cid) -> i32 {
+        self.card_damage_vs_with(c, t, &self.mod_snaps())
+    }
+
+    pub fn card_damage_vs_with(&self, c: CardIdx, t: Cid, s: &ModSnaps) -> i32 {
         let d = self.card_def(c);
         let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
         let li = content::listener(&me);
@@ -218,17 +255,17 @@ impl Combat {
         for v in d.vars.iter() {
             let props = ValueProp(v.props);
             match v.kind {
-                VarKind::Damage => out = self.modify_damage_value(t, PLAYER, Dec::int(self.card_base_damage(c) as i64), props, c).trunc(),
+                VarKind::Damage => out = self.dmg_with(s, t, PLAYER, Dec::int(self.card_base_damage(c) as i64), props, c).trunc(),
                 VarKind::OstyDamage => {
                     if let Some(o) = self.osty() {
-                        out = self.modify_damage_value(t, o, Dec::int(self.card_var(c, VarKind::OstyDamage) as i64), props, c).trunc();
+                        out = self.dmg_with(s, t, o, Dec::int(self.card_var(c, VarKind::OstyDamage) as i64), props, c).trunc();
                     }
                 }
                 VarKind::CalcDamage => {
                     let Some(base) = li.calculated_damage(self, c, t) else { continue };
                     let dealer = if d.tags & tag::OSTY_ATTACK != 0 { self.osty() } else { Some(PLAYER) };
                     if let Some(dl) = dealer {
-                        out = self.modify_damage_value(t, dl, base, props, c).trunc().max(0);
+                        out = self.dmg_with(s, t, dl, base, props, c).trunc().max(0);
                     }
                 }
                 _ => {}
@@ -257,14 +294,14 @@ impl Combat {
         }
     }
 
-    fn write_card(&self, w: &mut W, c: CardIdx, playable: Option<bool>, pre: Option<CardPreview>) {
+    fn write_card(&self, w: &mut W, c: CardIdx, playable: Option<bool>, pre: Option<CardPreview>, snaps: &ModSnaps) {
         let card = &self.cards[c as usize];
         let d = content::card_def(card.id);
         let playable = match playable {
             Some(p) => p as i32,
             None => (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32,
         };
-        let p = pre.unwrap_or_else(|| self.card_preview(c));
+        let p = pre.unwrap_or_else(|| self.card_preview_with(c, snaps));
         let mut kw = self.card_keywords(c);
         if card.flags & cflag::SINGLE_TURN_RETAIN != 0 {
             kw |= kw::RETAIN;
@@ -303,14 +340,13 @@ impl Combat {
     // Sorted over the whole pile, then truncated: a big pile's order stays hidden.
     fn write_pile_list(&self, w: &mut W, pile: &[CardIdx]) {
         let n = pile.len().min(OBS_MAX_PILE);
-        let m = pile.len().min(MAX_CARDS);
-        let mut keys = [0u32; MAX_CARDS];
-        for (k, &c) in pile.iter().take(m).enumerate() {
+        let mut keys = crate::util::ArrayVec::<u32, MAX_CARDS>::new();
+        for &c in pile.iter().take(MAX_CARDS) {
             let card = &self.cards[c as usize];
-            keys[k] = (content::card_def(card.id).rarity as u32) << 24 | (card.id as u32) << 8 | card.upgrade as u32;
+            keys.push((content::card_def(card.id).rarity as u32) << 24 | (card.id as u32) << 8 | card.upgrade as u32);
         }
-        keys[..m].sort_unstable();
-        for &key in &keys[..n] {
+        keys.as_mut_slice().sort_unstable();
+        for &key in &keys.as_slice()[..n] {
             w.n(((key >> 8) & 0xFFFF) as i32 + 1);
             w.n((key & 0xFF) as i32);
         }
@@ -347,8 +383,6 @@ impl Combat {
     fn observe_impl(&self, out: &mut [f32], hand_playable: Option<u16>, tail: bool) -> usize {
         let size = if tail { OBS_SIZE } else { OBS_SIZE_V2 };
         let out = &mut out[..size];
-        // SAFETY: `out` has exactly `size` f32s; all-zero bytes are +0.0.
-        unsafe { core::ptr::write_bytes(out.as_mut_ptr(), 0, size) };
         let mut w = W { out, i: 0 };
         let hand_ok = self.stage == Stage::AwaitAction && self.player.phase == Phase::Play;
         let me = self.cr(PLAYER);
@@ -389,16 +423,17 @@ impl Combat {
                 None => w.zeros(2),
             }
         }
+        let snaps = self.mod_snaps();
         let mut hand_pre = [CardPreview::default(); MAX_HAND];
         prof!(1, t1, {
         for (k, c) in self.player.hand.iter().enumerate().take(MAX_HAND) {
-            hand_pre[k] = self.card_preview(*c);
+            hand_pre[k] = self.card_preview_with(*c, &snaps);
         }
         for k in 0..MAX_HAND {
             match self.player.hand.get(k) {
                 Some(c) => {
                     let pre = hand_playable.map(|m| hand_ok && m >> k & 1 != 0);
-                    self.write_card(&mut w, c, pre, Some(hand_pre[k]))
+                    self.write_card(&mut w, c, pre, Some(hand_pre[k]), &snaps)
                 }
                 None => w.zeros(CARD_F),
             }
@@ -436,7 +471,7 @@ impl Combat {
                 if let Some((_, intents)) = self.move_view(e) {
                     for it in intents.iter().take(OBS_INTENTS) {
                         let (kind, dmg, hits) = match it {
-                            Intent::Attack { damage, hits } => (1, self.intent_damage(e, damage(self, e)), hits(self, e)),
+                            Intent::Attack { damage, hits } => (1, self.intent_damage_with(e, damage(self, e), &snaps), hits(self, e)),
                             Intent::Buff => (2, 0, 0),
                             Intent::Debuff => (3, 0, 0),
                             Intent::DebuffStrong => (4, 0, 0),
@@ -450,7 +485,7 @@ impl Combat {
                             Intent::StatusCard => (12, 0, 0),
                             Intent::CardDebuff => (13, 0, 0),
                             Intent::DeathBlow => (14, 0, 0),
-                            Intent::DeathBlowAttack { damage } => (14, self.intent_damage(e, damage(self, e)), 1),
+                            Intent::DeathBlowAttack { damage } => (14, self.intent_damage_with(e, damage(self, e), &snaps), 1),
                         };
                         w.n(kind);
                         w.n(dmg);
@@ -490,7 +525,7 @@ impl Combat {
                 for k in 0..OBS_MAX_CANDS {
                     match view.get(k).map(|vi| (vi, d.cands[vi as usize])) {
                         Some((vi, c)) => {
-                            self.write_card(&mut w, c, None, None);
+                            self.write_card(&mut w, c, None, None, &snaps);
                             w.n(d.selected.contains(vi) as i32);
                         }
                         None => w.zeros(CARD_F + 1),
@@ -580,8 +615,8 @@ impl Combat {
         }
         match self.play_stack.last().map(|p| p.play.card).filter(|&c| c != NO) {
             Some(c) => {
-                let p = self.card_preview(c);
-                self.write_card(&mut w, c, Some(false), Some(p));
+                let p = self.card_preview_with(c, &snaps);
+                self.write_card(&mut w, c, Some(false), Some(p), &snaps);
                 w.n(self.obs_star_cost(c));
                 w.n(p.osty_damage.unwrap_or(0));
             }
@@ -618,7 +653,7 @@ impl Combat {
                     match (c, self.enemies.get(j)) {
                         (Some(c), Some(e)) if hand_pre[k].damage != 0 || hand_pre[k].osty_damage.is_some_and(|x| x != 0) => {
                             if self.cr(e).is_alive() {
-                                w.n(self.card_damage_vs(c, e))
+                                w.n(self.card_damage_vs_with(c, e, &snaps))
                             } else {
                                 w.f(0.0)
                             }
@@ -788,21 +823,19 @@ impl Combat {
     /// damage bonus].
     #[cfg(feature = "obs_v3")]
     fn write_pile_x(&self, w: &mut W, pile: &[CardIdx]) {
-        let mut keys = [[0i32; PILEX_F]; MAX_CARDS];
-        let mut m = 0;
+        let mut keys = crate::util::ArrayVec::<[i32; PILEX_F], MAX_CARDS>::new();
         for &c in pile.iter().take(MAX_CARDS) {
             let k = &self.cards[c as usize];
             let bonus = k.dmg_bonus / 10_000;
             if k.enchant == 0 && k.affliction == 0 && k.counter == [0, 0] && bonus == 0 {
                 continue;
             }
-            keys[m] = [k.id as i32 + 1, k.upgrade as i32, k.enchant as i32, k.enchant_amount as i32, k.affliction as i32, k.affliction_amount as i32,
-                       k.counter[0] as i32, k.counter[1] as i32, bonus];
-            m += 1;
+            keys.push([k.id as i32 + 1, k.upgrade as i32, k.enchant as i32, k.enchant_amount as i32, k.affliction as i32, k.affliction_amount as i32,
+                       k.counter[0] as i32, k.counter[1] as i32, bonus]);
         }
-        keys[..m].sort_unstable();
-        let n = m.min(PILEX_N);
-        for key in &keys[..n] {
+        keys.as_mut_slice().sort_unstable();
+        let n = keys.len().min(PILEX_N);
+        for key in &keys.as_slice()[..n] {
             for &v in key {
                 w.n(v);
             }

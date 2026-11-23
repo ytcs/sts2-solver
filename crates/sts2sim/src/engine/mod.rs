@@ -29,10 +29,10 @@ mod replay;
 mod sync;
 mod turn;
 
-pub use creature::DamageResult;
+pub use creature::{DamageResult, BLOCK_MODIFY_MASK};
 pub use arrows::{base_arrow_slots, DETACHED, IMPALED_HITS, TAROT_CARDS};
 pub use necro::{is_temporary_power, temporary_inner_power};
-pub use damage::{calc_extra_with, calc_with, Attack, Mods, Results, Targeting, DMG_HOOKS_ALL, DMG_HOOK_ADDITIVE, DMG_HOOK_CAP, DMG_HOOK_MULTIPLICATIVE};
+pub use damage::{calc_extra_with, calc_with, Attack, Mods, Results, Targeting, DMG_HOOKS_ALL, DMG_HOOK_ADDITIVE, DMG_HOOK_CAP, DMG_HOOK_MULTIPLICATIVE, DMG_MODIFY_MASK};
 pub use dispatch::*;
 pub use cmds::Ask;
 pub use replay::ReplayAnswer;

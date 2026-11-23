@@ -104,7 +104,7 @@ fn helix_spent(cx: &Combat, card: CardIdx) -> i32 {
     if cx.card_pile_type(card) == PileType::None {
         return 0;
     }
-    let mut spent: i32 = cx.hist_log.iter().filter(|e| e.kind == HKind::EnergySpent && cx.hist_this_turn(e)).map(|e| e.val as i32).sum();
+    let mut spent: i32 = cx.hist_this_turn_iter().filter(|e| e.kind == HKind::EnergySpent).map(|e| e.val as i32).sum();
     if let Some(ctx) = cx.play_stack.iter().rev().find(|ctx| ctx.play.card == card) {
         spent -= ctx.play.energy_spent;
     }

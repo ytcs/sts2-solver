@@ -18,6 +18,8 @@ pub struct DamageResult {
     pub hit: u8,
 }
 
+pub const BLOCK_MODIFY_MASK: Mask = Mask::bit(hookbit::modify_block_additive).or(Mask::bit(hookbit::modify_block_multiplicative));
+
 impl DamageResult {
     #[inline]
     pub fn total(&self) -> i32 {
@@ -91,7 +93,13 @@ impl Combat {
     }
 
     pub fn modify_block_into(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut super::Mods) -> Dec {
-        let m = (Mask::bit(hookbit::modify_block_additive)) | (Mask::bit(hookbit::modify_block_multiplicative));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(BLOCK_MODIFY_MASK, &mut snap);
+        self.modify_block_with(&snap, target, amount, props, card, mods)
+    }
+
+    /// `modify_block_into` over `snap` = `snapshot_into(BLOCK_MODIFY_MASK)` of this exact state (read-only callers reuse one).
+    pub fn modify_block_with(&self, snap: &crate::engine::Snapshot, target: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut super::Mods) -> Dec {
         let mut v = amount;
         if card != NO && self.cards[card as usize].enchant != 0 {
             let me = self.enchantment_me(card);
@@ -99,8 +107,6 @@ impl Combat {
             v += l.enchant_block_additive(self, me, v);
             v *= l.enchant_block_multiplicative(self, me, v);
         }
-        let mut snap = crate::engine::Snapshot::new();
-        self.snapshot_into(m, &mut snap);
         for e in snap.iter() {
             if self.has_hook(&e.me, hookbit::modify_block_additive) && self.still_live(&e.me) {
                 let q = BlockQ { target, card, props, amount: v };

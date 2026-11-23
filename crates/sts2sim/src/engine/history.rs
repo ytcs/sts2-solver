@@ -117,6 +117,14 @@ impl HistLog {
         let start = n - len;
         (start..n).map(move |i| &self.entries[i % HIST_CAP])
     }
+
+    /// Newest first (no per-entry modulo).
+    pub fn iter_rev(&self) -> impl Iterator<Item = &HistEntry> {
+        let n = self.n as usize;
+        let head = n % HIST_CAP;
+        let (newer, older) = if n >= HIST_CAP { (&self.entries[..head], &self.entries[head..]) } else { (&self.entries[..n], &self.entries[..0]) };
+        newer.iter().rev().chain(older.iter().rev())
+    }
 }
 
 impl Combat {
@@ -167,9 +175,17 @@ impl Combat {
         e.turn as i32 == self.player.turn_number - 1
     }
 
+    /// This turn's entries, newest first. (round, side, turn) only moves forward (`flip_sides`: a side returns only with turn + 1), so
+    /// this turn's entries are a suffix of the log.
+    pub fn hist_this_turn_iter(&self) -> impl Iterator<Item = &HistEntry> {
+        self.hist_log.iter_rev().take_while(|e| self.hist_this_turn(e))
+    }
+
     pub fn hist_count_this_turn(&self, kind: HKind, f: impl Fn(&HistEntry) -> bool) -> usize {
         debug_assert!(kind.in_ring(), "{kind:?} entries are counter-only (HKind::in_ring)");
-        self.hist_log.iter().filter(|e| e.kind == kind && self.hist_this_turn(e) && f(e)).count()
+        let n = self.hist_this_turn_iter().filter(|e| e.kind == kind && f(e)).count();
+        debug_assert_eq!(n, self.hist_log.iter().filter(|e| e.kind == kind && self.hist_this_turn(e) && f(e)).count());
+        n
     }
 
     pub fn hist_total(&self, kind: HKind) -> usize {
@@ -178,7 +194,8 @@ impl Combat {
 
     pub fn hist_any_last_player_turn(&self, kind: HKind, f: impl Fn(&HistEntry) -> bool) -> bool {
         debug_assert!(kind.in_ring() && kind.keeps_last_turn(), "{kind:?} is not kept for last-player-turn queries (HKind::keeps_last_turn)");
-        self.hist_log.iter().any(|e| e.kind == kind && self.hist_last_player_turn(e) && f(e))
+        // `turn` never decreases along the log: entries from the last player turn on are a suffix.
+        self.hist_log.iter_rev().take_while(|e| e.turn as i32 >= self.player.turn_number - 1).any(|e| e.kind == kind && self.hist_last_player_turn(e) && f(e))
     }
 
     pub fn plays_this_turn(&self, f: impl Fn(&HistEntry) -> bool) -> usize {

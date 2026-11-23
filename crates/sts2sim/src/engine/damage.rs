@@ -68,6 +68,8 @@ pub const DMG_HOOK_ADDITIVE: u8 = 2;
 pub const DMG_HOOK_MULTIPLICATIVE: u8 = 4;
 pub const DMG_HOOK_CAP: u8 = 8;
 pub const DMG_HOOKS_ALL: u8 = DMG_HOOK_ADDITIVE | DMG_HOOK_MULTIPLICATIVE | DMG_HOOK_CAP;
+pub const DMG_MODIFY_MASK: Mask =
+    Mask::bit(hookbit::modify_damage_additive).or(Mask::bit(hookbit::modify_damage_multiplicative)).or(Mask::bit(hookbit::modify_damage_cap));
 
 impl Combat {
     pub fn modify_damage(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, Mods) {
@@ -88,12 +90,15 @@ impl Combat {
 
     /// `Hook.ModifyDamage` with a `ModifyDamageHookType` subset (`DMG_HOOK_*`).
     pub fn modify_damage_into_kinds(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut Mods, kinds: u8) -> Dec {
-        let (add, mul, cap) = (kinds & DMG_HOOK_ADDITIVE != 0, kinds & DMG_HOOK_MULTIPLICATIVE != 0, kinds & DMG_HOOK_CAP != 0);
-        let m = (Mask::bit(hookbit::modify_damage_additive))
-            | (Mask::bit(hookbit::modify_damage_multiplicative))
-            | (Mask::bit(hookbit::modify_damage_cap));
         let mut snap = crate::engine::Snapshot::new();
-        self.snapshot_into(m, &mut snap);
+        self.snapshot_into(DMG_MODIFY_MASK, &mut snap);
+        self.modify_damage_with(&snap, target, dealer, amount, props, card, mods, kinds)
+    }
+
+    /// `modify_damage_into_kinds` over `snap` = `snapshot_into(DMG_MODIFY_MASK)` of this exact state (read-only callers reuse one).
+    #[allow(clippy::too_many_arguments)]
+    pub fn modify_damage_with(&self, snap: &crate::engine::Snapshot, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut Mods, kinds: u8) -> Dec {
+        let (add, mul, cap) = (kinds & DMG_HOOK_ADDITIVE != 0, kinds & DMG_HOOK_MULTIPLICATIVE != 0, kinds & DMG_HOOK_CAP != 0);
         let mut v = amount;
         if card != NO && self.cards[card as usize].enchant != 0 {
             let me = self.enchantment_me(card);
