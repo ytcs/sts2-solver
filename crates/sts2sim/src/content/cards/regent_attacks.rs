@@ -79,7 +79,7 @@ listener!(Devastate {
 listener!(AstralPulse {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = dmg(cx, p.card);
-        cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::AllOpponents).hits(2));
+        cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::AllOpponents).hits(cx.card_var(p.card, VarKind::Repeat)));
         Flow::Done
     }
 });

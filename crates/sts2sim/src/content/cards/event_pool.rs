@@ -201,7 +201,7 @@ listener!(HelloWorld {
 
 listener!(Maul {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let a = card_attack(cx, p, Targeting::Single(p.target)).hits(2);
+        let a = card_attack(cx, p, Targeting::Single(p.target)).hits(cx.card_var(p.card, VarKind::Repeat));
         cx.execute_attack(&a);
         let inc = cx.card_named_var(p.card, crate::content::gen_cards::var_name::INCREASE);
         let all = cx.all_combat_cards();
@@ -287,7 +287,7 @@ listener!(Relax {
 
 listener!(RipAndTear {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let a = card_attack(cx, p, Targeting::Random).hits(2);
+        let a = card_attack(cx, p, Targeting::Random).hits(cx.card_var(p.card, VarKind::Repeat));
         cx.execute_attack(&a);
         Flow::Done
     }

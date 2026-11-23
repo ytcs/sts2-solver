@@ -320,7 +320,7 @@ listener!(Conflagration {
 
 listener!(Dismantle {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let hits = if cx.has_power(p.target, ids::power::VULNERABLE_POWER) { 2 } else { 1 };
+        let hits = if cx.has_power(p.target, ids::power::VULNERABLE_POWER) { cx.card_var(p.card, VarKind::Repeat) } else { 1 };
         attack(cx, p, hits);
         Flow::Done
     }

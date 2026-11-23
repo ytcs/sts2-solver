@@ -183,9 +183,13 @@ listener!(Rally {
     }
 });
 
-fn calc_gang_up(cx: &Combat, card: CardIdx, _target: Cid) -> Dec {
-    let base = cx.card_var(card, VarKind::CalcBase);
-    Dec::int(base as i64)
+/// Powered attack hits on `target` this turn by the owner's teammates (Osty in single player).
+fn calc_gang_up(cx: &Combat, card: CardIdx, target: Cid) -> Dec {
+    let side = cx.cr(PLAYER).side;
+    let n = cx.hist_count_this_turn(HKind::DamageReceived, |e| {
+        e.actor == target && ValueProp(e.props).is_powered() && e.other != NO && e.other != PLAYER && cx.cr(e.other).side == side
+    });
+    crate::engine::calc_with(cx, card, n as i32)
 }
 
 listener!(GangUp {

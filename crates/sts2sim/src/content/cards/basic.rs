@@ -56,7 +56,7 @@ listener!(PommelStrike {
 listener!(TwinStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
-        cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)).hits(2));
+        cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)).hits(cx.card_var(p.card, VarKind::Repeat)));
         Flow::Done
     }
 });

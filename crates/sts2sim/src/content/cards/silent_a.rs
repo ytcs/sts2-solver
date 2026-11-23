@@ -306,7 +306,7 @@ listener!(Concoct {});
 listener!(DaggerSpray {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
-        cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::AllOpponents).hits(2));
+        cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::AllOpponents).hits(cx.card_var(p.card, VarKind::Repeat)));
         Flow::Done
     }
 });
