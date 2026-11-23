@@ -84,6 +84,11 @@ impl Combat {
     }
 
     pub fn auto_play_from_draw_pile(&mut self, count: i32, pos: CardPilePosition, force_exhaust: bool) -> RunResult {
+        self.auto_play_from_draw_pile_with(count, pos, force_exhaust, false)
+    }
+
+    /// `AutoPlayFromDrawPile(.., cardModification)` with `CardCmd.Upgrade` as the modification (The Devil+) when `upgrade`.
+    pub fn auto_play_from_draw_pile_with(&mut self, count: i32, pos: CardPilePosition, force_exhaust: bool, upgrade: bool) -> RunResult {
         if self.is_over_or_ending() {
             return RunResult::Finished;
         }
@@ -106,6 +111,9 @@ impl Combat {
                 }
             };
             let Some(c) = c else { break };
+            if upgrade {
+                self.upgrade_in_combat(c);
+            }
             cards.push(c);
             self.move_card(c, PileType::Play, CardPilePosition::Bottom);
         }

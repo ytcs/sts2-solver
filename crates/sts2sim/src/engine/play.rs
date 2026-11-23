@@ -239,7 +239,7 @@ impl Combat {
             return RunResult::Finished;
         }
         self.player.effect_depth += 1;
-        self.play_stack.push(PlayCtx { play, step: PlayStep::Before, count: count.clamp(0, 255) as u8, result: loc });
+        self.play_stack.push(PlayCtx { play, step: PlayStep::Before, count: count.clamp(0, 255) as u8, result: loc, hook_resume: None });
         let idx = self.play_stack.len() - 1;
         self.run_play_at(idx)
     }
@@ -342,8 +342,14 @@ impl Combat {
                     if ethereal != 0 {
                         crate::engine::history::bump(&mut self.hist_log.ethereal_finished);
                     }
+                    self.play_stack[idx].step = PlayStep::AfterHooks;
+                }
+                PlayStep::AfterHooks => {
+                    let p = ctx.play;
                     if self.in_progress {
-                        self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
+                        if self.after_card_played_from(idx, &p) {
+                            return RunResult::Suspended;
+                        }
                         self.dispatch_u(hookbit::after_card_played_late, |cx, me, l| l.after_card_played_late(cx, me, &p));
                         if self.cr(PLAYER).is_dead() {
                             return self.finish_play(idx);
@@ -360,6 +366,65 @@ impl Combat {
                 }
             }
         }
+    }
+
+    /// `Hook.AfterCardPlayed` for the play at `idx`. True if a listener's nested play suspended (a choice inside a card
+    /// Lost Lute autoplays): the rest of the listeners run when the play stack comes back to `idx`.
+    fn after_card_played_from(&mut self, idx: usize, p: &CardPlay) -> bool {
+        let bit = hookbit::after_card_played;
+        let resume = self.play_stack[idx].hook_resume.take();
+        if !self.listen.has(bit) || !self.pass_enter() {
+            return false;
+        }
+        let r = self.after_card_played_in(idx, p, resume);
+        self.pass_exit();
+        r
+    }
+
+    fn after_card_played_in(&mut self, idx: usize, p: &CardPlay, resume: Option<SuspPass>) -> bool {
+        let bit = hookbit::after_card_played;
+        if let Some(r) = resume.filter(|r| r.full) {
+            for (k, me) in r.rest.iter().enumerate() {
+                if self.still_live(me) {
+                    content::listener(me).after_card_played(self, *me, p);
+                    if self.play_stack.len() > idx + 1 {
+                        self.save_after_hooks(idx, *me, 0, r.rest.as_slice()[k + 1..].iter().copied());
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        let snap = self.snapshot(Mask::bit(bit));
+        let start = match resume {
+            None => 0,
+            Some(r) => match snap.iter().position(|e| e.me.kind == r.me.kind && e.me.idx == r.me.idx && e.me.owner == r.me.owner && e.me.id == r.me.id) {
+                Some(i) => i + 1,
+                None => (r.pos as usize).min(snap.len()),
+            },
+        };
+        for (i, e) in snap.iter().enumerate().skip(start) {
+            if self.still_live(&e.me) {
+                content::listener(&e.me).after_card_played(self, e.me, p);
+                if self.play_stack.len() > idx + 1 {
+                    self.save_after_hooks(idx, e.me, (i + 1) as u8, snap.as_slice()[i + 1..].iter().map(|x| x.me));
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn save_after_hooks(&mut self, idx: usize, me: Me, pos: u8, rest: impl Iterator<Item = Me>) {
+        let mut r = SuspPass { bit: hookbit::after_card_played, me, pos, full: true, rest: crate::util::ArrayVec::new() };
+        for m in rest {
+            if r.rest.len() >= 8 {
+                r.full = false;
+                break;
+            }
+            r.rest.push(m);
+        }
+        self.play_stack[idx].hook_resume = Some(r);
     }
 
     fn finish_play(&mut self, idx: usize) -> RunResult {

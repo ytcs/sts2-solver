@@ -259,6 +259,7 @@ impl Combat {
             cur_power_card,
             auto_select,
             held_deaths,
+            total_floor,
         } = self;
         *character = sc.character;
         *ascension = sc.ascension;
@@ -329,6 +330,7 @@ impl Combat {
         *cur_power_card = NO;
         *auto_select = false;
         *held_deaths = 0;
+        *total_floor = sc.total_floor;
         *deck_upgradable = sc.deck.iter().enumerate().take(128).fold(0u128, |m, (i, d)| {
             if d.upgrade < content::card_def(d.id).max_upgrade { m | (1u128 << i) } else { m }
         });
@@ -531,6 +533,7 @@ impl Combat {
             cur_power_card: NO,
             auto_select: false,
             held_deaths: 0,
+            total_floor: 0,
             deck_upgradable: 0,
         }
     }

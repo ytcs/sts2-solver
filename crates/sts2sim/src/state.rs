@@ -12,7 +12,7 @@ pub const MAX_POTIONS: usize = if cfg!(feature = "obs_v4") { 9 } else { 8 };
 pub const MAX_HAND: usize = 10;
 pub const MAX_ORBS: usize = 10;
 pub const MAX_DECK: usize = 80;
-pub const MAX_ARROWS: usize = 8;
+pub const MAX_ARROWS: usize = 24; // the game has no cap; only Quiver plays (and their copies) add slots
 
 pub mod ov {
     pub const CONTAINER: u16 = crate::util::OV_CONTAINER as u16;
@@ -443,6 +443,8 @@ pub enum PlayStep {
     Before,
     OnPlay(u8),
     After,
+    /// `AfterCardPlayed` listeners; resumes after the one whose nested play (Lost Lute's autoplay) suspended.
+    AfterHooks,
 }
 
 pub const AUTOPLAY_MAX: usize = 24;
@@ -469,6 +471,8 @@ pub struct PlayCtx {
     pub step: PlayStep,
     pub count: u8,
     pub result: CardLocation,
+    /// `PlayStep::AfterHooks` resume point: the listeners of the original snapshot still to run (`bit` unused).
+    pub hook_resume: Option<SuspPass>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -532,7 +536,8 @@ pub struct Combat {
     pub outcome: Outcome,
 
     pub creatures: [Creature; MAX_CREATURES],
-    pub allies: ArrayVec<Cid, 4>,
+    // player, Osty, Byrdpip/Byrdine, Wuppy, Pael's Legion
+    pub allies: ArrayVec<Cid, 6>,
     pub enemies: ArrayVec<Cid, MAX_CREATURES>,
     pub next_power_uid: u16,
     pub listen: Mask,
@@ -594,6 +599,8 @@ pub struct Combat {
     pub cur_power_card: CardIdx,
     pub auto_select: bool,
     pub held_deaths: u16,
+    /// `RunState.TotalFloor` (The Tower).
+    pub total_floor: i32,
 }
 
 impl Creature {
@@ -727,6 +734,7 @@ impl Clone for Combat {
             cur_power_card,
             auto_select,
             held_deaths,
+            total_floor,
         } = self;
         *character = src.character;
         *ascension = src.ascension;
@@ -814,6 +822,7 @@ impl Clone for Combat {
         *cur_power_card = src.cur_power_card;
         *auto_select = src.auto_select;
         *held_deaths = src.held_deaths;
+        *total_floor = src.total_floor;
     }
 }
 

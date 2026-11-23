@@ -173,7 +173,7 @@
    "hooks": [
     "BeforeHandDraw"
    ],
-   "note": "BizarreLamp.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "BizarreLamp.cs: BeforeHandDraw turn 1 Joy + Sadness; sim fool_pool.rs"
   },
   "BLACK_BLOOD": {
    "class": "combat",
@@ -332,7 +332,7 @@
     "AfterObtained",
     "BeforeCombatStart"
    ],
-   "note": "AfterObtained: Byrd Swoop -> God Byrd (Byrdpip's Evolve rest option); BeforeCombatStart pet ByrdineMonster"
+   "note": "AfterObtained: Byrd Swoop -> God Byrd (Byrdpip's Evolve rest option); BeforeCombatStart pet ByrdineMonster (God Byrd's attack animation only); sim pets_forge.rs"
   },
   "BYRDPIP": {
    "class": "card_linked",
@@ -340,10 +340,12 @@
     "combat"
    ],
    "hooks": [
+    "AfterCardPlayed",
     "AfterObtained",
-    "BeforeCombatStart"
+    "BeforeCombatStart",
+    "TryModifyRestSiteOptions"
    ],
-   "note": "AfterObtained: Byrdonis Egg -> Byrd Swoop (always, hatched from egg); BeforeCombatStart pet (sim pets_forge)"
+   "note": "AfterObtained: Byrdonis Egg -> Byrd Swoop (always, hatched from egg); BeforeCombatStart pet; AfterCardPlayed counts Byrd Swoops (saved SwoopsPlayed, 6 unlock Evolve); sim pets_forge.rs"
   },
   "CALLING_BELL": {
    "class": "card_linked",
@@ -442,7 +444,7 @@
     "BeforeSideTurnStart",
     "AfterCardPlayed"
    ],
-   "note": "ConductorsBaton.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "ConductorsBaton.cs: 3 melodies in a turn -> ConductorsBatonPower (x0.75 powered attack damage taken until next turn); unsaved per-turn flag; sim fool_pool.rs"
   },
   "CRACKED_CORE": {
    "class": "combat",
@@ -638,7 +640,7 @@
    "hooks": [
     "AfterSideTurnStart"
    ],
-   "note": "ExerciseMat.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "ExerciseMat.cs: AfterSideTurnStart turn 1 Stretch; sim fool_pool.rs"
   },
   "FAKE_ANCHOR": {
    "class": "combat",
@@ -725,7 +727,7 @@
    "hooks": [
     "AfterCardGeneratedForCombat"
    ],
-   "note": "Fertilizer.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "Fertilizer.cs: Strength when the owner generates a Sadness; sim fool_pool.rs"
   },
   "FESTIVE_POPPER": {
    "class": "combat",
@@ -1372,7 +1374,7 @@
    "hooks": [
     "BeforeHandDraw"
    ],
-   "note": "Ocarina.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "Ocarina.cs: BeforeHandDraw turn 1 a random melody card; sim fool_pool.rs"
   },
   "ODDLY_SMOOTH_STONE": {
    "class": "combat",
@@ -1986,7 +1988,7 @@
    "hooks": [
     "AfterRoomEntered"
    ],
-   "note": "SongBow.cs: Fool starter; not ported"
+   "note": "SongBow.cs: Fool starter, AfterRoomEntered Aim; sim fool.rs"
   },
   "SOZU": {
    "class": "potion_linked",
@@ -2052,7 +2054,7 @@
     "AfterRoomEntered",
     "BeforeSideTurnEnd"
    ],
-   "note": "Storyteller.cs: Fool starter (Aim); not ported"
+   "note": "Storyteller.cs: Touch of Orobas upgrade of Song Bow (Fool only); Aim at combat start and turn end; sim events.rs (needs AimPower, Fool port)"
   },
   "STRAWBERRY": {
    "class": "macro_only",
@@ -2245,7 +2247,7 @@
    "hooks": [
     "AfterArrowDislodged"
    ],
-   "note": "Twine.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "Twine.cs: block when an arrow is dislodged; sim fool_pool.rs"
   },
   "TWISTED_FUNNEL": {
    "class": "combat",
@@ -2392,7 +2394,7 @@
    "hooks": [
     "AfterShuffle"
    ],
-   "note": "WhittlingKnife.cs; Fool pool, not ported (The Fool not modelled)"
+   "note": "WhittlingKnife.cs: AfterShuffle Aim; sim fool_pool.rs"
   },
   "WINGED_BOOTS": {
    "class": "macro_only",
@@ -2431,7 +2433,7 @@
     "BeforeCombatStart",
     "TryModifyRestSiteOptions"
    ],
-   "note": "BeforeCombatStart pet Wuppy absorbing attack damage (HP 30/60 from the event, carried between fights); TryModifyRestSiteOptions: Restore"
+   "note": "BeforeCombatStart pet Wuppy (WuppysLoyaltyPower: ModifyPreBlockDamageTarget takes powered attacks on the player before block); saved CurrentHp/MaxHp (30/60 from Wuppy in Trouble) carried between fights; TryModifyRestSiteOptions: Restore; sim pets_forge.rs"
   },
   "YUMMY_COOKIE": {
    "class": "macro_only",

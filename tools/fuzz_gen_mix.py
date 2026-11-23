@@ -3,7 +3,8 @@ import argparse, glob, json, os, random, re, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-ORACLE = (["dotnet", os.path.join(ROOT, "oracle/combat/bin/Release/net9.0/OracleCombat.dll")] if os.name == "nt"
+ORACLE = (["dotnet", os.environ["ORACLE_DLL"]] if os.environ.get("ORACLE_DLL")
+          else ["dotnet", os.path.join(ROOT, "oracle/combat/bin/Release/net9.0/OracleCombat.dll")] if os.name == "nt"
           else [os.path.join(ROOT, "oracle/combat/oracle.sh")])
 
 DIFF = os.environ.get("STS2DIFF") or os.path.join(ROOT, "target/debug/sts2diff" + (".exe" if os.name == "nt" else ""))
@@ -15,10 +16,17 @@ STARTERS = {
     "DEFECT": (["STRIKE_DEFECT"] * 4 + ["DEFEND_DEFECT"] * 4 + ["ZAP", "DUALCAST"], "CRACKED_CORE", 75, 3, 3),
     "NECROBINDER": (["STRIKE_NECROBINDER"] * 4 + ["DEFEND_NECROBINDER"] * 4 + ["BODYGUARD", "UNLEASH"], "BOUND_PHYLACTERY", 66, 3, 0),
     "REGENT": (["STRIKE_REGENT"] * 4 + ["DEFEND_REGENT"] * 4 + ["FALLING_STAR", "VENERATE"], "DIVINE_RIGHT", 75, 3, 0),
+    "FOOL": (["STRIKE_FOOL"] * 5 + ["DEFEND_FOOL"] * 4 + ["FOOLISH_SHOT"], "SONG_BOW", 77, 3, 0),
 }
+# Characters decks / relic picks may borrow from. FOOL is left out so the other characters' seeds keep producing the
+# scenarios they produced before FOOL existed; a FOOL scenario borrows from all five.
+LEGACY = ["IRONCLAD", "SILENT", "DEFECT", "NECROBINDER", "REGENT"]
+TAROTS = ["JUDGEMENT", "THE_FOOL", "THE_HIGH_PRIESTESS", "THE_EMPEROR", "THE_EMPRESS", "THE_HANGED_MAN", "THE_HIEROPHANT", "THE_CHARIOT",
+          "JUSTICE", "THE_MAGICIAN", "THE_MOON", "THE_TOWER", "STRENGTH", "DEATH", "TEMPERANCE", "THE_DEVIL", "THE_HERMIT", "THE_LOVERS",
+          "THE_STAR", "THE_SUN", "THE_WORLD", "WHEEL_OF_FORTUNE"]
 ATTACK_ENCH = ["SHARP", "VIGOROUS", "INSTINCT", "MOMENTUM", "SWIFT", "STEADY", "ADROIT", "GLAM", "PERFECT_FIT", "SOWN", "TEZCATARAS_EMBER", "SLUMBERING_ESSENCE", "CLONE"]
 SKILL_ENCH = ["IMBUED", "IMBUED", "SWIFT", "STEADY", "ADROIT", "GLAM", "PERFECT_FIT", "SOWN", "TEZCATARAS_EMBER", "SLUMBERING_ESSENCE", "CLONE"]
-CHAR_W = {"REGENT": 40, "IRONCLAD": 15, "SILENT": 15, "DEFECT": 15, "NECROBINDER": 15}
+CHAR_W = {"REGENT": 40, "IRONCLAD": 15, "SILENT": 15, "DEFECT": 15, "NECROBINDER": 15, "FOOL": 0}  # FOOL: --fool-w
 CROSS_THEMES = {
     "orb": ("DEFECT", ["BALL_LIGHTNING", "BIASED_COGNITION", "BULK_UP", "CAPACITOR", "CHAOS", "CHILL", "COLD_SNAP", "CONSUMING_SHADOW",
                        "COOLHEADED", "DARKNESS", "DEFRAGMENT", "DUALCAST", "FOCUSED_STRIKE", "FUSION", "GLACIER", "GLASSWORK", "HIBERNATE",
@@ -45,7 +53,10 @@ CROSS_THEMES = {
 }
 STAR_SOURCES = ["VENERATE", "GLOW", "GATHER_LIGHT"]
 TRANSCEND = {"BASH": "BREAK", "NEUTRALIZE": "SUPPRESS", "UNLEASH": "PROTECTOR", "FALLING_STAR": "METEOR_SHOWER", "DUALCAST": "QUADCAST"}
-ANCIENT_OFFER = {1: (0.146, 0.0625), 2: (0.146, 0.094)}  # (Archaic Tooth, Dusty Tome) offered by this act: game_code.md C8
+SPECIAL_PROPS = {  # saved props a real save always carries in a valid range
+    "WUPPY": lambda r: (lambda m: {"MaxHp": m, "CurrentHp": r.choice([m, m, r.randint(1, m), 0])})(r.choice([30, 60])),
+}
+ANCIENT_OFFER ={1: (0.146, 0.0625), 2: (0.146, 0.094)}  # (Archaic Tooth, Dusty Tome) offered by this act: game_code.md C8
 
 
 def slugify(name):
@@ -81,15 +92,6 @@ def implemented():
     return have, props
 
 
-FOOL_TOKENS = {"JOY", "SADNESS", "AMNESIA", "DEATH", "JUDGEMENT", "JUSTICE", "STRENGTH", "TEMPERANCE", "WHEEL_OF_FORTUNE"}
-
-
-def fool_only(cat):
-    """The Fool's pool, its tarot tokens (TOKEN THE_*), Joy/Sadness and Dread's Amnesia: excluded until The Fool is ported."""
-    return ({c["id"] for c in cat["cards"].get("FOOL", [])} | FOOL_TOKENS
-            | {c["id"] for c in cat["cards"].get("TOKEN", []) if c["id"].startswith("THE_")})
-
-
 def multiplayer_only():
     cat = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "catalog.json")))
     return {c["id"] for pool in cat["cards"].values() for c in pool if c.get("multiplayer_only")}
@@ -99,11 +101,14 @@ class Gen:
     def __init__(self, catalog_path):
         self.cat = json.load(open(catalog_path))
         self.have, self.relic_props = implemented()
-        mp = multiplayer_only() | fool_only(self.cat) | fool_only(json.load(open(os.path.join(ROOT, "data", "catalog.json"))))
-        self.cards = {k: [c for c in v if c["id"] in self.have["card"] and c["id"] not in mp] for k, v in self.cat["cards"].items() if k != "FOOL"}
+        mp = multiplayer_only()
+        self.cards = {k: [c for c in v if c["id"] in self.have["card"] and c["id"] not in mp] for k, v in self.cat["cards"].items()}
         self.relics = {k: [r for r in v if r["id"] in self.have["relic"]] for k, v in self.cat["relics"].items()}
         self.potions = {k: [p for p in v if p["id"] in self.have["potion"]] for k, v in self.cat["potions"].items()}
         self.encs = [e for e in self.cat["encounters"] if e["id"] in self.have["encounter"]]
+        playable = set(STARTERS) | {"SHARED", "EVENT", "COLORLESS"}
+        self.all_relics = sorted({x["id"] for k, v in self.relics.items() if k in playable for x in v})
+        self.all_potions = sorted({x["id"] for k, v in self.potions.items() if k in playable for x in v})
         self.ctypes = {c["id"]: c["type"] for pool in self.cat["cards"].values() for c in pool}
         self.max_upgrade = {c["id"]: c.get("max_upgrade", 0) for pool in self.cat["cards"].values() for c in pool}
         self.tome = {ch: [c["id"] for c in self.cards[ch] if c["rarity"] == "Ancient" and c["id"] not in TRANSCEND.values()] for ch in STARTERS}
@@ -167,7 +172,7 @@ class Gen:
                 if pool:
                     added.append(r.choice(pool))
         if cross_p and r.random() < cross_p:
-            other = r.choice([c for c in STARTERS if c != ch])
+            other = r.choice([c for c in LEGACY if c != ch])
             for _ in range(r.randint(1, 4)):
                 added.append(self.pick_card(r, [x for x in self.cards[other] if x["rarity"] in ("Common", "Uncommon", "Rare")]))
         deck = []
@@ -211,7 +216,7 @@ class Gen:
         pools = self.relics[ch] + self.relics["SHARED"]
         pools = [x for x in pools if x["rarity"] not in ("Starter",)]
         ev = [x for x in self.relics["EVENT"] if x["rarity"] != "Starter"]
-        foreign = [x for k in STARTERS if k != ch for x in self.relics[k] if x["rarity"] != "Starter"]
+        foreign = [x for k in LEGACY if k != ch for x in self.relics[k] if x["rarity"] != "Starter"]
         n = r.randint(lo, hi)
         chosen = []
         seen = {starter_id}
@@ -231,7 +236,9 @@ class Gen:
         ids = ([starter_id] if (starter_id in self.have["relic"] and r.random() < 0.85) else []) + chosen
         for rid in ids:
             props = self.relic_props.get(rid)
-            if props and r.random() < 0.6:
+            if rid in SPECIAL_PROPS:
+                out.append({"id": rid, "props": SPECIAL_PROPS[rid](r)})
+            elif props and r.random() < 0.6:
                 p = {}
                 for name, kind in props:
                     p[name] = (r.random() < 0.5) if kind == "flag" else r.choice([0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
@@ -268,7 +275,8 @@ class Gen:
 
     def scenario(self, idx, seed, a):
         r = random.Random(f"{seed}/{idx}")
-        ch = a.character or r.choices(list(CHAR_W), list(CHAR_W.values()))[0]
+        char_w = dict(CHAR_W, FOOL=getattr(a, "fool_w", 0))
+        ch = a.character or r.choices(list(char_w), list(char_w.values()))[0]
         encs = self.encs
         if a.encounter:
             encs = [e for e in encs if e["id"] in a.encounter.split(",")]
@@ -278,7 +286,9 @@ class Gen:
         if a.room:
             encs = [e for e in encs if e["room"].lower() in a.room.split(",")]
         w = [1 if e["weak"] else 4 if e["room"] in ("Elite", "Boss") else 3 for e in encs]
-        enc = r.choices(encs, w)[0]
+        enc = encs[idx % len(encs)] if a.each_encounter else r.choices(encs, w)[0]
+        if a.each_encounter and not a.character:
+            ch = list(STARTERS)[(idx // len(encs)) % len(STARTERS)]
         act = {0: 0, 1: 0, 2: 1, 3: 2, -1: r.randint(0, 2)}[enc["act"]]
         starter, _, hp0, energy, orbs = STARTERS[ch]
         floor = {0: r.randint(1, 16), 1: r.randint(18, 33), 2: r.randint(35, 50)}[act]
@@ -286,6 +296,10 @@ class Gen:
         mode = a.mode or r.choices(["uniform", "greedy", "stall", "deep"], [30, 35, 10, 25])[0]
         focus = a.focus or r.choices(["mix", "colorless", "junk", "gen", "turn", "cross"], [30, 20, 8, 20, 22, getattr(a, "cross_w", 0)])[0]
         deck = self.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act], enchant_p=a.enchant, cross_p=getattr(a, "cross", 0.0))
+        if ch == "FOOL" and getattr(a, "tarot", 0) and r.random() < a.tarot:
+            for _ in range(r.randint(1, 3)):
+                cid = r.choice(TAROTS)
+                deck.append({"id": cid, "upgrade": 1} if r.random() < 0.4 else cid)
         if a.force_cards:
             for cid in a.force_cards.split(","):
                 deck.append({"id": cid, "upgrade": r.randint(0, 1)} if self.ctypes.get(cid) and r.random() < 0.5 else cid)
@@ -310,10 +324,25 @@ class Gen:
             relics = [x for x in r.sample(tsr, r.randint(1, 2)) if x not in have] + relics
         if a.force_relics:
             have = {x if isinstance(x, str) else x["id"] for x in relics}
-            relics = [x for x in a.force_relics.split(",") if x not in have] + relics
+            relics = [{"id": x, "props": SPECIAL_PROPS[x](r)} if x in SPECIAL_PROPS else x for x in a.force_relics.split(",") if x not in have] + relics
+        if a.each_relic:
+            rid = self.all_relics[idx % len(self.all_relics)]
+            relics = [x for x in relics if (x if isinstance(x, str) else x["id"]) != rid]
+            props = self.relic_props.get(rid)
+            if rid in SPECIAL_PROPS:
+                relics.insert(0, {"id": rid, "props": SPECIAL_PROPS[rid](r)})
+            elif props:
+                relics.insert(0, {"id": rid, "props": {n: (r.random() < 0.5) if k == "flag" else r.choice([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) for n, k in props}})
+            else:
+                relics.insert(0, rid)
+        if a.each_potion:
+            pid = self.all_potions[idx % len(self.all_potions)]
+            potions = [pid] + potions[:1]
+            policy["potw"] = 4.0
+        asc = r.choice([int(x) for x in a.ascension.split(",")])
         return {
-            "name": f"fm_{idx}", "ascension": getattr(a, "ascension", 10), "encounter": enc["id"], "character": ch, "hp": hp, "max_hp": max_hp,
-            "max_energy": energy, "base_orb_slots": orbs, "max_potion_slots": 2, "gold": r.choice([0, 50, 99, 150, 300, 800]),
+            "name": f"fm_{idx}", "ascension": asc, "encounter": enc["id"], "character": ch, "hp": hp, "max_hp": max_hp,
+            "max_energy": energy, "base_orb_slots": orbs, "max_potion_slots": 2 if asc >= 4 else 3, "gold": r.choice([0, 50, 99, 150, 300, 800]),
             "seed": f"fm{seed}-{idx}", "total_floor": floor, "act": act, "deck": deck, "relics": relics, "potions": potions,
             "policy": policy, "meta": {"mode": mode, "focus": focus},
         }
@@ -386,24 +415,28 @@ def main():
     ap.add_argument("--cross", type=float, default=0.3, help="probability that a deck gets 1-4 cards from another character's pool")
     ap.add_argument("--cross-w", type=float, default=15, help="weight of the random focus `cross` (vs mix 30, colorless 20, ...)")
     ap.add_argument("--enchant", type=float, default=0.04, help="probability that an Attack/Skill card carries an enchantment")
-    ap.add_argument("--ascension", type=int, default=10)
+    ap.add_argument("--fool-w", type=float, default=0, help="weight of FOOL in the random character draw (REGENT 40, others 15); 0 keeps old seeds' scenarios identical")
+    ap.add_argument("--tarot", type=float, default=0.3, help="probability that a FOOL deck gets 1-3 tarot tokens")
     ap.add_argument("--mode", choices=["uniform", "greedy", "stall", "deep"])
     ap.add_argument("--relics", default="3-8")
+    ap.add_argument("--ascension", default="10", help="comma list; each scenario draws one (A<4: 3 potion slots)")
     ap.add_argument("--force-potions", help="comma list (max 2) used instead of random potions")
     ap.add_argument("--force-relics", help="comma list prepended to the random relics")
     ap.add_argument("--force-cards", help="comma list of card ids added to every deck (repeat an id for copies)")
     ap.add_argument("--each-potion", action="store_true", help="round-robin: scenario i carries potion i mod #potions")
     ap.add_argument("--each-relic", action="store_true", help="round-robin: scenario i carries relic i mod #relics")
+    ap.add_argument("--each-encounter", action="store_true", help="round-robin: scenario i fights encounter i mod #encounters")
     ap.add_argument("--keep-ok", action="store_true")
     ap.add_argument("--gen-only", action="store_true")
+    ap.add_argument("--run-existing", action="store_true", help="run every *.scenario.json already in --out (e.g. several --gen-only batches)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     cat = os.path.join(a.out, "catalog.json")
     if not os.path.exists(cat):
         subprocess.run(ORACLE + ["catalog", "--out", cat], capture_output=True, check=True)
     g = Gen(cat)
-    paths = []
-    for i in range(a.n):
+    paths = sorted(glob.glob(os.path.join(a.out, "*.scenario.json"))) if a.run_existing else []
+    for i in range(0 if a.run_existing else a.n):
         sc = g.scenario(i, a.seed, a)
         p = os.path.join(a.out, f"fm_{a.seed}_{i}.scenario.json")
         sc["name"] = f"fm_{a.seed}_{i}"
