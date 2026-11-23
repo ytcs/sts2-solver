@@ -3,7 +3,7 @@
 //! Fight: the card alone in the deck, 9 energy, against KNOWLEDGE_DEMON_BOSS.
 
 pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
-    [(280, 1, 4, 6), (68, 1, 1, 1)], // ABRASIVE
+    [(68, 1, 1, 1), (280, 1, 4, 6)], // ABRASIVE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // ABUNDANCE
     [(1, 1, 1, 2), (0, 0, 0, 0)], // ACCELERANT
     [(2, 1, 4, 6), (0, 0, 0, 0)], // ACCURACY
@@ -82,7 +82,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(0, 0, 0, 0), (0, 0, 0, 0)], // BRIGHTEST_FLAME
     [(0, 0, 0, 0), (0, 0, 0, 0)], // BUBBLE_BUBBLE
     [(26, 1, 1, 2), (0, 0, 0, 0)], // BUFFER
-    [(259, 1, 2, 3), (68, 1, 2, 3)], // BULK_UP
+    [(68, 1, 2, 3), (259, 1, 2, 3)], // BULK_UP
     [(178, 1, 1, 1), (0, 0, 0, 0)], // BULLET_TIME
     [(0, 0, 0, 0), (0, 0, 0, 0)], // BULLY
     [(0, 0, 0, 0), (0, 0, 0, 0)], // BULWARK
@@ -161,7 +161,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(0, 0, 0, 0), (0, 0, 0, 0)], // DAZED
     [(196, 2, 5, 7), (0, 0, 0, 0)], // DEADLY_POISON
     [(0, 0, 0, 0), (0, 0, 0, 0)], // DEATH
-    [(298, 3, 1, 1), (72, 3, 21, 26)], // DEATHBRINGER
+    [(72, 3, 21, 26), (298, 3, 1, 1)], // DEATHBRINGER
     [(0, 0, 0, 0), (0, 0, 0, 0)], // DEATHS_DOOR
     [(0, 0, 0, 0), (0, 0, 0, 0)], // DEATH_MARCH
     [(63, 2, 2, 3), (0, 0, 0, 0)], // DEBILITATE
@@ -230,7 +230,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(194, 1, 9, 12), (0, 0, 0, 0)], // ETERNAL_ARMOR
     [(0, 0, 0, 0), (0, 0, 0, 0)], // EVIL_EYE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // EXPECT_A_FIGHT
-    [(0, 0, 0, 0), (0, 0, 0, 0)], // EXPERTISE
+    [(212, 1, 1, 1), (0, 0, 0, 0)], // EXPERTISE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // EXPLOSIVE_ARROWS
     [(296, 2, 2, 3), (0, 0, 0, 0)], // EXPOSE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // EXTERMINATE
@@ -245,7 +245,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(96, 1, 1, 1), (0, 0, 0, 0)], // FERAL
     [(0, 0, 0, 0), (0, 0, 0, 0)], // FETCH
     [(0, 0, 0, 0), (0, 0, 0, 0)], // FIEND_FIRE
-    [(259, 1, 3, 4), (259, 2, 1, 1)], // FIGHT_ME
+    [(259, 2, 1, 1), (259, 1, 3, 4)], // FIGHT_ME
     [(0, 0, 0, 0), (0, 0, 0, 0)], // FIGHT_THROUGH
     [(0, 0, 0, 0), (0, 0, 0, 0)], // FINESSE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // FINISHER
@@ -283,7 +283,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(0, 0, 0, 0), (0, 0, 0, 0)], // GLIMPSE_BEYOND
     [(23, 1, 5, 7), (0, 0, 0, 0)], // GLITTERSTREAM
     [(74, 1, 1, 1), (0, 0, 0, 0)], // GLOW
-    [(0, 0, 0, 0), (0, 0, 0, 0)], // GOD_BYRD
+    [(115, 1, 30, 40), (0, 0, 0, 0)], // GOD_BYRD
     [(0, 0, 0, 0), (0, 0, 0, 0)], // GOLD_AXE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // GO_FOR_THE_EYES
     [(0, 0, 0, 0), (0, 0, 0, 0)], // GRAND_FINALE
@@ -303,7 +303,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(0, 0, 0, 0), (0, 0, 0, 0)], // HARMONIC_SHIELD
     [(124, 1, 7, 9), (0, 0, 0, 0)], // HAUNT
     [(0, 0, 0, 0), (0, 0, 0, 0)], // HAVOC
-    [(298, 3, 1, 2), (196, 3, 4, 6)], // HAZE
+    [(196, 3, 4, 6), (298, 3, 1, 2)], // HAZE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // HEADBUTT
     [(0, 0, 0, 0), (0, 0, 0, 0)], // HEAVENLY_DRILL
     [(0, 0, 0, 0), (0, 0, 0, 0)], // HEAVY_SHOT
@@ -325,7 +325,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(134, 1, 2, 2), (102, 1, 2, 2)], // HOTFIX
     [(0, 0, 0, 0), (0, 0, 0, 0)], // HOWL_FROM_BEYOND
     [(0, 0, 0, 0), (0, 0, 0, 0)], // HUDDLE_UP
-    [(135, 1, 3, 3), (102, 1, -3, -3)], // HYPERBEAM
+    [(102, 1, -3, -3), (135, 1, 3, 3)], // HYPERBEAM
     [(0, 0, 0, 0), (0, 0, 0, 0)], // ICE_LANCE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // IGNITION
     [(0, 0, 0, 0), (0, 0, 0, 0)], // IMITATION_LEARNING
@@ -450,7 +450,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(292, 1, 2, 3), (0, 0, 0, 0)], // PATTER
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PECK
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PERFECTED_STRIKE
-    [(191, 1, 9, 12), (0, 0, 0, 0)], // PHANTOM_BLADES
+    [(191, 1, 8, 11), (0, 0, 0, 0)], // PHANTOM_BLADES
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PHOTON_CUT
     [(192, 3, 6, 8), (259, 3, -6, -8)], // PIERCING_WAIL
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PILLAGE
@@ -471,7 +471,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PROLONG
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PROPHESIZE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PROTECTOR
-    [(259, 1, 1, 2), (68, 1, 1, 2)], // PROWESS
+    [(68, 1, 1, 2), (259, 1, 1, 2)], // PROWESS
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PULL_AGGRO
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PULL_FROM_BELOW
     [(0, 0, 0, 0), (0, 0, 0, 0)], // PUNCH_OF_JOY
@@ -503,7 +503,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(0, 0, 0, 0), (0, 0, 0, 0)], // REFLEX
     [(0, 0, 0, 0), (0, 0, 0, 0)], // REFRACT
     [(0, 0, 0, 0), (0, 0, 0, 0)], // REGRET
-    [(80, 1, 2, 3), (74, 1, 2, 3)], // RELAX
+    [(74, 1, 2, 3), (80, 1, 2, 3)], // RELAX
     [(0, 0, 0, 0), (0, 0, 0, 0)], // REND
     [(0, 0, 0, 0), (0, 0, 0, 0)], // REPEAT_SHOT
     [(0, 0, 0, 0), (0, 0, 0, 0)], // RESONANCE
@@ -543,7 +543,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(0, 0, 0, 0), (0, 0, 0, 0)], // SHADOW_SHIELD
     [(227, 1, 1, 1), (0, 0, 0, 0)], // SHADOW_STEP
     [(0, 0, 0, 0), (0, 0, 0, 0)], // SHAME
-    [(259, 1, -2, -2), (259, 2, -2, -3)], // SHARED_FATE
+    [(259, 2, -2, -3), (259, 1, -2, -2)], // SHARED_FATE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // SHATTER
     [(0, 0, 0, 0), (0, 0, 0, 0)], // SHINING_STRIKE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // SHIV
@@ -576,7 +576,7 @@ pub static CARD_POWERS: [[(u16, u8, i16, i16); 2]; crate::ids::card::COUNT] = [
     [(0, 0, 0, 0), (0, 0, 0, 0)], // SOVEREIGN_BLADE
     [(0, 0, 0, 0), (0, 0, 0, 0)], // SOW
     [(247, 1, 1, 1), (0, 0, 0, 0)], // SPECTRUM_SHIFT
-    [(248, 1, 2, 2), (0, 0, 0, 0)], // SPEEDSTER
+    [(248, 1, 3, 3), (0, 0, 0, 0)], // SPEEDSTER
     [(250, 1, 1, 1), (0, 0, 0, 0)], // SPINNER
     [(251, 1, 4, 5), (0, 0, 0, 0)], // SPIRIT_OF_ASH
     [(0, 0, 0, 0), (0, 0, 0, 0)], // SPITE

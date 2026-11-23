@@ -5,7 +5,7 @@ import json, os, sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.join(ROOT, "rl"))
-CHAR = {"IRONCLAD", "SILENT", "DEFECT", "NECROBINDER", "REGENT"}
+CHAR = {"IRONCLAD", "SILENT", "DEFECT", "NECROBINDER", "REGENT", "FOOL"}
 TARGET = {"self": 1, "enemy": 2, "all": 3}
 
 
@@ -36,7 +36,10 @@ def find_encounter(sts2, cat):
 
 
 def play_once(sts2, card, upgrade, character, encounter):
-    sim = sts2.Sim(json.dumps(scenario(card, upgrade, character, encounter)), 1)
+    try:
+        sim = sts2.Sim(json.dumps(scenario(card, upgrade, character, encounter)), 1)
+    except ValueError:  # unported content: empty row until the card is ported
+        return None
     if sim.stage() != "play":
         return None
     pl0, en0 = powers(json.loads(sim.snapshot()))
@@ -78,7 +81,7 @@ def main():
             if r[0]:
                 tgt_all = c.get("target") == "AllEnemies"
                 same = name + "_POWER"
-                keys = sorted(r[0], key=lambda k: (k[0] != same, list(r[0]).index(k)))
+                keys = sorted(r[0], key=lambda k: (k[0] != same, k[0], k[1]))  # deterministic: no set order
                 for k in keys[:2]:
                     a0 = r[0][k]
                     a1 = (r[1] or {}).get(k, a0) if r[1] is not None else a0
