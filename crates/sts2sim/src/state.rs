@@ -79,6 +79,8 @@ pub mod cflag {
     pub const REMOVED: u8 = 1 << 4;
     pub const X_CAPTURED: u8 = 1 << 5;
     pub const IS_CLONE: u8 = 1 << 6;
+    /// `TransformIntoAfterPlay` set by `OnPlay` (target: `Listener::transform_into_after_play`).
+    pub const TRANSFORM_AFTER_PLAY: u8 = 1 << 7;
 }
 
 #[derive(Clone, Copy, Default, Debug)]
